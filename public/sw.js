@@ -1,6 +1,6 @@
 const CACHE_NAME = 'nse-market-mood-v1';
 const urlsToCache = [
-    '/',
+    '/',  // This will now point to public folder
     '/index.html',
     '/styles.css',
     '/app.js',

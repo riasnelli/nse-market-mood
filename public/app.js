@@ -1,6 +1,7 @@
 class MarketMoodApp {
     constructor() {
-        this.apiUrl = '/.netlify/functions/nse-data';
+        // Change to absolute path for public folder
+        this.apiUrl = '/api/nse-data';
         this.init();
     }
 
