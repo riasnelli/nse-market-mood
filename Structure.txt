@@ -1,0 +1,11 @@
+nse-market-mood/
+├── index.html
+├── styles.css
+├── app.js
+├── sw.js
+├── manifest.json
+├── package.json
+├── README.md
+└── netlify/
+    └── functions/
+        └── nse-data.js

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NSE Market Mood</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e40af"/>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 NSE Market Mood</h1>
+            <p class="last-updated">Last updated: <span id="updateTime">-</span></p>
+        </header>
+
+        <main>
+            <div class="mood-card" id="moodCard">
+                <div class="mood-indicator">
+                    <div class="mood-emoji" id="moodEmoji">😐</div>
+                    <div class="mood-text" id="moodText">Loading...</div>
+                </div>
+                <div class="mood-score">
+                    <div class="score-bar">
+                        <div class="score-fill" id="scoreFill"></div>
+                    </div>
+                    <div class="score-text" id="scoreText">-/-</div>
+                </div>
+            </div>
+
+            <div class="data-grid">
+                <div class="data-card">
+                    <h3>NIFTY 50</h3>
+                    <div class="data-value" id="niftyValue">-</div>
+                    <div class="data-change" id="niftyChange">-</div>
+                </div>
+                
+                <div class="data-card">
+                    <h3>BANK NIFTY</h3>
+                    <div class="data-value" id="bankNiftyValue">-</div>
+                    <div class="data-change" id="bankNiftyChange">-</div>
+                </div>
+                
+                <div class="data-card">
+                    <h3>INDIA VIX</h3>
+                    <div class="data-value" id="vixValue">-</div>
+                    <div class="data-change" id="vixChange">-</div>
+                </div>
+            </div>
+
+            <div class="advance-decline">
+                <h3>Market Breadth</h3>
+                <div class="breadth-container">
+                    <div class="breadth-item advance">
+                        <span>Advances</span>
+                        <strong id="advances">-</strong>
+                    </div>
+                    <div class="breadth-item decline">
+                        <span>Declines</span>
+                        <strong id="declines">-</strong>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <button id="refreshBtn" class="refresh-btn">🔄 Refresh</button>
+            <p class="disclaimer">Data from NSE India • Updates every 30 seconds</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

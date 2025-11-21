@@ -1,0 +1,15 @@
+{
+  "name": "nse-market-mood",
+  "version": "1.0.0",
+  "description": "Real-time NSE market sentiment PWA",
+  "main": "app.js",
+  "scripts": {
+    "build": "echo 'No build step required'"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  },
+  "keywords": ["nse", "pwa", "market", "stock"],
+  "author": "Your Name",
+  "license": "MIT"
+}
