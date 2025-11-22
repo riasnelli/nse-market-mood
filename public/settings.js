@@ -15,6 +15,8 @@ class SettingsManager {
                     name: 'Dhan API',
                     type: 'dhan',
                     enabled: false,
+                    tested: false, // Track if API was successfully tested
+                    testStatus: null, // 'success', 'failed', or null
                     config: {
                         clientId: '',
                         accessToken: '',
@@ -97,8 +99,8 @@ class SettingsManager {
                         <input type="radio" name="activeApi" value="${key}" ${this.settings.activeApi === key ? 'checked' : ''}>
                         <span class="api-name">${api.name}</span>
                     </label>
-                    <span class="api-status ${api.enabled ? 'enabled' : 'disabled'}">
-                        ${api.enabled ? '✓ Enabled' : '✗ Disabled'}
+                    <span class="api-status ${api.testStatus === 'success' ? 'enabled' : api.testStatus === 'failed' ? 'disabled' : (api.enabled ? 'enabled' : 'disabled')}">
+                        ${api.testStatus === 'success' ? '✓ Connected' : api.testStatus === 'failed' ? '✗ Failed' : (api.enabled ? '✓ Enabled' : '✗ Not Tested')}
                     </span>
                 </div>
                 ${api.type === 'dhan' ? `
@@ -175,6 +177,7 @@ class SettingsManager {
     updateActiveApiDisplay() {
         const activeApi = document.getElementById('activeApi');
         const dataSource = document.getElementById('dataSource');
+        const apiStatus = document.getElementById('apiStatus');
         const activeApiObj = this.settings.apis[this.settings.activeApi];
 
         if (activeApi) {
@@ -183,6 +186,29 @@ class SettingsManager {
 
         if (dataSource) {
             dataSource.textContent = activeApiObj ? activeApiObj.name : 'NSE India';
+        }
+        
+        // Update status badge in Current Status section
+        if (apiStatus && activeApiObj) {
+            if (activeApiObj.type === 'dhan') {
+                if (activeApiObj.testStatus === 'success') {
+                    apiStatus.textContent = 'Connected';
+                    apiStatus.className = 'status-badge';
+                } else if (activeApiObj.testStatus === 'failed') {
+                    apiStatus.textContent = 'Connection Failed';
+                    apiStatus.className = 'status-badge error';
+                } else if (activeApiObj.enabled) {
+                    apiStatus.textContent = 'Not Tested';
+                    apiStatus.className = 'status-badge';
+                } else {
+                    apiStatus.textContent = 'Not Configured';
+                    apiStatus.className = 'status-badge error';
+                }
+            } else {
+                // NSE API - always connected (free API)
+                apiStatus.textContent = 'Connected';
+                apiStatus.className = 'status-badge';
+            }
         }
     }
 
@@ -276,6 +302,40 @@ class SettingsManager {
         // Get active API from radio buttons
         const activeRadio = document.querySelector('input[name="activeApi"]:checked');
         if (activeRadio) {
+            const selectedApi = this.settings.apis[activeRadio.value];
+            
+            // Validate: Don't allow saving Dhan API as active if test failed
+            if (selectedApi && selectedApi.type === 'dhan') {
+                // Check if credentials are provided
+                if (!selectedApi.config.clientId || !selectedApi.config.accessToken) {
+                    this.showNotification('Please enter Dhan API credentials before saving', 'error');
+                    return;
+                }
+                
+                // Check if test was successful
+                if (selectedApi.testStatus === 'failed') {
+                    const confirmSave = confirm(
+                        'Dhan API test connection failed. Saving will switch to Dhan API which may not work.\n\n' +
+                        'Do you want to continue anyway?\n\n' +
+                        'Recommendation: Fix the API connection first or use NSE India instead.'
+                    );
+                    
+                    if (!confirmSave) {
+                        return; // Don't save if user cancels
+                    }
+                } else if (!selectedApi.tested) {
+                    // Not tested yet - warn user
+                    const confirmSave = confirm(
+                        'Dhan API has not been tested yet. It\'s recommended to test the connection first.\n\n' +
+                        'Do you want to save without testing?'
+                    );
+                    
+                    if (!confirmSave) {
+                        return; // Don't save if user cancels
+                    }
+                }
+            }
+            
             this.settings.activeApi = activeRadio.value;
         }
 
@@ -315,6 +375,10 @@ class SettingsManager {
         const apiItem = document.querySelector(`[data-api="${apiKey}"]`)?.closest('.api-item');
         let statusBadge = apiItem?.querySelector('.api-status');
 
+        // Mark as being tested
+        api.tested = true;
+        api.testStatus = null;
+
         if (statusBadge) {
             statusBadge.textContent = 'Testing...';
             statusBadge.className = 'api-status testing';
@@ -341,6 +405,7 @@ class SettingsManager {
                     statusBadge.className = 'api-status enabled';
                 }
                 api.enabled = true;
+                api.testStatus = 'success';
                 this.showNotification(`${api.name} connection successful!`, 'success');
             } else {
                 if (statusBadge) {
@@ -348,6 +413,7 @@ class SettingsManager {
                     statusBadge.className = 'api-status disabled';
                 }
                 api.enabled = false;
+                api.testStatus = 'failed';
                 this.showNotification(data.message || 'Connection failed', 'error');
             }
         } catch (error) {
@@ -356,8 +422,12 @@ class SettingsManager {
                 statusBadge.className = 'api-status disabled';
             }
             api.enabled = false;
+            api.testStatus = 'failed';
             this.showNotification('Failed to test connection', 'error');
         }
+        
+        // Update the settings to reflect test status
+        this.saveSettings();
     }
 
     showNotification(message, type = 'success') {

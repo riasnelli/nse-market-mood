@@ -39,6 +39,17 @@ class MarketMoodApp {
         this.stopPolling();
         // Update API URL
         this.updateApiUrl();
+        
+        // Check if the selected API is actually working
+        if (window.settingsManager) {
+            const apiConfig = window.settingsManager.getActiveApiConfig();
+            if (apiConfig && apiConfig.type === 'dhan' && apiConfig.testStatus === 'failed') {
+                // Dhan API failed - show warning and fallback to NSE
+                console.warn('Dhan API test failed, but user saved anyway. Attempting to use it...');
+                // Still try to load, but it will likely fail and show mock data
+            }
+        }
+        
         // Reload data with new API
         this.loadData().then(() => {
             // Restart polling if market is open
