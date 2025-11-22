@@ -57,10 +57,61 @@
 
         <footer>
             <button id="refreshBtn" class="refresh-btn">🔄 Refresh</button>
-            <p class="disclaimer">Data from NSE India • Updates every 30 seconds during market hours</p>
+            <div class="footer-actions">
+                <button id="settingsBtn" class="settings-btn" title="Settings">⚙️</button>
+            </div>
+            <p class="disclaimer">Data from <span id="dataSource">NSE India</span> • Updates every 30 seconds during market hours</p>
         </footer>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Settings</h2>
+                <button class="modal-close" id="closeSettings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>API Configuration</h3>
+                    <div class="form-group">
+                        <label for="apiProvider">Data Source:</label>
+                        <select id="apiProvider" class="form-control">
+                            <option value="nse">NSE India (Free)</option>
+                            <option value="dhan">Dhan API</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-section" id="dhanConfig" style="display: none;">
+                    <h3>Dhan API Configuration</h3>
+                    <div class="form-group">
+                        <label for="dhanClientId">Client ID:</label>
+                        <input type="text" id="dhanClientId" class="form-control" placeholder="Enter Dhan Client ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="dhanAccessToken">Access Token:</label>
+                        <input type="password" id="dhanAccessToken" class="form-control" placeholder="Enter Dhan Access Token">
+                    </div>
+                    <button id="testDhanBtn" class="btn-secondary">Test Connection</button>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Current Status</h3>
+                    <div class="status-info">
+                        <p>Active API: <strong id="activeApi">NSE India</strong></p>
+                        <p id="apiStatus" class="status-badge">Connected</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveSettings" class="btn-primary">Save Settings</button>
+                <button id="cancelSettings" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="settings.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

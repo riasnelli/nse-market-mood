@@ -6,6 +6,14 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/dhan-data.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/test-dhan.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
@@ -14,6 +22,14 @@
     {
       "src": "/api/nse-data",
       "dest": "/api/nse-data.js"
+    },
+    {
+      "src": "/api/dhan-data",
+      "dest": "/api/dhan-data.js"
+    },
+    {
+      "src": "/api/test-dhan",
+      "dest": "/api/test-dhan.js"
     },
     {
       "src": "/(.*)",

@@ -1,9 +1,33 @@
 class MarketMoodApp {
     constructor() {
-        this.apiUrl = '/api/nse-data';
         this.timerId = null;
         this.lastMarketStatus = null; // Store last known market status
+        this.updateApiUrl();
         this.init();
+    }
+
+    updateApiUrl() {
+        // Get API provider from settings
+        if (window.settingsManager) {
+            const provider = window.settingsManager.getApiProvider();
+            this.apiUrl = provider === 'dhan' ? '/api/dhan-data' : '/api/nse-data';
+        } else {
+            this.apiUrl = '/api/nse-data';
+        }
+    }
+
+    reloadWithNewAPI() {
+        // Stop current polling
+        this.stopPolling();
+        // Update API URL
+        this.updateApiUrl();
+        // Reload data with new API
+        this.loadData().then(() => {
+            // Restart polling if market is open
+            if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+                this.startPolling();
+            }
+        });
     }
 
     init() {
@@ -43,7 +67,26 @@ class MarketMoodApp {
             this.setLoading(true);
             console.log('Fetching from:', this.apiUrl);
 
-            const response = await fetch(this.apiUrl);
+            // Get API provider and credentials
+            let requestOptions = {};
+            if (window.settingsManager) {
+                const settings = window.settingsManager.getSettings();
+                if (settings.apiProvider === 'dhan' && settings.dhanAccessToken) {
+                    // Send credentials for Dhan API
+                    requestOptions = {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            clientId: settings.dhanClientId,
+                            accessToken: settings.dhanAccessToken
+                        })
+                    };
+                }
+            }
+
+            const response = await fetch(this.apiUrl, requestOptions);
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
