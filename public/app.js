@@ -268,15 +268,6 @@ class MarketMoodApp {
                 }
             }
             
-            // Check if Dhan API is active - don't show mock data for Dhan errors
-            const activeApi = window.settingsManager?.settings?.activeApi;
-            if (activeApi === 'dhan') {
-                console.error('Dhan API error - not using mock data. Error:', error.message);
-                // Show error in UI instead of mock data
-                this.showErrorInUI('Dhan API Error: ' + error.message);
-                return;
-            }
-            
             // Use mock data as fallback only for NSE API
             this.useMockData();
             // Update timestamp on error
