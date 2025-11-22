@@ -112,6 +112,7 @@ class MarketMoodApp {
             
             // Check if we got valid data
             const hasValidData = data.indices && data.indices.length > 0;
+            console.log(`Valid data: ${hasValidData}, Indices count: ${data.indices?.length || 0}`);
             
             // Store market status from API response
             if (data.marketStatus) {
@@ -123,7 +124,7 @@ class MarketMoodApp {
                     console.log('Market status from API:', this.lastMarketStatus);
                 } else {
                     // Invalid data but API responded - might be transient error
-                    console.warn('API responded but no valid data. Keeping last known status.');
+                    console.warn(`API responded but no valid data (${this.consecutiveFailures + 1}/${this.maxFailures} failures). Keeping last known status.`);
                     this.consecutiveFailures++;
                     
                     // Use last successful status if available
@@ -162,15 +163,17 @@ class MarketMoodApp {
             this.updateLastUpdated(new Date());
 
         } catch (error) {
-            console.error('Error fetching data:', error);
+            console.error(`Error fetching data (attempt ${retryCount + 1}):`, error);
             this.consecutiveFailures++;
             
             // Retry on transient errors
             if (retryCount < maxRetries && (error.message.includes('fetch') || error.message.includes('network'))) {
-                console.log(`Retrying... (${retryCount + 1}/${maxRetries})`);
+                console.log(`Retrying in 2 seconds... (${retryCount + 1}/${maxRetries})`);
                 await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
                 return this.loadData(retryCount + 1);
             }
+            
+            console.log(`Failed after ${retryCount + 1} attempts. Consecutive failures: ${this.consecutiveFailures}/${this.maxFailures}`);
             
             // After max failures, mark as closed
             if (this.consecutiveFailures >= this.maxFailures) {
