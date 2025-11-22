@@ -32,7 +32,16 @@ class SettingsManager {
 
     init() {
         this.loadSettings();
-        this.setupEventListeners();
+        // Wait for DOM to be ready before setting up event listeners
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                this.setupEventListeners();
+                this.applySettings(); // Apply settings after DOM is ready
+            });
+        } else {
+            this.setupEventListeners();
+            this.applySettings(); // DOM already ready
+        }
     }
 
     loadSettings() {
@@ -80,15 +89,20 @@ class SettingsManager {
     }
 
     applySettings() {
-        // Update UI
-        this.updateApiList();
+        // Update UI only if elements exist
+        if (document.getElementById('apiList')) {
+            this.updateApiList();
+        }
         this.updateActiveApiDisplay();
         this.updateConfigForms();
     }
 
     updateApiList() {
         const apiListContainer = document.getElementById('apiList');
-        if (!apiListContainer) return;
+        if (!apiListContainer) {
+            console.warn('apiList container not found');
+            return;
+        }
 
         apiListContainer.innerHTML = '';
         
@@ -261,7 +275,10 @@ class SettingsManager {
         if (settingsBtn && settingsModal) {
             settingsBtn.addEventListener('click', () => {
                 settingsModal.classList.add('show');
-                this.applySettings(); // Refresh settings in modal
+                // Refresh settings in modal when opened
+                this.updateApiList();
+                this.updateActiveApiDisplay();
+                this.updateConfigForms();
             });
         }
 
