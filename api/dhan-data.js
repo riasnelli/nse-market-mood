@@ -629,76 +629,50 @@ function processDhanData(data) {
       return id === 'BANKNIFTY' || id === 'NIFTY BANK' || id.includes('BANKNIFTY') || id === 'NIFTY_BANK';
     });
 
-    const vix = indices.find(idx => {
-      const id = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
+    const vix = processedIndices.find(idx => {
+      const id = (idx.symbol || idx.name || '').toString().toUpperCase();
       return id === 'INDIAVIX' || id === 'INDIA VIX' || id.includes('VIX');
     });
 
-    // Process all indices with correct field mapping
-    // Dhan API Market Quote fields can be:
-    // - securityId: symbol identifier
-    // - LTP: Last Traded Price
-    // - change: price change (absolute)
-    // - changePercent: percentage change
-    // - open, high, low, close: OHLC values
-    // - previousClose: previous day's close
-    
-    const processedIndices = indices.map((idx, index) => {
-      // Extract symbol/name
-      const symbol = idx.securityId || idx.symbol || idx.name || idx.indexName || idx.instrument || `INDEX_${index}`;
-      
-      // Extract price - try multiple field names
-      const lastPrice = idx.LTP || idx.lastPrice || idx.ltp || idx.close || idx.price || idx.currentPrice || 0;
-      
-      // Extract change - can be absolute change or calculated
-      let change = idx.change || idx.changeValue || idx.priceChange || idx.netChange || 0;
-      
-      // Extract percentage change
-      let pChange = idx.changePercent || idx.pChange || idx.percentChange || idx.changePercentage || 0;
-      
-      // If we have LTP and previousClose, calculate change
-      if (!change && idx.previousClose && lastPrice) {
-        change = parseFloat(lastPrice) - parseFloat(idx.previousClose);
-      }
-      
-      // If we have change and previousClose, calculate percentage
-      if (!pChange && idx.previousClose && change) {
-        pChange = (parseFloat(change) / parseFloat(idx.previousClose)) * 100;
-      }
-      
-      const processed = {
-        symbol: String(symbol).trim(),
-        lastPrice: parseFloat(lastPrice) || 0,
-        change: parseFloat(change) || 0,
-        pChange: parseFloat(pChange) || 0
-      };
-      
-      // Log if we got zero values (might indicate wrong field mapping)
-      if (processed.lastPrice === 0 && index < 3) {
-        console.warn(`Index ${index} (${symbol}) has zero price. Raw data:`, JSON.stringify(idx));
-      }
-      
-      return processed;
-    });
-    
     console.log(`Processed ${processedIndices.length} indices`);
     console.log('Sample processed indices (first 3):', processedIndices.slice(0, 3));
 
-    // Calculate mood score
-    const moodScore = calculateMoodFromDhan(indices);
+    // Calculate mood score from processed indices
+    const moodScore = calculateMoodFromDhan(processedIndices);
     const mood = getMoodFromScore(moodScore);
 
     // Calculate market breadth from processed indices
-    const advances = processedIndices.filter(idx => idx.pChange > 0).length;
-    const declines = processedIndices.filter(idx => idx.pChange < 0).length;
+    const advances = processedIndices.filter(idx => idx.changePercent > 0).length;
+    const declines = processedIndices.filter(idx => idx.changePercent < 0).length;
+
+    // Get NIFTY 50 data for mood calculation
+    const nifty50Data = nifty50 ? {
+      last: nifty50.lastPrice,
+      change: nifty50.change,
+      changePercent: nifty50.changePercent
+    } : {
+      last: 0,
+      change: 0,
+      changePercent: 0
+    };
 
     return {
-      mood: mood,
-      indices: processedIndices,
+      mood: moodScore,
+      nifty50: nifty50Data,
+      indices: processedIndices.map(idx => ({
+        symbol: idx.symbol,
+        name: idx.name,
+        lastPrice: idx.lastPrice,
+        change: idx.change,
+        changePercent: idx.changePercent,
+        dayHigh: idx.dayHigh,
+        dayLow: idx.dayLow,
+        volume: idx.volume
+      })),
       vix: vix ? {
-        last: parseFloat(vix.LTP || vix.lastPrice || vix.close || 0),
-        change: parseFloat(vix.change || vix.changeValue || 0),
-        pChange: parseFloat(vix.changePercent || vix.pChange || 0)
+        last: vix.lastPrice,
+        change: vix.change,
+        pChange: vix.changePercent
       } : {
         last: 0,
         change: 0,
