@@ -105,8 +105,14 @@ class SettingsManager {
                     <div class="api-config" id="config-${key}">
                         <input type="text" placeholder="Client ID" class="form-control api-input" 
                                data-api="${key}" data-field="clientId" value="${api.config.clientId || ''}">
-                        <input type="password" placeholder="Access Token" class="form-control api-input" 
-                               data-api="${key}" data-field="accessToken" value="${api.config.accessToken || ''}">
+                        <div class="password-input-wrapper">
+                            <input type="password" placeholder="Access Token" class="form-control api-input password-input" 
+                                   data-api="${key}" data-field="accessToken" 
+                                   id="token-${key}" value="${api.config.accessToken || ''}">
+                            <button type="button" class="toggle-password" data-target="token-${key}" title="Show/Hide">
+                                <span class="eye-icon">👁️</span>
+                            </button>
+                        </div>
                         <input type="text" placeholder="Custom Endpoint (optional, e.g., /v2/market-quote/indices)" 
                                class="form-control api-input" 
                                data-api="${key}" data-field="customEndpoint" 
@@ -141,6 +147,27 @@ class SettingsManager {
             btn.addEventListener('click', (e) => {
                 const apiKey = e.target.dataset.api;
                 this.testApiConnection(apiKey);
+            });
+        });
+
+        // Add toggle password functionality
+        document.querySelectorAll('.toggle-password').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetId = e.target.closest('.toggle-password').dataset.target;
+                const input = document.getElementById(targetId);
+                const eyeIcon = e.target.closest('.toggle-password').querySelector('.eye-icon');
+                
+                if (input) {
+                    if (input.type === 'password') {
+                        input.type = 'text';
+                        eyeIcon.textContent = '🙈';
+                        eyeIcon.title = 'Hide';
+                    } else {
+                        input.type = 'password';
+                        eyeIcon.textContent = '👁️';
+                        eyeIcon.title = 'Show';
+                    }
+                }
             });
         });
     }
