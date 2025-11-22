@@ -401,8 +401,8 @@ class SettingsManager {
         this.showNotification('Settings saved successfully!');
     }
 
-    async testApiConnection(apiKey) {
-        const api = this.settings.apis[apiKey];
+    async testApiConnection(apiKeyParam) {
+        const api = this.settings.apis[apiKeyParam];
         if (!api || api.type !== 'dhan') {
             return;
         }
@@ -425,7 +425,7 @@ class SettingsManager {
         }
 
         // Find status badge for this API
-        const apiItem = document.querySelector(`[data-api="${apiKey}"]`)?.closest('.api-item');
+        const apiItem = document.querySelector(`[data-api="${apiKeyParam}"]`)?.closest('.api-item');
         let statusBadge = apiItem?.querySelector('.api-status');
 
         // Mark as being tested
