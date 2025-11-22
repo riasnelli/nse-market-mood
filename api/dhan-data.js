@@ -197,8 +197,37 @@ module.exports = async (req, res) => {
     // Log the raw response to understand structure
     console.log('Dhan API raw response:', JSON.stringify(indicesData, null, 2).substring(0, 1000));
     
+    // Store indicesData in outer scope for error handling
+    let rawResponseData = indicesData;
+    
     // Process Dhan API response
-    const processedData = processDhanData(indicesData);
+    let processedData;
+    try {
+      processedData = processDhanData(indicesData);
+    } catch (processError) {
+      // If processing fails, include raw data in error
+      console.error('Error processing Dhan data:', processError);
+      return res.status(200).json({
+        error: true,
+        message: processError.message,
+        note: 'Dhan API response received but data structure unexpected',
+        debug: {
+          rawResponse: {
+            type: typeof rawResponseData,
+            isArray: Array.isArray(rawResponseData),
+            keys: Object.keys(rawResponseData || {}),
+            sample: JSON.stringify(rawResponseData).substring(0, 3000)
+          },
+          errorDetails: processError.dataStructure || {}
+        },
+        marketStatus: {
+          isOpen: false,
+          verified: false,
+          reason: 'DATA_PARSING_ERROR',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
     
     // Add market status
     processedData.marketStatus = {
@@ -212,9 +241,10 @@ module.exports = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching Dhan data:', error);
+    console.error('Error stack:', error.stack);
     
-    // Return error response
-    res.status(200).json({
+    // Include raw data structure in error for debugging
+    const errorResponse = {
       error: true,
       message: error.message,
       note: 'Dhan API failed - check credentials',
@@ -224,7 +254,28 @@ module.exports = async (req, res) => {
         reason: 'API_ERROR',
         timestamp: new Date().toISOString()
       }
-    });
+    };
+    
+    // Add debugging info if available
+    if (error.rawData) {
+      errorResponse.debug = {
+        dataStructure: error.dataStructure,
+        rawDataSample: JSON.stringify(error.rawData).substring(0, 2000)
+      };
+    }
+    
+    // Also log the raw response if we got one
+    if (typeof indicesData !== 'undefined') {
+      errorResponse.debug = errorResponse.debug || {};
+      errorResponse.debug.receivedData = {
+        type: typeof indicesData,
+        isArray: Array.isArray(indicesData),
+        keys: Object.keys(indicesData || {}),
+        sample: JSON.stringify(indicesData).substring(0, 2000)
+      };
+    }
+    
+    res.status(200).json(errorResponse);
   }
 };
 
@@ -294,7 +345,15 @@ function processDhanData(data) {
     if (indices.length === 0) {
       console.error('No indices found in response!');
       console.error('Full data structure:', JSON.stringify(data, null, 2));
-      throw new Error('No indices data found in Dhan API response');
+      const error = new Error('No indices data found in Dhan API response');
+      error.rawData = data;
+      error.dataStructure = {
+        type: typeof data,
+        isArray: Array.isArray(data),
+        keys: Object.keys(data || {}),
+        sample: JSON.stringify(data).substring(0, 1000)
+      };
+      throw error;
     }
     
     // Log first index structure
