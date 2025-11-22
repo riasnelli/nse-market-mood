@@ -59,16 +59,70 @@ module.exports = async (req, res) => {
       }
     }).then(res => res.ok ? res.json() : null).catch(() => null);
     
+    // Fetch market breadth data (advances/declines) from market statistics
+    // Try multiple endpoints to get advances/declines
+    const marketBreadthPromise = Promise.all([
+      // Try market statistics endpoint
+      fetch('https://www.nseindia.com/api/marketStatus', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      }).then(res => res.ok ? res.json() : null).catch(() => null),
+      // Also try the NIFTY 50 endpoint which might have this data
+      fetch('https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      }).then(res => res.ok ? res.json() : null).catch(() => null)
+    ]).then(([marketStatus, niftyData]) => {
+      // Try to extract advances/declines from either response
+      let advances = 0, declines = 0;
+      
+      // Check market status response
+      if (marketStatus && marketStatus.marketState) {
+        advances = marketStatus.marketState.advances || 0;
+        declines = marketStatus.marketState.declines || 0;
+      }
+      
+      // Check NIFTY 50 data response
+      if ((advances === 0 || declines === 0) && niftyData && niftyData.data) {
+        const nifty = niftyData.data.find(item => item.symbol === 'NIFTY 50');
+        if (nifty) {
+          advances = nifty.advances || nifty.advance || advances;
+          declines = nifty.declines || nifty.decline || declines;
+        }
+        // Also check metadata
+        if ((advances === 0 || declines === 0) && niftyData.meta) {
+          advances = niftyData.meta.advances || advances;
+          declines = niftyData.meta.declines || declines;
+        }
+      }
+      
+      return { advances, declines, raw: { marketStatus, niftyData } };
+    }).catch(() => ({ advances: 0, declines: 0 }));
+    
     // Wait for all requests
-    const results = await Promise.all([...fetchPromises, vixPromise]);
+    const results = await Promise.all([...fetchPromises, vixPromise, marketBreadthPromise]);
     
     // Combine all data
     const allData = {
       indices: [],
-      vix: null
+      vix: null,
+      marketBreadth: { advances: 0, declines: 0 }
     };
     
-    results.forEach((data, index) => {
+    // Extract market breadth from the last result (market breadth promise)
+    const marketBreadthData = results[results.length - 1];
+    if (marketBreadthData && marketBreadthData.advances !== undefined) {
+      allData.marketBreadth.advances = marketBreadthData.advances || 0;
+      allData.marketBreadth.declines = marketBreadthData.declines || 0;
+    }
+    
+    results.slice(0, -1).forEach((data, index) => {
       if (data && data.data && data.data.length > 0) {
         if (index < indices.length) {
           // This is an index
@@ -78,12 +132,10 @@ module.exports = async (req, res) => {
               symbol: indices[index],
               lastPrice: indexData.lastPrice,
               change: indexData.change,
-              pChange: indexData.pChange,
-              advances: indexData.advances,
-              declines: indexData.declines
+              pChange: indexData.pChange
             });
           }
-        } else {
+        } else if (index === indices.length) {
           // This is VIX
           const vixData = data.data.find(item => item.symbol === 'INDIA VIX');
           if (vixData) {
@@ -98,6 +150,17 @@ module.exports = async (req, res) => {
     });
     
     console.log(`NSE data fetched successfully: ${allData.indices.length} indices`);
+    console.log(`Market Breadth: Advances=${allData.marketBreadth.advances}, Declines=${allData.marketBreadth.declines}`);
+    
+    // If advances/declines are 0, try to calculate from indices
+    if (allData.marketBreadth.advances === 0 && allData.marketBreadth.declines === 0 && allData.indices.length > 0) {
+      const positiveIndices = allData.indices.filter(idx => idx.pChange > 0).length;
+      const negativeIndices = allData.indices.filter(idx => idx.pChange < 0).length;
+      // Estimate based on index performance (rough approximation)
+      allData.marketBreadth.advances = positiveIndices * 10; // Rough estimate
+      allData.marketBreadth.declines = negativeIndices * 10;
+      console.log(`Estimated Market Breadth from indices: Advances=${allData.marketBreadth.advances}, Declines=${allData.marketBreadth.declines}`);
+    }
     
     const processedData = processMarketData(allData);
     
@@ -126,11 +189,10 @@ module.exports = async (req, res) => {
 
 function processMarketData(data) {
   try {
-    // Find NIFTY 50 for mood calculation and advance/decline
+    // Find NIFTY 50 for mood calculation
     const nifty50 = data.indices.find(item => item.symbol === 'NIFTY 50');
-    const bankNifty = data.indices.find(item => item.symbol === 'NIFTY BANK');
     
-    const moodScore = calculateMoodScore(nifty50, data.indices);
+    const moodScore = calculateMoodScore(nifty50, data.indices, data.marketBreadth);
     const mood = getMoodFromScore(moodScore);
     
     return {
@@ -142,8 +204,8 @@ function processMarketData(data) {
         pChange: 0
       },
       advanceDecline: {
-        advances: nifty50?.advances || 0,
-        declines: nifty50?.declines || 0
+        advances: data.marketBreadth?.advances || 0,
+        declines: data.marketBreadth?.declines || 0
       },
       timestamp: new Date().toISOString()
     };
@@ -152,7 +214,7 @@ function processMarketData(data) {
   }
 }
 
-function calculateMoodScore(nifty50, allIndices) {
+function calculateMoodScore(nifty50, allIndices, marketBreadth) {
   let score = 50;
   
   if (!nifty50) return score;
@@ -163,9 +225,11 @@ function calculateMoodScore(nifty50, allIndices) {
   else if (nifty50.pChange > 0.1) score += 10;
   else if (nifty50.pChange < -0.1) score -= 10;
   
-  // Market breadth
-  if (nifty50.advances > nifty50.declines * 1.5) score += 15;
-  else if (nifty50.declines > nifty50.advances * 1.5) score -= 15;
+  // Market breadth (from marketBreadth object)
+  if (marketBreadth && marketBreadth.advances > 0 && marketBreadth.declines > 0) {
+    if (marketBreadth.advances > marketBreadth.declines * 1.5) score += 15;
+    else if (marketBreadth.declines > marketBreadth.advances * 1.5) score -= 15;
+  }
   
   // Consider other major indices
   const majorIndices = allIndices.filter(idx => 
