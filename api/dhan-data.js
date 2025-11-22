@@ -131,6 +131,9 @@ module.exports = async (req, res) => {
             indicesData = await response.json();
             workingEndpoint = endpoint;
             console.log(`Successfully connected to Dhan API: ${fullUrl}`);
+            console.log(`Response type: ${typeof indicesData}, Is Array: ${Array.isArray(indicesData)}`);
+            console.log(`Response keys: ${Object.keys(indicesData || {}).join(', ')}`);
+            console.log(`Sample response (first 2000 chars): ${JSON.stringify(indicesData).substring(0, 2000)}`);
             break;
           } else if (response.status === 401 || response.status === 403) {
             // Auth error - endpoint exists but credentials wrong
@@ -227,33 +230,76 @@ module.exports = async (req, res) => {
 
 function processDhanData(data) {
   try {
-    console.log('Processing Dhan data, raw structure:', {
-      isArray: Array.isArray(data),
-      hasData: !!data.data,
-      hasIndices: !!data.indices,
-      keys: Object.keys(data || {})
-    });
+    console.log('=== Processing Dhan Data ===');
+    console.log('Raw data type:', typeof data);
+    console.log('Is Array:', Array.isArray(data));
+    console.log('Keys:', Object.keys(data || {}));
+    console.log('Full raw data:', JSON.stringify(data, null, 2).substring(0, 3000));
     
     // Dhan API Market Quote response structure
-    // Response can be an array or object with data property
+    // Response can be:
+    // 1. Array of objects: [{securityId: 'NIFTY 50', LTP: 21500, ...}, ...]
+    // 2. Object with data property: {data: [{...}, ...]}
+    // 3. Object with keys as securityIds: {'NIFTY 50': {LTP: 21500, ...}, ...}
+    // 4. Object with nested structure: {result: [{...}, ...]}
+    
     let indices = [];
     
     if (Array.isArray(data)) {
+      // Direct array response
       indices = data;
-    } else if (data.data && Array.isArray(data.data)) {
-      indices = data.data;
-    } else if (data.indices && Array.isArray(data.indices)) {
-      indices = data.indices;
-    } else if (typeof data === 'object') {
-      // If it's an object, try to extract array values
-      const values = Object.values(data);
-      indices = values.find(v => Array.isArray(v)) || [];
+      console.log('Using direct array, length:', indices.length);
+    } else if (data && typeof data === 'object') {
+      // Check for common data properties
+      if (data.data && Array.isArray(data.data)) {
+        indices = data.data;
+        console.log('Using data.data array, length:', indices.length);
+      } else if (data.indices && Array.isArray(data.indices)) {
+        indices = data.indices;
+        console.log('Using data.indices array, length:', indices.length);
+      } else if (data.result && Array.isArray(data.result)) {
+        indices = data.result;
+        console.log('Using data.result array, length:', indices.length);
+      } else if (data.response && Array.isArray(data.response)) {
+        indices = data.response;
+        console.log('Using data.response array, length:', indices.length);
+      } else {
+        // Check if object keys are securityIds (object with securityId as keys)
+        const keys = Object.keys(data);
+        const firstValue = data[keys[0]];
+        
+        // If values are objects with LTP/price fields, treat keys as securityIds
+        if (keys.length > 0 && firstValue && typeof firstValue === 'object' && 
+            (firstValue.LTP !== undefined || firstValue.lastPrice !== undefined || firstValue.price !== undefined)) {
+          // Convert object to array format
+          indices = keys.map(key => ({
+            securityId: key,
+            ...data[key]
+          }));
+          console.log('Converted object keys to array, length:', indices.length);
+        } else {
+          // Try to find any array in the object
+          const values = Object.values(data);
+          const arrayValue = values.find(v => Array.isArray(v) && v.length > 0);
+          if (arrayValue) {
+            indices = arrayValue;
+            console.log('Found array in object values, length:', indices.length);
+          }
+        }
+      }
     }
     
-    console.log(`Found ${indices.length} indices in response`);
+    console.log(`Final indices array length: ${indices.length}`);
     
     if (indices.length === 0) {
-      console.log('No indices found, raw data:', JSON.stringify(data).substring(0, 500));
+      console.error('No indices found in response!');
+      console.error('Full data structure:', JSON.stringify(data, null, 2));
+      throw new Error('No indices data found in Dhan API response');
+    }
+    
+    // Log first index structure
+    if (indices.length > 0) {
+      console.log('First index sample:', JSON.stringify(indices[0], null, 2));
     }
     
     // Dhan API Market Quote fields:
@@ -280,22 +326,54 @@ function processDhanData(data) {
     });
 
     // Process all indices with correct field mapping
-    const processedIndices = indices.map(idx => {
-      // Dhan API uses securityId, LTP, change, changePercent
-      const symbol = idx.securityId || idx.symbol || idx.name || idx.indexName || 'UNKNOWN';
-      const lastPrice = idx.LTP || idx.lastPrice || idx.close || idx.ltp || 0;
-      const change = idx.change || idx.changeValue || idx.priceChange || 0;
-      const pChange = idx.changePercent || idx.pChange || idx.changePercent || 0;
+    // Dhan API Market Quote fields can be:
+    // - securityId: symbol identifier
+    // - LTP: Last Traded Price
+    // - change: price change (absolute)
+    // - changePercent: percentage change
+    // - open, high, low, close: OHLC values
+    // - previousClose: previous day's close
+    
+    const processedIndices = indices.map((idx, index) => {
+      // Extract symbol/name
+      const symbol = idx.securityId || idx.symbol || idx.name || idx.indexName || idx.instrument || `INDEX_${index}`;
       
-      return {
-        symbol: symbol,
+      // Extract price - try multiple field names
+      const lastPrice = idx.LTP || idx.lastPrice || idx.ltp || idx.close || idx.price || idx.currentPrice || 0;
+      
+      // Extract change - can be absolute change or calculated
+      let change = idx.change || idx.changeValue || idx.priceChange || idx.netChange || 0;
+      
+      // Extract percentage change
+      let pChange = idx.changePercent || idx.pChange || idx.percentChange || idx.changePercentage || 0;
+      
+      // If we have LTP and previousClose, calculate change
+      if (!change && idx.previousClose && lastPrice) {
+        change = parseFloat(lastPrice) - parseFloat(idx.previousClose);
+      }
+      
+      // If we have change and previousClose, calculate percentage
+      if (!pChange && idx.previousClose && change) {
+        pChange = (parseFloat(change) / parseFloat(idx.previousClose)) * 100;
+      }
+      
+      const processed = {
+        symbol: String(symbol).trim(),
         lastPrice: parseFloat(lastPrice) || 0,
         change: parseFloat(change) || 0,
         pChange: parseFloat(pChange) || 0
       };
+      
+      // Log if we got zero values (might indicate wrong field mapping)
+      if (processed.lastPrice === 0 && index < 3) {
+        console.warn(`Index ${index} (${symbol}) has zero price. Raw data:`, JSON.stringify(idx));
+      }
+      
+      return processed;
     });
     
     console.log(`Processed ${processedIndices.length} indices`);
+    console.log('Sample processed indices (first 3):', processedIndices.slice(0, 3));
 
     // Calculate mood score
     const moodScore = calculateMoodFromDhan(indices);
