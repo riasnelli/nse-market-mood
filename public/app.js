@@ -140,26 +140,40 @@ class MarketMoodApp {
             
             // Check for API errors (especially Dhan API)
             if (data.error) {
-                console.error('API returned error:', data.message || data.error);
+                console.error('❌ API returned error:', data.message || data.error);
                 // Log debug info if available
                 if (data.debug) {
-                    console.error('=== Dhan API Debug Info ===');
+                    console.group('🔍 Dhan API Debug Info');
                     console.error('Raw response type:', data.debug.rawResponse?.type);
                     console.error('Is array:', data.debug.rawResponse?.isArray);
                     console.error('Response keys:', data.debug.rawResponse?.keys);
                     console.error('Raw response sample:', data.debug.rawResponse?.sample || data.debug.receivedData?.sample);
-                    console.error('Full debug object:', JSON.stringify(data.debug, null, 2));
+                    
+                    // Show full structure in a more accessible way
+                    if (data.debug.fullStructure) {
+                        console.error('📋 Full Response Structure:');
+                        try {
+                            const parsed = JSON.parse(data.debug.fullStructure);
+                            console.error(parsed);
+                            console.error('📋 Full Structure (JSON):', data.debug.fullStructure);
+                        } catch (e) {
+                            console.error('📋 Full Structure (raw):', data.debug.fullStructure);
+                        }
+                    } else {
+                        console.error('📋 Full Debug Object:', JSON.stringify(data.debug, null, 2));
+                    }
                     
                     // Try to parse the response ourselves if we have the raw data
                     if (data.debug.rawResponse?.sample) {
                         try {
                             const rawData = JSON.parse(data.debug.rawResponse.sample);
-                            console.error('Parsed raw data structure:', rawData);
-                            console.error('Parsed data keys:', Object.keys(rawData || {}));
+                            console.error('✅ Parsed raw data structure:', rawData);
+                            console.error('✅ Parsed data keys:', Object.keys(rawData || {}));
                         } catch (e) {
-                            console.error('Could not parse raw response sample');
+                            console.error('⚠️ Could not parse raw response sample');
                         }
                     }
+                    console.groupEnd();
                 }
                 throw new Error(data.message || 'API returned an error');
             }
