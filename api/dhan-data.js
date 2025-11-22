@@ -116,10 +116,31 @@ module.exports = async (req, res) => {
           // For POST requests, include request body with indices
           if (method === 'POST') {
             // Dhan API Market Quote uses securityId array
-            // Try with symbol names first, API might accept them or convert internally
-            const requestBody = {
-              securityId: ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 'NIFTY 100', 'INDIA VIX']
-            };
+            // Try multiple formats: symbol names, without spaces, numeric IDs
+            let requestBody;
+            
+            // Try different securityId formats based on endpoint
+            if (endpoint.includes('ltp') || endpoint.includes('quote')) {
+              // For LTP/Quote endpoints, try common formats
+              requestBody = {
+                securityId: [
+                  'NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 
+                  'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 
+                  'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 
+                  'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 
+                  'NIFTY 100', 'INDIA VIX'
+                ]
+              };
+            } else {
+              // For other endpoints, try alternative formats
+              requestBody = {
+                securityId: [
+                  'NIFTY50', 'NIFTYBANK', 'NIFTYIT', 'NIFTYPHARMA',
+                  'NIFTY_50', 'NIFTY_BANK', 'NIFTY_IT'
+                ]
+              };
+            }
+            
             fetchOptions.body = JSON.stringify(requestBody);
             console.log('Request body:', JSON.stringify(requestBody));
           }
@@ -343,45 +364,80 @@ function processDhanData(data) {
     
     console.log(`Final indices array length: ${indices.length}`);
     
-    if (indices.length === 0) {
-      console.error('No indices found in response!');
-      console.error('Full data structure:', JSON.stringify(data, null, 2));
-      
-      // Try one more approach - check if data itself is an object with market data
-      if (data && typeof data === 'object' && !Array.isArray(data)) {
-        // Check if it's a single quote object (not an array)
-        const hasMarketFields = data.LTP !== undefined || data.lastPrice !== undefined || 
-                               data.close !== undefined || data.price !== undefined;
-        if (hasMarketFields) {
-          // Single quote response - wrap in array
-          indices = [data];
-          console.log('Found single quote object, wrapping in array');
-        } else {
-          // Check all nested objects for market data
-          const allValues = Object.values(data);
-          const marketDataObjects = allValues.filter(v => 
-            v && typeof v === 'object' && 
-            (v.LTP !== undefined || v.lastPrice !== undefined || v.close !== undefined)
-          );
-          if (marketDataObjects.length > 0) {
-            indices = marketDataObjects;
-            console.log(`Found ${marketDataObjects.length} market data objects in nested structure`);
-          }
-        }
-      }
-      
-      if (indices.length === 0) {
-        const error = new Error('No indices data found in Dhan API response');
+    // Handle case where data.data is an empty object (Dhan API returns {data: {}, status: "success"})
+    if (indices.length === 0 && data && typeof data === 'object' && data.data && typeof data.data === 'object') {
+      // Check if data.data is empty object
+      const dataKeys = Object.keys(data.data);
+      if (dataKeys.length === 0) {
+        console.warn('⚠️ Dhan API returned empty data object: {data: {}, status: "success"}');
+        console.warn('This means:');
+        console.warn('1. ✅ Authentication is working (status: success)');
+        console.warn('2. ❌ But securityId format is likely incorrect');
+        console.warn('3. ❌ Or the endpoint doesn\'t recognize the symbol names');
+        console.warn('4. ❌ Or you need to use numeric securityIds instead of names');
+        console.warn('');
+        console.warn('💡 Solution: You may need to:');
+        console.warn('   - Use the Instruments API to get correct securityIds');
+        console.warn('   - Use numeric IDs instead of symbol names');
+        console.warn('   - Try different securityId format (without spaces, underscores, etc.)');
+        console.warn('   - Check Dhan API v2 docs for correct format');
+        
+        const error = new Error('Dhan API returned empty data. Authentication works but securityId format may be incorrect. Try using numeric securityIds or check the Instruments API for correct IDs.');
         error.rawData = data;
         error.dataStructure = {
           type: typeof data,
           isArray: Array.isArray(data),
           keys: Object.keys(data || {}),
-          sample: JSON.stringify(data).substring(0, 5000), // Increased sample size
-          fullStructure: JSON.stringify(data, null, 2) // Full structure for debugging
+          dataKeys: Object.keys(data.data || {}),
+          sample: JSON.stringify(data).substring(0, 5000),
+          fullStructure: JSON.stringify(data, null, 2),
+          hint: 'Dhan API returned {data: {}, status: "success"}. Authentication works but no data returned. This usually means: 1) securityId format is wrong (try numeric IDs), 2) need to use Instruments API to get correct IDs, 3) check Dhan API v2 docs for correct securityId format'
         };
         throw error;
+      } else {
+        // data.data has keys - might be an object with securityIds as keys
+        indices = Object.entries(data.data).map(([key, value]) => ({
+          securityId: key,
+          ...(typeof value === 'object' ? value : { value })
+        }));
+        console.log(`Found ${indices.length} indices in data.data object`);
       }
+    }
+    
+    // Try one more approach - check if data itself is an object with market data
+    if (indices.length === 0 && data && typeof data === 'object' && !Array.isArray(data)) {
+      // Check if it's a single quote object (not an array)
+      const hasMarketFields = data.LTP !== undefined || data.lastPrice !== undefined || 
+                             data.close !== undefined || data.price !== undefined;
+      if (hasMarketFields) {
+        // Single quote response - wrap in array
+        indices = [data];
+        console.log('Found single quote object, wrapping in array');
+      } else {
+        // Check all nested objects for market data
+        const allValues = Object.values(data);
+        const marketDataObjects = allValues.filter(v => 
+          v && typeof v === 'object' && 
+          (v.LTP !== undefined || v.lastPrice !== undefined || v.close !== undefined)
+        );
+        if (marketDataObjects.length > 0) {
+          indices = marketDataObjects;
+          console.log(`Found ${marketDataObjects.length} market data objects in nested structure`);
+        }
+      }
+    }
+    
+    if (indices.length === 0) {
+      const error = new Error('No indices data found in Dhan API response');
+      error.rawData = data;
+      error.dataStructure = {
+        type: typeof data,
+        isArray: Array.isArray(data),
+        keys: Object.keys(data || {}),
+        sample: JSON.stringify(data).substring(0, 5000),
+        fullStructure: JSON.stringify(data, null, 2)
+      };
+      throw error;
     }
     
     // Log first index structure
