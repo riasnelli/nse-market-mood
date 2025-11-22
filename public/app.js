@@ -126,6 +126,15 @@ class MarketMoodApp {
             // Check for API errors (especially Dhan API)
             if (data.error) {
                 console.error('API returned error:', data.message || data.error);
+                // Log debug info if available
+                if (data.debug) {
+                    console.error('=== Dhan API Debug Info ===');
+                    console.error('Raw response type:', data.debug.rawResponse?.type);
+                    console.error('Is array:', data.debug.rawResponse?.isArray);
+                    console.error('Response keys:', data.debug.rawResponse?.keys);
+                    console.error('Raw response sample:', data.debug.rawResponse?.sample || data.debug.receivedData?.sample);
+                    console.error('Full debug:', data.debug);
+                }
                 throw new Error(data.message || 'API returned an error');
             }
             
@@ -174,7 +183,14 @@ class MarketMoodApp {
                 // Keep showing last successful data if market was open
                 console.log('No new data, but market was open - keeping last data visible');
             } else {
-                // Use mock data as fallback
+                // Check if Dhan API is active - don't show mock data for Dhan errors
+                const activeApi = window.settingsManager?.settings?.activeApi;
+                if (activeApi === 'dhan') {
+                    console.error('Dhan API returned no valid data. Check console for debug info.');
+                    // Don't show mock data - show error instead
+                    return;
+                }
+                // Use mock data as fallback only for NSE API
                 this.useMockData();
             }
             
@@ -218,7 +234,16 @@ class MarketMoodApp {
                 }
             }
             
-            // Use mock data as fallback
+            // Check if Dhan API is active - don't show mock data for Dhan errors
+            const activeApi = window.settingsManager?.settings?.activeApi;
+            if (activeApi === 'dhan') {
+                console.error('Dhan API error - not using mock data. Error:', error.message);
+                // Show error in UI instead of mock data
+                this.showErrorInUI('Dhan API Error: ' + error.message);
+                return;
+            }
+            
+            // Use mock data as fallback only for NSE API
             this.useMockData();
             // Update timestamp on error
             this.updateLastUpdated(new Date());
@@ -241,6 +266,36 @@ class MarketMoodApp {
             note: 'Mock Data'
         };
         this.updateUI(mockData);
+    }
+
+    showErrorInUI(errorMessage) {
+        console.error('Showing error in UI:', errorMessage);
+        // Clear existing data
+        const mainGrid = document.getElementById('mainIndicesGrid');
+        const allIndicesGrid = document.getElementById('allIndicesGrid');
+        if (mainGrid) mainGrid.innerHTML = '';
+        if (allIndicesGrid) allIndicesGrid.innerHTML = '';
+        
+        // Show error message
+        const moodCard = document.getElementById('moodCard');
+        if (moodCard) {
+            const moodText = document.getElementById('moodText');
+            const moodEmoji = document.getElementById('moodEmoji');
+            if (moodText) moodText.textContent = 'Error Loading Data';
+            if (moodEmoji) moodEmoji.textContent = '❌';
+            
+            // Add error details
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = 'margin-top: 20px; padding: 15px; background: #fee; border: 1px solid #fcc; border-radius: 8px; color: #c33; font-size: 0.9rem;';
+            errorDiv.textContent = errorMessage;
+            moodCard.appendChild(errorDiv);
+        }
+        
+        // Update score to show error
+        const scoreText = document.getElementById('scoreText');
+        if (scoreText) scoreText.textContent = 'Error';
+        const scoreFill = document.getElementById('scoreFill');
+        if (scoreFill) scoreFill.style.width = '0%';
     }
 
     startPolling() {
