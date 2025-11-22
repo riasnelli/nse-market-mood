@@ -37,7 +37,11 @@
     },
     {
       "src": "/manifest.json",
-      "dest": "/api/manifest.js"
+      "dest": "/api/manifest.js",
+      "headers": {
+        "Content-Type": "application/manifest+json",
+        "Access-Control-Allow-Origin": "*"
+      }
     },
     {
       "src": "/(.*)",

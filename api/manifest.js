@@ -1,19 +1,30 @@
 // Serve manifest.json with proper headers
-const fs = require('fs');
-const path = require('path');
-
 module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/manifest+json');
   
-  try {
-    const manifestPath = path.join(__dirname, '..', 'public', 'manifest.json');
-    const manifestContent = fs.readFileSync(manifestPath, 'utf8');
-    res.status(200).send(manifestContent);
-  } catch (error) {
-    console.error('Error reading manifest.json:', error);
-    res.status(404).json({ error: 'Manifest not found' });
-  }
+  const manifest = {
+    "name": "NSE Market Mood",
+    "short_name": "MarketMood",
+    "description": "Real-time NSE market sentiment indicator",
+    "start_url": "/",
+    "display": "standalone",
+    "theme_color": "#1e40af",
+    "background_color": "#667eea",
+    "orientation": "portrait",
+    "icons": [
+      { "src": "/icons/icon-72x72.png", "sizes": "72x72", "type": "image/png" },
+      { "src": "/icons/icon-96x96.png", "sizes": "96x96", "type": "image/png" },
+      { "src": "/icons/icon-128x128.png", "sizes": "128x128", "type": "image/png" },
+      { "src": "/icons/icon-144x144.png", "sizes": "144x144", "type": "image/png" },
+      { "src": "/icons/icon-152x152.png", "sizes": "152x152", "type": "image/png" },
+      { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" },
+      { "src": "/icons/icon-384x384.png", "sizes": "384x384", "type": "image/png" },
+      { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png" }
+    ]
+  };
+  
+  res.status(200).json(manifest);
 };
 
