@@ -121,6 +121,12 @@ class MarketMoodApp {
             const data = await response.json();
             console.log('Data received:', data);
             
+            // Check for API errors (especially Dhan API)
+            if (data.error) {
+                console.error('API returned error:', data.message || data.error);
+                throw new Error(data.message || 'API returned an error');
+            }
+            
             // Check if we got valid data
             const hasValidData = data.indices && data.indices.length > 0;
             console.log(`Valid data: ${hasValidData}, Indices count: ${data.indices?.length || 0}`);
