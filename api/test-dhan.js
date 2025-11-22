@@ -170,10 +170,15 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         success: false,
         message: `Dhan API endpoints not found (404). All tested endpoints returned 404.`,
-        hint: `Please check Dhan API v2 documentation: https://dhanhq.co/docs/v2/`,
-        testedEndpoints: endpoints,
+        hint: `This usually means your account doesn't have Data API subscription or the endpoint is incorrect.`,
+        testedEndpoints: endpoints.slice(0, 5), // Show first 5
         testedBaseUrls: baseUrls,
-        suggestion: `1. Verify your access token is valid (tokens expire after 24 hours)\n2. Check Dhan API v2 documentation for correct endpoint\n3. Try entering a custom endpoint manually\n4. Ensure your account has API access enabled`
+        suggestion: `🔍 Troubleshooting Steps:\n\n1. Check Data API Subscription:\n   → Go to https://web.dhan.co\n   → Login → My Profile → DhanHQ Trading APIs\n   → Verify "Data API" subscription is ACTIVE\n\n2. Verify Access Token:\n   → Tokens expire after 24 hours\n   → Generate new token if expired\n   → Check token validity in Dhan dashboard\n\n3. Try Custom Endpoint:\n   → Check Dhan API v2 docs: https://dhanhq.co/docs/v2/\n   → Find exact endpoint for indices/market data\n   → Enter in "Custom Endpoint" field\n\n4. Contact Dhan Support:\n   → Email: help@dhan.co\n   → Phone: 9987761000\n   → Ask about Data API subscription status`,
+        helpLinks: {
+          docs: 'https://dhanhq.co/docs/v2/',
+          subscription: 'https://web.dhan.co',
+          support: 'mailto:help@dhan.co'
+        }
       });
     }
 
