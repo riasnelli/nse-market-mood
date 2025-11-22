@@ -712,12 +712,12 @@ function calculateMoodFromDhan(indices) {
   else if (pChange < -0.1) score -= 10;
 
   // Market breadth
-  const advances = indices.filter(idx => {
-    const pChange = parseFloat(idx.changePercent || idx.pChange || 0);
+  const advances = processedIndices.filter(idx => {
+    const pChange = parseFloat(idx.changePercent || 0);
     return pChange > 0;
   }).length;
-  const declines = indices.filter(idx => {
-    const pChange = parseFloat(idx.changePercent || idx.pChange || 0);
+  const declines = processedIndices.filter(idx => {
+    const pChange = parseFloat(idx.changePercent || 0);
     return pChange < 0;
   }).length;
 
@@ -725,17 +725,17 @@ function calculateMoodFromDhan(indices) {
   else if (declines > advances * 1.5) score -= 15;
 
   // Consider major indices
-  const majorIndices = indices.filter(idx => {
-    const name = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
+  const majorIndices = processedIndices.filter(idx => {
+    const name = (idx.symbol || idx.name || '').toString().toUpperCase();
     return name.includes('BANK') || name.includes('IT') || name.includes('NEXT');
   });
 
   const positiveCount = majorIndices.filter(idx => {
-    const pChange = parseFloat(idx.changePercent || idx.pChange || 0);
+    const pChange = parseFloat(idx.changePercent || 0);
     return pChange > 0;
   }).length;
   const negativeCount = majorIndices.filter(idx => {
-    const pChange = parseFloat(idx.changePercent || idx.pChange || 0);
+    const pChange = parseFloat(idx.changePercent || 0);
     return pChange < 0;
   }).length;
 
