@@ -114,7 +114,22 @@ class MarketMoodApp {
                 };
             }
 
-            const response = await fetch(this.apiUrl, requestOptions);
+            // Add cache-busting and ensure fresh data
+            const cacheBuster = `?t=${Date.now()}`;
+            const apiUrlWithCacheBust = this.apiUrl + (this.apiUrl.includes('?') ? '&' : '?') + `_=${Date.now()}`;
+            
+            // Use fetch with no-cache headers
+            const fetchOptions = {
+                ...requestOptions,
+                cache: 'no-store',
+                headers: {
+                    ...(requestOptions.headers || {}),
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            };
+            
+            const response = await fetch(apiUrlWithCacheBust, fetchOptions);
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -178,11 +193,20 @@ class MarketMoodApp {
             
             // Only update UI if we have valid data
             if (hasValidData) {
+                console.log('Updating UI with fresh data from API');
                 this.updateUI(data);
-            } else if (this.lastSuccessfulStatus && this.lastSuccessfulStatus.isOpen) {
-                // Keep showing last successful data if market was open
-                console.log('No new data, but market was open - keeping last data visible');
             } else {
+                console.warn('No valid data received from API');
+                // Check if Dhan API is active - don't show mock data for Dhan errors
+                const activeApi = window.settingsManager?.settings?.activeApi;
+                if (activeApi === 'dhan') {
+                    console.error('Dhan API returned no valid data. Check console for debug info.');
+                    // Don't show mock data - show error instead
+                    return;
+                }
+                // Use mock data as fallback only for NSE API
+                this.useMockData();
+            }
                 // Check if Dhan API is active - don't show mock data for Dhan errors
                 const activeApi = window.settingsManager?.settings?.activeApi;
                 if (activeApi === 'dhan') {
