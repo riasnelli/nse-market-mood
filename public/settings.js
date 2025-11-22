@@ -17,7 +17,8 @@ class SettingsManager {
                     enabled: false,
                     config: {
                         clientId: '',
-                        accessToken: ''
+                        accessToken: '',
+                        customEndpoint: '' // Allow custom endpoint override
                     }
                 }
             }
@@ -106,7 +107,12 @@ class SettingsManager {
                                data-api="${key}" data-field="clientId" value="${api.config.clientId || ''}">
                         <input type="password" placeholder="Access Token" class="form-control api-input" 
                                data-api="${key}" data-field="accessToken" value="${api.config.accessToken || ''}">
-                        <button class="btn-secondary test-api-btn" data-api="${key}">Test</button>
+                        <input type="text" placeholder="Custom Endpoint (optional, e.g., /v2/market-quote/indices)" 
+                               class="form-control api-input" 
+                               data-api="${key}" data-field="customEndpoint" 
+                               value="${api.config.customEndpoint || ''}">
+                        <small class="endpoint-hint">Leave empty to auto-detect. Check Dhan API docs if auto-detection fails.</small>
+                        <button class="btn-secondary test-api-btn" data-api="${key}">Test Connection</button>
                     </div>
                 ` : ''}
             `;
@@ -224,11 +230,16 @@ class SettingsManager {
                 const clientIdInput = document.querySelector(`[data-api="${apiKey}"][data-field="clientId"]`);
                 const tokenInput = document.querySelector(`[data-api="${apiKey}"][data-field="accessToken"]`);
                 
+                const customEndpointInput = document.querySelector(`[data-api="${apiKey}"][data-field="customEndpoint"]`);
+                
                 if (clientIdInput) {
                     api.config.clientId = clientIdInput.value.trim();
                 }
                 if (tokenInput) {
                     api.config.accessToken = tokenInput.value.trim();
+                }
+                if (customEndpointInput) {
+                    api.config.customEndpoint = customEndpointInput.value.trim();
                 }
                 // Enable API if credentials are provided
                 api.enabled = !!(api.config.clientId && api.config.accessToken);
@@ -266,6 +277,7 @@ class SettingsManager {
 
         const clientId = api.config.clientId?.trim();
         const token = api.config.accessToken?.trim();
+        const customEndpoint = api.config.customEndpoint?.trim();
 
         if (!clientId || !token) {
             this.showNotification('Please enter both Client ID and Access Token', 'error');
@@ -289,7 +301,8 @@ class SettingsManager {
                 },
                 body: JSON.stringify({
                     clientId: clientId,
-                    accessToken: token
+                    accessToken: token,
+                    customEndpoint: customEndpoint
                 })
             });
 

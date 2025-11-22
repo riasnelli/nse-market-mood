@@ -18,19 +18,22 @@ module.exports = async (req, res) => {
 
   try {
     // Get credentials from request body, query params, or environment
-    let clientId, accessToken;
+    let clientId, accessToken, customEndpoint;
     
     if (req.method === 'POST' && req.body) {
       clientId = req.body.clientId;
       accessToken = req.body.accessToken;
+      customEndpoint = req.body.customEndpoint;
     } else if (req.query) {
       clientId = req.query.clientId;
       accessToken = req.query.accessToken;
+      customEndpoint = req.query.customEndpoint;
     }
     
     // Fallback to environment variables
     clientId = clientId || process.env.DHAN_CLIENT_ID;
     accessToken = accessToken || process.env.DHAN_ACCESS_TOKEN;
+    customEndpoint = customEndpoint || process.env.DHAN_CUSTOM_ENDPOINT;
 
     if (!accessToken) {
       throw new Error('Dhan API access token not provided. Please configure in settings.');
@@ -45,15 +48,24 @@ module.exports = async (req, res) => {
       'Content-Type': 'application/json'
     };
 
-    // Try multiple possible endpoints
-    const endpoints = [
-      '/indices',
-      '/market/indices',
-      '/v1/indices',
-      '/api/indices',
-      '/master/indices',
-      '/market-data/indices'
-    ];
+    // If custom endpoint provided, use it first
+    let endpoints = [];
+    if (customEndpoint && customEndpoint.trim()) {
+      endpoints = [customEndpoint.trim()];
+    } else {
+      // Try multiple possible endpoints based on Dhan API v2 documentation
+      endpoints = [
+        '/v2/market-quote/indices',  // Dhan API v2 market quote endpoint
+        '/v2/indices',               // Dhan API v2 indices
+        '/market-quote/indices',     // Alternative format
+        '/indices',                  // Simple format
+        '/market/indices',           // Market endpoint
+        '/v1/indices',              // v1 format
+        '/api/indices',              // API prefix
+        '/master/indices',           // Master data
+        '/market-data/indices'       // Market data
+      ];
+    }
 
     let indicesResponse = null;
     let indicesData = null;
@@ -82,7 +94,20 @@ module.exports = async (req, res) => {
     }
 
     if (!indicesData) {
-      throw new Error(`Dhan API endpoints not found. Tried: ${endpoints.join(', ')}. ${lastError ? `Last error: ${lastError}` : 'Please check Dhan API documentation for correct endpoint.'}`);
+      // Return a helpful error message
+      return res.status(200).json({
+        error: true,
+        message: `Dhan API endpoints not found. All tested endpoints returned 404.`,
+        hint: `Please check Dhan API documentation at https://dhanhq.co/docs/v2/ for the correct endpoint.`,
+        testedEndpoints: endpoints,
+        suggestion: 'The endpoint might require a different base URL, authentication method, or your account might not have access to this endpoint. Please verify your Dhan API credentials and documentation.',
+        marketStatus: {
+          isOpen: false,
+          verified: false,
+          reason: 'API_ENDPOINT_NOT_FOUND',
+          timestamp: new Date().toISOString()
+        }
+      });
     }
     
     // Process Dhan API response

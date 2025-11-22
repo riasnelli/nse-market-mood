@@ -23,7 +23,8 @@ class MarketMoodApp {
             if (apiConfig.type === 'dhan') {
                 return {
                     clientId: apiConfig.config.clientId,
-                    accessToken: apiConfig.config.accessToken
+                    accessToken: apiConfig.config.accessToken,
+                    customEndpoint: apiConfig.config.customEndpoint
                 };
             }
         }

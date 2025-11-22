@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { clientId, accessToken } = req.body;
+    const { clientId, accessToken, customEndpoint } = req.body;
 
     if (!clientId || !accessToken) {
       return res.status(200).json({
@@ -34,21 +34,30 @@ module.exports = async (req, res) => {
     console.log('Testing Dhan API connection...');
 
     // Test Dhan API connection
-    // Dhan API might use different endpoints - try common ones
+    // Based on Dhan API v2 documentation: https://dhanhq.co/docs/v2/
     const baseUrl = 'https://api.dhan.co';
     const headers = {
       'access-token': accessToken,
       'Content-Type': 'application/json'
     };
 
-    // Try multiple possible endpoints
-    const endpoints = [
-      '/indices',
-      '/market/indices',
-      '/v1/indices',
-      '/api/indices',
-      '/master/indices'
-    ];
+    // If custom endpoint provided, use it first
+    let endpoints = [];
+    if (customEndpoint && customEndpoint.trim()) {
+      endpoints = [customEndpoint.trim()];
+    } else {
+      // Try multiple possible endpoints based on Dhan API v2 documentation
+      endpoints = [
+        '/v2/market-quote/indices',  // Dhan API v2 market quote endpoint
+        '/v2/indices',               // Dhan API v2 indices
+        '/market-quote/indices',     // Alternative format
+        '/indices',                  // Simple format
+        '/market/indices',           // Market endpoint
+        '/v1/indices',              // v1 format
+        '/api/indices',              // API prefix
+        '/master/indices'            // Master data
+      ];
+    }
 
     let testResponse = null;
     let lastError = null;
@@ -96,8 +105,10 @@ module.exports = async (req, res) => {
 
       return res.status(200).json({
         success: false,
-        message: `Dhan API endpoints not found (404). Please verify the API endpoint URL or check Dhan API documentation.`,
-        hint: 'Common endpoints: /indices, /market/indices, /v1/indices'
+        message: `Dhan API endpoints not found (404). All tested endpoints returned 404.`,
+        hint: `Please check Dhan API documentation at https://dhanhq.co/docs/v2/ for the correct endpoint. Tried: ${endpoints.join(', ')}`,
+        testedEndpoints: endpoints,
+        suggestion: 'The endpoint might require a different base URL or authentication method. Please verify your Dhan API credentials and documentation.'
       });
     }
 
