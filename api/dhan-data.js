@@ -47,11 +47,11 @@ module.exports = async (req, res) => {
 
     console.log('Fetching data from Dhan API...');
 
-    // Dhan API - Try both v2 and non-v2 base URLs
-    // Based on user's Python code, correct base URL might be: https://api.dhan.co (without /v2)
+    // Dhan API - Base URL per documentation: https://api.dhan.co/v2/
+    // According to Dhan API v2 docs, base URL is https://api.dhan.co/v2/
     const baseUrls = [
-      'https://api.dhan.co',      // Non-v2 base URL (from user's code)
-      'https://api.dhan.co/v2'     // v2 base URL (from docs)
+      'https://api.dhan.co/v2',    // v2 base URL (from official docs)
+      'https://api.dhan.co'        // Non-v2 base URL (fallback)
     ];
     
     const headers = {
@@ -136,18 +136,21 @@ module.exports = async (req, res) => {
         : '/' + customEndpoint.trim();
       endpoints = [cleanEndpoint];
     } else {
-      // Based on user's Python code and Dhan API docs
-      // Try GET endpoints first (from user's code), then POST endpoints
+      // Based on Dhan API v2 documentation
+      // Market Quote API endpoints (POST with request body)
+      // Instruments/Master Data API endpoints (GET)
       endpoints = [
-        '/quotes',                         // GET quotes endpoint (from user's code)
-        '/indices',                        // GET indices list (from user's code)
-        '/marketfeed/ltp',                 // POST Market Quote - Last Traded Price
-        '/marketfeed/ohlc',                 // POST Market Quote - OHLC
-        '/marketfeed/quote',               // POST Market Quote - Full Quote
-        '/marketfeed/indices',             // POST Market Quote - Indices
-        '/v2/marketfeed/ltp',              // v2 version
-        '/v2/quotes',                      // v2 quotes
-        '/v2/indices'                      // v2 indices
+        '/marketfeed/ltp',                 // POST - Last Traded Price (most common)
+        '/marketfeed/ohlc',               // POST - OHLC data
+        '/marketfeed/quote',              // POST - Full quote
+        '/market-quote/ltp',              // Alternative format
+        '/market-quote',                  // Base market quote
+        '/instruments/indices',           // GET - Instruments list for indices
+        '/master/indices',                // GET - Master data for indices
+        '/instruments',                   // GET - All instruments
+        '/master',                        // GET - Master data
+        '/quotes',                        // GET - Quotes (if exists)
+        '/indices'                        // GET - Indices list (if exists)
       ];
     }
 
@@ -331,17 +334,31 @@ module.exports = async (req, res) => {
     }
 
     if (!indicesData) {
-      // Return a helpful error message
+      // Return a helpful error message with detailed debugging info
+      console.log('❌ All endpoints failed. Last error:', lastError);
+      console.log('Tested base URLs:', baseUrls);
+      console.log('Tested endpoints:', endpoints);
+      console.log('Headers used:', JSON.stringify(headers).replace(/access-token":"[^"]+/, 'access-token":"***'));
+      
       return res.status(200).json({
         error: true,
         message: `Dhan API endpoints not found. All tested endpoints returned 404.`,
         hint: `Please check Dhan API v2 documentation at https://dhanhq.co/docs/v2/ for the correct endpoint.`,
+        testedBaseUrls: baseUrls,
         testedEndpoints: endpoints,
-        suggestion: `Possible issues:\n1. Your account might not have Data API subscription enabled\n2. Check subscription at: https://web.dhan.co → My Profile → DhanHQ Trading APIs\n3. The endpoint might require different authentication\n4. Try entering a custom endpoint from Dhan API v2 documentation\n5. Contact Dhan support: help@dhan.co`,
+        lastError: lastError || 'All endpoints returned 404',
+        suggestion: `Possible issues:\n1. Your account might not have Data API subscription enabled\n2. Check subscription at: https://web.dhan.co → My Profile → DhanHQ Trading APIs\n3. The endpoint might require different authentication\n4. Try entering a custom endpoint from Dhan API v2 documentation (e.g., /marketfeed/ltp)\n5. Verify your access token is valid (tokens expire after 24 hours)\n6. Contact Dhan support: help@dhan.co`,
         helpLinks: {
           docs: 'https://dhanhq.co/docs/v2/',
           subscription: 'https://web.dhan.co',
           support: 'mailto:help@dhan.co'
+        },
+        debugInfo: {
+          hasClientId: !!clientId,
+          hasAccessToken: !!accessToken,
+          hasApiKey: !!apiKey,
+          hasApiSecret: !!apiSecret,
+          customEndpoint: customEndpoint || 'none'
         },
         marketStatus: {
           isOpen: false,
