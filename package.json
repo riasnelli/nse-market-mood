@@ -9,7 +9,15 @@
   "dependencies": {
     "node-fetch": "^2.6.7"
   },
-  "keywords": ["nse", "pwa", "market", "stock"],
+  "keywords": [
+    "nse",
+    "pwa",
+    "market",
+    "stock"
+  ],
   "author": "Your Name",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "sharp": "^0.34.5"
+  }
 }

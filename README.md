@@ -11,17 +11,16 @@ A Progressive Web App that shows real-time NSE market sentiment.
 
 ## Deployment
 
-### Netlify (Recommended)
+### Vercel (Recommended)
 1. Fork this repository
-2. Go to [netlify.com](https://netlify.com)
+2. Go to [vercel.com](https://vercel.com)
 3. Connect your GitHub repository
-4. Deploy!
+4. Deploy! (Vercel will automatically detect the configuration)
 
-### Manual ZIP Upload
-1. Download this project as ZIP
-2. Go to [netlify.com](https://netlify.com)
-3. Drag & drop the ZIP file
-4. Deploy!
+### Manual Deployment
+1. Install Vercel CLI: `npm i -g vercel`
+2. Run `vercel` in the project directory
+3. Follow the prompts to deploy
 
 ## Local Development
 Just open `index.html` in a browser
