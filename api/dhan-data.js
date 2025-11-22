@@ -703,7 +703,7 @@ function calculateMoodFromDhan(indices) {
     return score;
   }
 
-  const pChange = parseFloat(nifty50.changePercent || nifty50.pChange || 0);
+  const pChange = parseFloat(nifty50.changePercent || 0);
 
   // NIFTY 50 performance
   if (pChange > 0.5) score += 20;
