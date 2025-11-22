@@ -187,23 +187,36 @@ module.exports = async (req, res) => {
               requestBody = {
                 securityId: securityIds.slice(0, 15) // Limit to 15 to avoid too many
               };
-              console.log('Using securityIds from instruments API:', requestBody.securityId);
+              console.log('✅ Using securityIds from instruments API:', requestBody.securityId.slice(0, 5));
             } else {
-              // Fallback: Try different symbol name formats
-              requestBody = {
-                securityId: [
-                  'NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 
-                  'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 
-                  'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 
-                  'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 
-                  'NIFTY 100', 'INDIA VIX'
-                ]
-              };
-              console.log('Using symbol names (fallback):', requestBody.securityId);
+              // Fallback: Try different symbol name formats based on endpoint
+              if (endpoint.includes('ltp') || endpoint.includes('quote')) {
+                // Try with exchange segment for LTP/Quote endpoints
+                requestBody = {
+                  securityId: [
+                    { securityId: 'NIFTY 50', exchangeSegment: 'INDEX' },
+                    { securityId: 'NIFTY BANK', exchangeSegment: 'INDEX' },
+                    { securityId: 'NIFTY IT', exchangeSegment: 'INDEX' }
+                  ]
+                };
+                console.log('Trying with exchangeSegment format');
+              } else {
+                // Simple array format
+                requestBody = {
+                  securityId: [
+                    'NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 
+                    'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 
+                    'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 
+                    'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 
+                    'NIFTY 100', 'INDIA VIX'
+                  ]
+                };
+                console.log('Using symbol names array format');
+              }
             }
             
             fetchOptions.body = JSON.stringify(requestBody);
-            console.log('Request body:', JSON.stringify(requestBody));
+            console.log('📤 Request body:', JSON.stringify(requestBody).substring(0, 500));
           }
           
           const response = await fetch(fullUrl, fetchOptions);
@@ -300,7 +313,10 @@ module.exports = async (req, res) => {
             keys: Object.keys(rawResponseData || {}),
             sample: JSON.stringify(rawResponseData).substring(0, 3000)
           },
-          errorDetails: processError.dataStructure || {}
+          errorDetails: processError.dataStructure || {},
+          instrumentsAttempted: securityIds.length > 0 ? `Found ${securityIds.length} securityIds` : 'Instruments API failed or returned no data',
+          securityIdsUsed: securityIds.length > 0 ? securityIds.slice(0, 10) : 'Used symbol names (fallback)',
+          workingEndpoint: workingEndpoint || 'None found'
         },
         marketStatus: {
           isOpen: false,
