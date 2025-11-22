@@ -149,14 +149,43 @@ class MarketMoodApp {
                 scoreFill.style.width = pct + '%';
             }
             if (scoreText) scoreText.textContent = (data.mood.score != null) ? `${data.mood.score}/100` : '-/-';
+            
+            // Update background color based on mood score
+            this.updateBackgroundColor(data.mood.score);
         }
 
         // Update NIFTY, BANK NIFTY, VIX
         const setData = (idVal, idChange, obj) => {
             const valEl = document.getElementById(idVal);
             const changeEl = document.getElementById(idChange);
-            if (valEl) valEl.textContent = (obj && obj.last != null) ? obj.last : '-';
-            if (changeEl) changeEl.textContent = (obj && obj.change != null) ? `${obj.change} (${obj.pChange}%)` : '-';
+            
+            if (valEl) {
+                if (obj && obj.last != null) {
+                    valEl.textContent = typeof obj.last === 'number' ? obj.last.toFixed(2) : obj.last;
+                } else {
+                    valEl.textContent = '-';
+                }
+            }
+            
+            if (changeEl) {
+                if (obj && obj.change != null && obj.pChange != null) {
+                    const change = typeof obj.change === 'number' ? obj.change.toFixed(2) : obj.change;
+                    const pChange = typeof obj.pChange === 'number' ? obj.pChange.toFixed(2) : obj.pChange;
+                    const sign = obj.change >= 0 ? '+' : '';
+                    changeEl.textContent = `${sign}${change} (${sign}${pChange}%)`;
+                    
+                    // Add color classes for positive/negative
+                    changeEl.classList.remove('positive', 'negative');
+                    if (obj.change > 0) {
+                        changeEl.classList.add('positive');
+                    } else if (obj.change < 0) {
+                        changeEl.classList.add('negative');
+                    }
+                } else {
+                    changeEl.textContent = '-';
+                    changeEl.classList.remove('positive', 'negative');
+                }
+            }
         };
 
         setData('niftyValue', 'niftyChange', data.nifty);
@@ -168,6 +197,38 @@ class MarketMoodApp {
         const dec = document.getElementById('declines');
         if (adv) adv.textContent = (data.advanceDecline && data.advanceDecline.advances != null) ? data.advanceDecline.advances : '-';
         if (dec) dec.textContent = (data.advanceDecline && data.advanceDecline.declines != null) ? data.advanceDecline.declines : '-';
+    }
+
+    updateBackgroundColor(score) {
+        // Update body background based on mood score
+        const body = document.body;
+        if (!body) return;
+
+        let gradient;
+        if (score >= 70) {
+            // Very Bullish - Green gradient
+            gradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        } else if (score >= 60) {
+            // Bullish - Light green gradient
+            gradient = 'linear-gradient(135deg, #34d399 0%, #10b981 100%)';
+        } else if (score >= 50) {
+            // Slightly Bullish - Yellow/Green gradient
+            gradient = 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)';
+        } else if (score >= 40) {
+            // Neutral - Orange gradient
+            gradient = 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)';
+        } else if (score >= 30) {
+            // Slightly Bearish - Orange/Red gradient
+            gradient = 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)';
+        } else if (score >= 20) {
+            // Bearish - Red gradient
+            gradient = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+        } else {
+            // Very Bearish - Dark red gradient
+            gradient = 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)';
+        }
+
+        body.style.background = gradient;
     }
 
     setLoading(isLoading) {
