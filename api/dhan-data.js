@@ -45,17 +45,45 @@ module.exports = async (req, res) => {
       'Content-Type': 'application/json'
     };
 
-    // Fetch all indices
-    const indicesResponse = await fetch(`${baseUrl}/indices`, {
-      headers: headers,
-      timeout: 10000
-    });
+    // Try multiple possible endpoints
+    const endpoints = [
+      '/indices',
+      '/market/indices',
+      '/v1/indices',
+      '/api/indices',
+      '/master/indices',
+      '/market-data/indices'
+    ];
 
-    if (!indicesResponse.ok) {
-      throw new Error(`Dhan API error: ${indicesResponse.status}`);
+    let indicesResponse = null;
+    let indicesData = null;
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(`${baseUrl}${endpoint}`, {
+          headers: headers,
+          timeout: 10000
+        });
+
+        if (response.ok) {
+          indicesResponse = response;
+          indicesData = await response.json();
+          console.log(`Successfully connected to Dhan API endpoint: ${endpoint}`);
+          break;
+        } else if (response.status !== 404) {
+          // If it's not 404, it might be auth error
+          lastError = `Status ${response.status}`;
+        }
+      } catch (error) {
+        lastError = error.message;
+        continue;
+      }
     }
 
-    const indicesData = await indicesResponse.json();
+    if (!indicesData) {
+      throw new Error(`Dhan API endpoints not found. Tried: ${endpoints.join(', ')}. ${lastError ? `Last error: ${lastError}` : 'Please check Dhan API documentation for correct endpoint.'}`);
+    }
     
     // Process Dhan API response
     const processedData = processDhanData(indicesData);

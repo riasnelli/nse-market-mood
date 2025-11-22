@@ -414,6 +414,100 @@ header h1 {
     background: #ef4444;
 }
 
+/* API List Styles */
+.api-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.api-item {
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 15px;
+    background: #f8f9fa;
+    transition: all 0.3s;
+}
+
+.api-item:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.api-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.api-radio {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    flex: 1;
+}
+
+.api-radio input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.api-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 1rem;
+}
+
+.api-status {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.api-status.enabled {
+    background: #10b981;
+    color: white;
+}
+
+.api-status.disabled {
+    background: #ef4444;
+    color: white;
+}
+
+.api-status.testing {
+    background: #f59e0b;
+    color: white;
+}
+
+.api-config {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.api-input {
+    margin-bottom: 0;
+}
+
+.test-api-btn {
+    align-self: flex-start;
+    margin-top: 5px;
+}
+
+.settings-hint {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+    font-style: italic;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

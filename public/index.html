@@ -73,34 +73,18 @@
             </div>
             <div class="modal-body">
                 <div class="settings-section">
-                    <h3>API Configuration</h3>
-                    <div class="form-group">
-                        <label for="apiProvider">Data Source:</label>
-                        <select id="apiProvider" class="form-control">
-                            <option value="nse">NSE India (Free)</option>
-                            <option value="dhan">Dhan API</option>
-                        </select>
+                    <h3>Available APIs</h3>
+                    <p class="settings-hint">Select an API to use and configure credentials if needed.</p>
+                    <div id="apiList" class="api-list">
+                        <!-- APIs will be populated here by settings.js -->
                     </div>
-                </div>
-
-                <div class="settings-section" id="dhanConfig" style="display: none;">
-                    <h3>Dhan API Configuration</h3>
-                    <div class="form-group">
-                        <label for="dhanClientId">Client ID:</label>
-                        <input type="text" id="dhanClientId" class="form-control" placeholder="Enter Dhan Client ID">
-                    </div>
-                    <div class="form-group">
-                        <label for="dhanAccessToken">Access Token:</label>
-                        <input type="password" id="dhanAccessToken" class="form-control" placeholder="Enter Dhan Access Token">
-                    </div>
-                    <button id="testDhanBtn" class="btn-secondary">Test Connection</button>
                 </div>
 
                 <div class="settings-section">
                     <h3>Current Status</h3>
                     <div class="status-info">
                         <p>Active API: <strong id="activeApi">NSE India</strong></p>
-                        <p id="apiStatus" class="status-badge">Connected</p>
+                        <p class="status-badge" id="apiStatus">Connected</p>
                     </div>
                 </div>
             </div>

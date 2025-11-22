@@ -34,31 +34,80 @@ module.exports = async (req, res) => {
     console.log('Testing Dhan API connection...');
 
     // Test Dhan API connection
+    // Dhan API might use different endpoints - try common ones
     const baseUrl = 'https://api.dhan.co';
     const headers = {
       'access-token': accessToken,
       'Content-Type': 'application/json'
     };
 
-    // Try to fetch indices as a test
-    const testResponse = await fetch(`${baseUrl}/indices`, {
-      headers: headers,
-      timeout: 10000
-    });
+    // Try multiple possible endpoints
+    const endpoints = [
+      '/indices',
+      '/market/indices',
+      '/v1/indices',
+      '/api/indices',
+      '/master/indices'
+    ];
 
-    if (testResponse.ok) {
-      const data = await testResponse.json();
-      return res.status(200).json({
-        success: true,
-        message: 'Dhan API connection successful',
-        dataCount: Array.isArray(data) ? data.length : (data.data?.length || 0)
-      });
-    } else {
+    let testResponse = null;
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(`${baseUrl}${endpoint}`, {
+          headers: headers,
+          timeout: 10000
+        });
+
+        if (response.ok) {
+          testResponse = response;
+          break;
+        } else if (response.status !== 404) {
+          // If it's not 404, it might be auth error - try next endpoint
+          lastError = `Status ${response.status}`;
+        }
+      } catch (error) {
+        lastError = error.message;
+        continue;
+      }
+    }
+
+    if (!testResponse) {
+      // If all endpoints failed, try a simpler test - just check if token is valid
+      // by trying to get user profile or account info
+      try {
+        const profileResponse = await fetch(`${baseUrl}/user/profile`, {
+          headers: headers,
+          timeout: 10000
+        });
+        
+        if (profileResponse.ok || profileResponse.status === 401) {
+          // 401 means endpoint exists but auth might be wrong
+          return res.status(200).json({
+            success: false,
+            message: 'Invalid access token. Please check your credentials.',
+            hint: 'The API endpoint exists but authentication failed.'
+          });
+        }
+      } catch (e) {
+        // Ignore
+      }
+
       return res.status(200).json({
         success: false,
-        message: `Dhan API returned status ${testResponse.status}. Please check your credentials.`
+        message: `Dhan API endpoints not found (404). Please verify the API endpoint URL or check Dhan API documentation.`,
+        hint: 'Common endpoints: /indices, /market/indices, /v1/indices'
       });
     }
+
+    const data = await testResponse.json();
+    return res.status(200).json({
+      success: true,
+      message: 'Dhan API connection successful',
+      dataCount: Array.isArray(data) ? data.length : (data.data?.length || 0),
+      endpoint: 'Working endpoint found'
+    });
 
   } catch (error) {
     console.error('Dhan API test error:', error);

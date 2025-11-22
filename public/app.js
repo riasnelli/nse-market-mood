@@ -16,6 +16,20 @@ class MarketMoodApp {
         }
     }
 
+    getApiCredentials() {
+        // Get credentials for the active API
+        if (window.settingsManager) {
+            const apiConfig = window.settingsManager.getActiveApiConfig();
+            if (apiConfig.type === 'dhan') {
+                return {
+                    clientId: apiConfig.config.clientId,
+                    accessToken: apiConfig.config.accessToken
+                };
+            }
+        }
+        return null;
+    }
+
     reloadWithNewAPI() {
         // Stop current polling
         this.stopPolling();
@@ -69,21 +83,16 @@ class MarketMoodApp {
 
             // Get API provider and credentials
             let requestOptions = {};
-            if (window.settingsManager) {
-                const settings = window.settingsManager.getSettings();
-                if (settings.apiProvider === 'dhan' && settings.dhanAccessToken) {
-                    // Send credentials for Dhan API
-                    requestOptions = {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            clientId: settings.dhanClientId,
-                            accessToken: settings.dhanAccessToken
-                        })
-                    };
-                }
+            const credentials = this.getApiCredentials();
+            if (credentials && credentials.accessToken) {
+                // Send credentials for Dhan API
+                requestOptions = {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(credentials)
+                };
             }
 
             const response = await fetch(this.apiUrl, requestOptions);
