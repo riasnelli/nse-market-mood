@@ -15,12 +15,14 @@ class MarketMoodApp {
 
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
-                // When tab becomes visible again, fetch fresh data and adjust polling
-                this.loadData();
+                // When tab becomes visible again, only fetch if market is open
+                // Otherwise, just adjust polling status without fetching
                 if (this.isMarketOpen()) {
+                    this.loadData();
                     this.startPolling();
                 } else {
                     this.stopPolling();
+                    // Don't fetch data when market is closed - keep existing values
                 }
             }
         });
@@ -29,6 +31,9 @@ class MarketMoodApp {
         // Start polling only if market is open
         if (this.isMarketOpen()) {
             this.startPolling();
+        } else {
+            // Market is closed - stop any polling
+            this.stopPolling();
         }
     }
 
@@ -46,12 +51,20 @@ class MarketMoodApp {
             const data = await response.json();
             console.log('Data received:', data);
             this.updateUI(data);
+            
+            // Only update timestamp if market is open, or if this is a manual refresh
+            // For manual refresh, we'll pass a flag, but for now, always update on successful fetch
+            // The key is to stop auto-polling when market is closed
             this.updateLastUpdated(new Date());
 
         } catch (error) {
             console.error('Error fetching data:', error);
             this.useMockData();
-            this.updateLastUpdated(new Date());
+            // Only update timestamp on error if it's the first load or manual refresh
+            // Don't update timestamp on auto-refresh failures when market is closed
+            if (this.isMarketOpen() || !this.timerId) {
+                this.updateLastUpdated(new Date());
+            }
         } finally {
             this.setLoading(false);
         }
@@ -87,11 +100,13 @@ class MarketMoodApp {
         }
 
         this.timerId = setInterval(() => {
-            // If market is still open, fetch; otherwise, stop polling
+            // Only fetch if market is still open
             if (this.isMarketOpen()) {
                 this.loadData();
             } else {
+                // Market closed - stop polling immediately
                 this.stopPolling();
+                console.log('Market closed - stopped auto-polling');
             }
         }, interval);
     }
@@ -104,6 +119,8 @@ class MarketMoodApp {
     }
 
     handleManualRefresh() {
+        // Manual refresh always works, regardless of market status
+        // This allows users to refresh even when market is closed
         this.loadData();
     }
 
