@@ -115,12 +115,13 @@ module.exports = async (req, res) => {
           
           // For POST requests, include request body with indices
           if (method === 'POST') {
-            // Common indices to request
+            // Dhan API Market Quote uses securityId array
+            // Try with symbol names first, API might accept them or convert internally
             const requestBody = {
-              securityId: ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 'NIFTY 100'],
-              ...(clientId && { clientId })
+              securityId: ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 'NIFTY 100', 'INDIA VIX']
             };
             fetchOptions.body = JSON.stringify(requestBody);
+            console.log('Request body:', JSON.stringify(requestBody));
           }
           
           const response = await fetch(fullUrl, fetchOptions);
@@ -190,6 +191,9 @@ module.exports = async (req, res) => {
       });
     }
     
+    // Log the raw response to understand structure
+    console.log('Dhan API raw response:', JSON.stringify(indicesData, null, 2).substring(0, 1000));
+    
     // Process Dhan API response
     const processedData = processDhanData(indicesData);
     
@@ -223,52 +227,91 @@ module.exports = async (req, res) => {
 
 function processDhanData(data) {
   try {
-    // Dhan API returns indices in different format
-    // Adjust based on actual Dhan API response structure
-    const indices = Array.isArray(data) ? data : (data.data || data.indices || []);
+    console.log('Processing Dhan data, raw structure:', {
+      isArray: Array.isArray(data),
+      hasData: !!data.data,
+      hasIndices: !!data.indices,
+      keys: Object.keys(data || {})
+    });
     
-    // Find key indices
-    const nifty50 = indices.find(idx => 
-      idx.symbol === 'NIFTY' || 
-      idx.name?.includes('NIFTY 50') ||
-      idx.indexName === 'NIFTY 50'
-    );
+    // Dhan API Market Quote response structure
+    // Response can be an array or object with data property
+    let indices = [];
     
-    const bankNifty = indices.find(idx => 
-      idx.symbol === 'BANKNIFTY' ||
-      idx.name?.includes('BANK NIFTY') ||
-      idx.indexName === 'NIFTY BANK'
-    );
+    if (Array.isArray(data)) {
+      indices = data;
+    } else if (data.data && Array.isArray(data.data)) {
+      indices = data.data;
+    } else if (data.indices && Array.isArray(data.indices)) {
+      indices = data.indices;
+    } else if (typeof data === 'object') {
+      // If it's an object, try to extract array values
+      const values = Object.values(data);
+      indices = values.find(v => Array.isArray(v)) || [];
+    }
+    
+    console.log(`Found ${indices.length} indices in response`);
+    
+    if (indices.length === 0) {
+      console.log('No indices found, raw data:', JSON.stringify(data).substring(0, 500));
+    }
+    
+    // Dhan API Market Quote fields:
+    // - securityId: symbol identifier
+    // - LTP: Last Traded Price
+    // - change: price change
+    // - changePercent: percentage change
+    // - open, high, low, close: OHLC values
+    
+    // Find key indices by securityId or symbol
+    const nifty50 = indices.find(idx => {
+      const id = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
+      return id === 'NIFTY' || id === 'NIFTY 50' || id.includes('NIFTY50') || id === 'NIFTY_50';
+    });
+    
+    const bankNifty = indices.find(idx => {
+      const id = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
+      return id === 'BANKNIFTY' || id === 'NIFTY BANK' || id.includes('BANKNIFTY') || id === 'NIFTY_BANK';
+    });
 
-    const vix = indices.find(idx => 
-      idx.symbol === 'INDIAVIX' ||
-      idx.name?.includes('VIX') ||
-      idx.indexName === 'INDIA VIX'
-    );
+    const vix = indices.find(idx => {
+      const id = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
+      return id === 'INDIAVIX' || id === 'INDIA VIX' || id.includes('VIX');
+    });
 
-    // Process all indices
-    const processedIndices = indices.map(idx => ({
-      symbol: idx.symbol || idx.indexName || idx.name,
-      lastPrice: idx.lastPrice || idx.close || idx.LTP || 0,
-      change: idx.change || idx.changeValue || 0,
-      pChange: idx.changePercent || idx.pChange || 0
-    }));
+    // Process all indices with correct field mapping
+    const processedIndices = indices.map(idx => {
+      // Dhan API uses securityId, LTP, change, changePercent
+      const symbol = idx.securityId || idx.symbol || idx.name || idx.indexName || 'UNKNOWN';
+      const lastPrice = idx.LTP || idx.lastPrice || idx.close || idx.ltp || 0;
+      const change = idx.change || idx.changeValue || idx.priceChange || 0;
+      const pChange = idx.changePercent || idx.pChange || idx.changePercent || 0;
+      
+      return {
+        symbol: symbol,
+        lastPrice: parseFloat(lastPrice) || 0,
+        change: parseFloat(change) || 0,
+        pChange: parseFloat(pChange) || 0
+      };
+    });
+    
+    console.log(`Processed ${processedIndices.length} indices`);
 
     // Calculate mood score
     const moodScore = calculateMoodFromDhan(indices);
     const mood = getMoodFromScore(moodScore);
 
-    // Calculate market breadth
-    const advances = indices.filter(idx => (idx.changePercent || idx.pChange || 0) > 0).length;
-    const declines = indices.filter(idx => (idx.changePercent || idx.pChange || 0) < 0).length;
+    // Calculate market breadth from processed indices
+    const advances = processedIndices.filter(idx => idx.pChange > 0).length;
+    const declines = processedIndices.filter(idx => idx.pChange < 0).length;
 
     return {
       mood: mood,
       indices: processedIndices,
       vix: vix ? {
-        last: vix.lastPrice || vix.close || 0,
-        change: vix.change || 0,
-        pChange: vix.changePercent || 0
+        last: parseFloat(vix.LTP || vix.lastPrice || vix.close || 0),
+        change: parseFloat(vix.change || vix.changeValue || 0),
+        pChange: parseFloat(vix.changePercent || vix.pChange || 0)
       } : {
         last: 0,
         change: 0,
@@ -288,16 +331,18 @@ function processDhanData(data) {
 function calculateMoodFromDhan(indices) {
   let score = 50;
   
-  // Find NIFTY 50
-  const nifty50 = indices.find(idx => 
-    idx.symbol === 'NIFTY' || 
-    idx.name?.includes('NIFTY 50') ||
-    idx.indexName === 'NIFTY 50'
-  );
+  // Find NIFTY 50 by securityId or symbol
+  const nifty50 = indices.find(idx => {
+    const id = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
+    return id === 'NIFTY' || id === 'NIFTY 50' || id.includes('NIFTY50') || id === 'NIFTY_50';
+  });
 
-  if (!nifty50) return score;
+  if (!nifty50) {
+    console.log('NIFTY 50 not found in indices');
+    return score;
+  }
 
-  const pChange = nifty50.changePercent || nifty50.pChange || 0;
+  const pChange = parseFloat(nifty50.changePercent || nifty50.pChange || 0);
 
   // NIFTY 50 performance
   if (pChange > 0.5) score += 20;
@@ -306,20 +351,32 @@ function calculateMoodFromDhan(indices) {
   else if (pChange < -0.1) score -= 10;
 
   // Market breadth
-  const advances = indices.filter(idx => (idx.changePercent || idx.pChange || 0) > 0).length;
-  const declines = indices.filter(idx => (idx.changePercent || idx.pChange || 0) < 0).length;
+  const advances = indices.filter(idx => {
+    const pChange = parseFloat(idx.changePercent || idx.pChange || 0);
+    return pChange > 0;
+  }).length;
+  const declines = indices.filter(idx => {
+    const pChange = parseFloat(idx.changePercent || idx.pChange || 0);
+    return pChange < 0;
+  }).length;
 
   if (advances > declines * 1.5) score += 15;
   else if (declines > advances * 1.5) score -= 15;
 
   // Consider major indices
   const majorIndices = indices.filter(idx => {
-    const name = (idx.symbol || idx.name || '').toUpperCase();
+    const name = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
     return name.includes('BANK') || name.includes('IT') || name.includes('NEXT');
   });
 
-  const positiveCount = majorIndices.filter(idx => (idx.changePercent || idx.pChange || 0) > 0).length;
-  const negativeCount = majorIndices.filter(idx => (idx.changePercent || idx.pChange || 0) < 0).length;
+  const positiveCount = majorIndices.filter(idx => {
+    const pChange = parseFloat(idx.changePercent || idx.pChange || 0);
+    return pChange > 0;
+  }).length;
+  const negativeCount = majorIndices.filter(idx => {
+    const pChange = parseFloat(idx.changePercent || idx.pChange || 0);
+    return pChange < 0;
+  }).length;
 
   if (positiveCount > negativeCount * 1.5) score += 5;
   else if (negativeCount > positiveCount * 1.5) score -= 5;
