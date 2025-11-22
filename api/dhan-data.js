@@ -165,82 +165,77 @@ module.exports = async (req, res) => {
 
     // Try each endpoint with POST method (as per Dhan API v2 docs)
     // Market Quote APIs use POST with request body
+    // Try multiple request formats for each endpoint
+    const symbols = [
+      'NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 
+      'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 
+      'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 
+      'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 
+      'NIFTY 100', 'INDIA VIX'
+    ];
+    
+    // Define request formats to try
+    const requestFormats = securityIds.length > 0 
+      ? [
+          { name: 'NSE_INDEX_numeric', body: { 'NSE_INDEX': securityIds.slice(0, 15) } },
+          { name: 'INDEX_numeric', body: { 'INDEX': securityIds.slice(0, 15) } },
+          { name: 'array_numeric', body: { securityId: securityIds.slice(0, 15) } }
+        ]
+      : [
+          { name: 'NSE_INDEX_symbols', body: { 'NSE_INDEX': symbols } },
+          { name: 'INDEX_symbols', body: { 'INDEX': symbols } },
+          { name: 'array_symbols', body: { securityId: symbols } },
+          { name: 'objectArray', body: { securityId: symbols.map(s => ({ securityId: s, exchangeSegment: 'INDEX' })) } }
+        ];
+    
     for (const endpoint of endpoints) {
       for (const method of ['POST', 'GET']) {
-        try {
-          const fullUrl = `${baseUrl}${endpoint}`;
-          console.log(`Trying Dhan API ${method}: ${fullUrl}`);
-          
-          const fetchOptions = {
-            method: method,
-            headers: headers,
-            timeout: 10000
-          };
-          
-          // For POST requests, include request body with indices
-          if (method === 'POST') {
-            let requestBody;
+        // For POST, try each request format; for GET, try once
+        const formatsToTry = method === 'POST' ? requestFormats : [null];
+        
+        for (const reqFormat of formatsToTry) {
+          try {
+            const fullUrl = `${baseUrl}${endpoint}`;
+            console.log(`Trying Dhan API ${method}: ${fullUrl}${reqFormat ? ` (format: ${reqFormat.name})` : ''}`);
             
-            // Use securityIds from instruments API if available, otherwise try symbol names
-            if (securityIds.length > 0) {
-              // Use numeric securityIds from instruments API
-              // Dhan API might expect format: {"NSE_INDEX": [securityIds]}
-              requestBody = {
-                'NSE_INDEX': securityIds.slice(0, 15) // Limit to 15 to avoid too many
-              };
-              console.log('✅ Using securityIds from instruments API (NSE_INDEX format):', securityIds.slice(0, 5));
-            } else {
-              // Fallback: Try different formats based on endpoint
-              // Based on Dhan API docs, format might be: {"NSE_INDEX": [symbols]} or {"INDEX": [symbols]}
-              const symbols = [
-                'NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 
-                'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 
-                'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 
-                'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 
-                'NIFTY 100', 'INDIA VIX'
-              ];
-              
-              if (endpoint.includes('ltp') || endpoint.includes('quote')) {
-                // Try format: {"NSE_INDEX": [symbol names]} - most likely for indices
-                requestBody = {
-                  'NSE_INDEX': symbols
-                };
-                console.log('Trying NSE_INDEX format with symbol names');
-              } else {
-                // Try multiple formats
-                // Format 1: Exchange segment format
-                requestBody = {
-                  'INDEX': symbols  // Try INDEX instead of NSE_INDEX
-                };
-                console.log('Trying INDEX format with symbol names');
-              }
+            const fetchOptions = {
+              method: method,
+              headers: headers,
+              timeout: 10000
+            };
+            
+            // For POST requests, include request body
+            if (method === 'POST' && reqFormat) {
+              fetchOptions.body = JSON.stringify(reqFormat.body);
+              console.log(`📤 Request body (${reqFormat.name}):`, JSON.stringify(reqFormat.body).substring(0, 300));
             }
             
-            fetchOptions.body = JSON.stringify(requestBody);
-            console.log('📤 Request body:', JSON.stringify(requestBody).substring(0, 500));
-          }
-          
-          const response = await fetch(fullUrl, fetchOptions);
+            const response = await fetch(fullUrl, fetchOptions);
 
-          if (response.ok) {
-            const responseData = await response.json();
-            console.log(`✅ Response received from ${fullUrl}`);
-            console.log(`Response type: ${typeof responseData}, Is Array: ${Array.isArray(responseData)}`);
-            console.log(`Response keys: ${Object.keys(responseData || {}).join(', ')}`);
-            console.log(`Sample response: ${JSON.stringify(responseData).substring(0, 2000)}`);
-            
-            // Check if response has actual data (not empty)
-            const hasData = responseData.data && Object.keys(responseData.data || {}).length > 0;
-            if (hasData || Array.isArray(responseData) || (responseData.data && Array.isArray(responseData.data))) {
-              indicesResponse = response;
-              indicesData = responseData;
-              workingEndpoint = endpoint;
-              console.log(`✅ Successfully connected to Dhan API with data: ${fullUrl}`);
-              break;
-            } else {
-              console.log(`⚠️ Response OK but data is empty, trying next format/endpoint...`);
-              // Continue to next format/endpoint
-            }
+            if (response.ok) {
+              const responseData = await response.json();
+              console.log(`✅ Response received from ${fullUrl}${reqFormat ? ` (${reqFormat.name})` : ''}`);
+              console.log(`Response type: ${typeof responseData}, Is Array: ${Array.isArray(responseData)}`);
+              console.log(`Response keys: ${Object.keys(responseData || {}).join(', ')}`);
+              console.log(`Sample response: ${JSON.stringify(responseData).substring(0, 2000)}`);
+              
+              // Check if response has actual data (not empty)
+              const hasData = (responseData.data && Object.keys(responseData.data || {}).length > 0) ||
+                            Array.isArray(responseData) ||
+                            (responseData.data && Array.isArray(responseData.data)) ||
+                            (typeof responseData === 'object' && Object.keys(responseData).some(k => k !== 'status' && k !== 'data'));
+              
+              if (hasData) {
+                indicesResponse = response;
+                indicesData = responseData;
+                workingEndpoint = endpoint;
+                console.log(`✅ Successfully connected to Dhan API with data: ${fullUrl} (format: ${reqFormat?.name || 'GET'})`);
+                break;
+              } else {
+                console.log(`⚠️ Response OK but data is empty, trying next format...`);
+                // Continue to next format
+                continue;
+              }
           } else if (response.status === 401 || response.status === 403) {
             // Auth error - endpoint exists but credentials wrong
             const errorText = await response.text();
