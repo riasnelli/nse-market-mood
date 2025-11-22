@@ -2,6 +2,7 @@ class MarketMoodApp {
     constructor() {
         this.apiUrl = '/api/nse-data';
         this.timerId = null;
+        this.lastMarketStatus = null; // Store last known market status
         this.init();
     }
 
@@ -15,26 +16,26 @@ class MarketMoodApp {
 
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
-                // When tab becomes visible again, only fetch if market is open
-                // Otherwise, just adjust polling status without fetching
-                if (this.isMarketOpen()) {
-                    this.loadData();
-                    this.startPolling();
-                } else {
-                    this.stopPolling();
-                    // Don't fetch data when market is closed - keep existing values
-                }
+                // When tab becomes visible again, fetch data to check market status
+                this.loadData().then(() => {
+                    // After loading, check market status from API response
+                    if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+                        this.startPolling();
+                    } else {
+                        this.stopPolling();
+                    }
+                });
             }
         });
 
-        this.loadData();
-        // Start polling only if market is open
-        if (this.isMarketOpen()) {
-            this.startPolling();
-        } else {
-            // Market is closed - stop any polling
-            this.stopPolling();
-        }
+        this.loadData().then(() => {
+            // After initial load, check market status and start/stop polling accordingly
+            if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+                this.startPolling();
+            } else {
+                this.stopPolling();
+            }
+        });
     }
 
     async loadData() {
@@ -50,21 +51,23 @@ class MarketMoodApp {
 
             const data = await response.json();
             console.log('Data received:', data);
+            
+            // Store market status from API response
+            if (data.marketStatus) {
+                this.lastMarketStatus = data.marketStatus;
+                console.log('Market status from API:', this.lastMarketStatus);
+            }
+            
             this.updateUI(data);
             
-            // Only update timestamp if market is open, or if this is a manual refresh
-            // For manual refresh, we'll pass a flag, but for now, always update on successful fetch
-            // The key is to stop auto-polling when market is closed
+            // Update timestamp
             this.updateLastUpdated(new Date());
 
         } catch (error) {
             console.error('Error fetching data:', error);
             this.useMockData();
-            // Only update timestamp on error if it's the first load or manual refresh
-            // Don't update timestamp on auto-refresh failures when market is closed
-            if (this.isMarketOpen() || !this.timerId) {
-                this.updateLastUpdated(new Date());
-            }
+            // Update timestamp on error
+            this.updateLastUpdated(new Date());
         } finally {
             this.setLoading(false);
         }
@@ -87,8 +90,9 @@ class MarketMoodApp {
     }
 
     startPolling() {
-        // Only poll automatically during market hours (every 30s)
-        if (!this.isMarketOpen()) {
+        // Check market status from API response (more reliable than time-based)
+        if (this.lastMarketStatus && !this.lastMarketStatus.isOpen) {
+            console.log('Market is closed (from API) - not starting polling');
             this.stopPolling();
             return;
         }
@@ -99,15 +103,19 @@ class MarketMoodApp {
             clearInterval(this.timerId);
         }
 
+        console.log('Starting auto-polling (30s interval)');
+
         this.timerId = setInterval(() => {
-            // Only fetch if market is still open
-            if (this.isMarketOpen()) {
-                this.loadData();
-            } else {
-                // Market closed - stop polling immediately
-                this.stopPolling();
-                console.log('Market closed - stopped auto-polling');
-            }
+            // Check market status before each fetch
+            // We'll check again after loadData() updates lastMarketStatus
+            this.loadData().then(() => {
+                // After loading, check if market is still open
+                if (this.lastMarketStatus && !this.lastMarketStatus.isOpen) {
+                    // Market closed - stop polling immediately
+                    this.stopPolling();
+                    console.log('Market closed (from API) - stopped auto-polling');
+                }
+            });
         }, interval);
     }
 
@@ -125,6 +133,12 @@ class MarketMoodApp {
     }
 
     isMarketOpen() {
+        // Prefer API-based market status over time-based check
+        if (this.lastMarketStatus) {
+            return this.lastMarketStatus.isOpen;
+        }
+        
+        // Fallback to time-based check if no API status available
         // NSE market hours: 09:15 to 15:30 IST (India Standard Time, UTC+5:30)
         const now = new Date();
         // convert to milliseconds and get IST time components

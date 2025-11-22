@@ -1,5 +1,106 @@
 const fetch = require('node-fetch');
 
+// Function to check if market is actually open based on API response
+async function checkMarketStatus() {
+  try {
+    // Try to fetch NSE data to check if market is responding with live data
+    // Use Promise.race for timeout
+    const fetchPromise = fetch('https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    });
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout')), 5000)
+    );
+    
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+    if (!response.ok) {
+      return { isOpen: false, verified: false, reason: 'API_ERROR' };
+    }
+
+    const data = await response.json();
+    
+    // Check if we got valid data
+    if (!data || !data.data || data.data.length === 0) {
+      return { isOpen: false, verified: true, reason: 'NO_DATA' };
+    }
+
+    const nifty = data.data.find(item => item.symbol === 'NIFTY 50');
+    if (!nifty) {
+      return { isOpen: false, verified: true, reason: 'NO_NIFTY_DATA' };
+    }
+
+    // Check if lastPrice exists and is a valid number (not 0 or null)
+    // When market is closed, sometimes lastPrice might be 0 or stale
+    const hasValidPrice = nifty.lastPrice && nifty.lastPrice > 0;
+    
+    // Check timestamp if available (some NSE responses include timestamps)
+    // If data is very old (more than 1 hour), market is likely closed
+    let isRecentData = true;
+    if (data.meta && data.meta.lastUpdateTime) {
+      const lastUpdate = new Date(data.meta.lastUpdateTime);
+      const now = new Date();
+      const diffMinutes = (now - lastUpdate) / (1000 * 60);
+      isRecentData = diffMinutes < 60; // Data should be less than 1 hour old
+    }
+
+    // Additional check: if change is exactly 0 and pChange is exactly 0, might be closed
+    // But this is not reliable as market can have 0 change when open
+    const hasActivity = nifty.change !== undefined || nifty.pChange !== undefined;
+
+    // Market is likely open if:
+    // 1. We have valid price data
+    // 2. Data is recent (if timestamp available)
+    // 3. We got a successful API response
+    const isOpen = hasValidPrice && isRecentData && hasActivity;
+
+    return {
+      isOpen: isOpen,
+      verified: true,
+      reason: isOpen ? 'LIVE_DATA' : 'STALE_DATA',
+      lastPrice: nifty.lastPrice,
+      timestamp: data.meta?.lastUpdateTime || new Date().toISOString()
+    };
+
+  } catch (error) {
+    console.error('Error checking market status:', error);
+    // Fallback to time-based check
+    return checkMarketStatusByTime();
+  }
+}
+
+// Fallback: time-based market status check
+function checkMarketStatusByTime() {
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const istOffset = 5.5 * 60 * 60000; // +5:30
+  const ist = new Date(utc + istOffset);
+
+  const hours = ist.getHours();
+  const minutes = ist.getMinutes();
+  const day = ist.getDay(); // 0 = Sunday, 6 = Saturday
+
+  // Weekend check
+  if (day === 0 || day === 6) {
+    return { isOpen: false, verified: false, reason: 'WEEKEND' };
+  }
+
+  // Market hours: 09:15 to 15:30 IST
+  const afterOpen = (hours > 9) || (hours === 9 && minutes >= 15);
+  const beforeClose = (hours < 15) || (hours === 15 && minutes <= 30);
+
+  return {
+    isOpen: afterOpen && beforeClose,
+    verified: false,
+    reason: afterOpen && beforeClose ? 'MARKET_HOURS' : 'OUTSIDE_HOURS'
+  };
+}
+
 module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -18,6 +119,10 @@ module.exports = async (req, res) => {
 
   try {
     console.log('Fetching NSE data...');
+    
+    // First, check if market is actually open
+    const marketStatus = await checkMarketStatus();
+    console.log('Market status:', marketStatus);
     
     // List of indices to fetch
     const indices = [
@@ -164,10 +269,21 @@ module.exports = async (req, res) => {
     
     const processedData = processMarketData(allData);
     
+    // Add market status to response
+    processedData.marketStatus = {
+      isOpen: marketStatus.isOpen,
+      verified: marketStatus.verified,
+      reason: marketStatus.reason,
+      timestamp: marketStatus.timestamp || new Date().toISOString()
+    };
+    
     res.status(200).json(processedData);
     
   } catch (error) {
     console.error('Error fetching NSE data:', error);
+    
+    // Check market status even on error
+    const marketStatus = await checkMarketStatus().catch(() => checkMarketStatusByTime());
     
     // Return mock data as fallback
     const mockData = {
@@ -180,7 +296,13 @@ module.exports = async (req, res) => {
       vix: { last: 14.25, change: -0.35, pChange: -2.40 },
       advanceDecline: { advances: 28, declines: 17 },
       timestamp: new Date().toISOString(),
-      note: 'Using mock data - API failed'
+      note: 'Using mock data - API failed',
+      marketStatus: {
+        isOpen: marketStatus.isOpen,
+        verified: marketStatus.verified,
+        reason: marketStatus.reason,
+        timestamp: new Date().toISOString()
+      }
     };
     
     res.status(200).json(mockData);
