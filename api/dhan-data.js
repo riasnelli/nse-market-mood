@@ -18,21 +18,27 @@ module.exports = async (req, res) => {
 
   try {
     // Get credentials from request body, query params, or environment
-    let clientId, accessToken, customEndpoint;
+    let clientId, accessToken, apiKey, apiSecret, customEndpoint;
     
     if (req.method === 'POST' && req.body) {
       clientId = req.body.clientId;
       accessToken = req.body.accessToken;
+      apiKey = req.body.apiKey;
+      apiSecret = req.body.apiSecret;
       customEndpoint = req.body.customEndpoint;
     } else if (req.query) {
       clientId = req.query.clientId;
       accessToken = req.query.accessToken;
+      apiKey = req.query.apiKey;
+      apiSecret = req.query.apiSecret;
       customEndpoint = req.query.customEndpoint;
     }
     
     // Fallback to environment variables
     clientId = clientId || process.env.DHAN_CLIENT_ID;
     accessToken = accessToken || process.env.DHAN_ACCESS_TOKEN;
+    apiKey = apiKey || process.env.DHAN_API_KEY;
+    apiSecret = apiSecret || process.env.DHAN_API_SECRET;
     customEndpoint = customEndpoint || process.env.DHAN_CUSTOM_ENDPOINT;
 
     if (!accessToken) {
@@ -54,6 +60,14 @@ module.exports = async (req, res) => {
       'access-token': accessToken,
       'Content-Type': 'application/json'
     };
+    
+    // Add API Key/Secret if provided (for v2.4+)
+    if (apiKey) {
+      headers['api-key'] = apiKey;
+    }
+    if (apiSecret) {
+      headers['api-secret'] = apiSecret;
+    }
 
     // If custom endpoint provided, use it first
     let endpoints = [];
@@ -134,9 +148,14 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         error: true,
         message: `Dhan API endpoints not found. All tested endpoints returned 404.`,
-        hint: `Please check Dhan API documentation at https://dhanhq.co/docs/v2/ for the correct endpoint.`,
+        hint: `Please check Dhan API v2 documentation at https://dhanhq.co/docs/v2/ for the correct endpoint.`,
         testedEndpoints: endpoints,
-        suggestion: 'The endpoint might require a different base URL, authentication method, or your account might not have access to this endpoint. Please verify your Dhan API credentials and documentation.',
+        suggestion: `Possible issues:\n1. Your account might not have Data API subscription enabled\n2. Check subscription at: https://web.dhan.co → My Profile → DhanHQ Trading APIs\n3. The endpoint might require different authentication\n4. Try entering a custom endpoint from Dhan API v2 documentation\n5. Contact Dhan support: help@dhan.co`,
+        helpLinks: {
+          docs: 'https://dhanhq.co/docs/v2/',
+          subscription: 'https://web.dhan.co',
+          support: 'mailto:help@dhan.co'
+        },
         marketStatus: {
           isOpen: false,
           verified: false,

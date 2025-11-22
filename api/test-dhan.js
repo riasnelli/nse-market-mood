@@ -22,12 +22,20 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { clientId, accessToken, customEndpoint } = req.body;
+    const { clientId, accessToken, apiKey, apiSecret, customEndpoint } = req.body;
 
-    if (!clientId || !accessToken) {
+    if (!accessToken) {
       return res.status(200).json({
         success: false,
-        message: 'Client ID and Access Token are required'
+        message: 'Access Token is required'
+      });
+    }
+    
+    // For v2.4+, API Key/Secret might be used instead of Client ID
+    if (!clientId && !apiKey) {
+      return res.status(200).json({
+        success: false,
+        message: 'Either Client ID or API Key is required'
       });
     }
 
@@ -41,6 +49,14 @@ module.exports = async (req, res) => {
       'access-token': accessToken,
       'Content-Type': 'application/json'
     };
+    
+    // Add API Key/Secret if provided (for v2.4+)
+    if (apiKey) {
+      headers['api-key'] = apiKey;
+    }
+    if (apiSecret) {
+      headers['api-secret'] = apiSecret;
+    }
 
     // Also try alternative base URLs if main one fails
     const baseUrls = [

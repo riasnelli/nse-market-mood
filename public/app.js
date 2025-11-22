@@ -27,6 +27,8 @@ class MarketMoodApp {
                 return {
                     clientId: apiConfig.config.clientId,
                     accessToken: apiConfig.config.accessToken,
+                    apiKey: apiConfig.config.apiKey,
+                    apiSecret: apiConfig.config.apiSecret,
                     customEndpoint: apiConfig.config.customEndpoint
                 };
             }

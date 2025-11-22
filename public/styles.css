@@ -516,6 +516,42 @@ header h1 {
     margin-bottom: 10px;
 }
 
+.endpoint-hint a {
+    color: #667eea;
+    text-decoration: none;
+}
+
+.endpoint-hint a:hover {
+    text-decoration: underline;
+}
+
+.api-advanced-config {
+    margin: 10px 0;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.dhan-info-box {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px 0;
+    font-size: 0.85rem;
+    color: #856404;
+}
+
+.dhan-info-box a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.dhan-info-box a:hover {
+    text-decoration: underline;
+}
+
 /* Password input with eye icon */
 .password-input-wrapper {
     position: relative;

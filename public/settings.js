@@ -20,6 +20,8 @@ class SettingsManager {
                     config: {
                         clientId: '',
                         accessToken: '',
+                        apiKey: '', // API Key (optional, for v2.4+)
+                        apiSecret: '', // API Secret (optional, for v2.4+)
                         customEndpoint: '' // Allow custom endpoint override
                     }
                 }
@@ -115,11 +117,29 @@ class SettingsManager {
                                 <span class="eye-icon">👁️</span>
                             </button>
                         </div>
-                        <input type="text" placeholder="Custom Endpoint (optional, e.g., /v2/market-quote/indices)" 
+                        <details class="api-advanced-config">
+                            <summary style="cursor: pointer; color: #667eea; margin: 10px 0; font-size: 0.9rem;">Advanced (API Key & Secret - Optional)</summary>
+                            <div style="margin-top: 10px;">
+                                <input type="text" placeholder="API Key (for v2.4+)" class="form-control api-input" 
+                                       data-api="${key}" data-field="apiKey" value="${api.config.apiKey || ''}">
+                                <div class="password-input-wrapper">
+                                    <input type="password" placeholder="API Secret (for v2.4+)" class="form-control api-input password-input" 
+                                           data-api="${key}" data-field="apiSecret" 
+                                           id="secret-${key}" value="${api.config.apiSecret || ''}">
+                                    <button type="button" class="toggle-password" data-target="secret-${key}" title="Show/Hide">
+                                        <span class="eye-icon">👁️</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </details>
+                        <input type="text" placeholder="Custom Endpoint (optional, e.g., /market-quote/indices)" 
                                class="form-control api-input" 
                                data-api="${key}" data-field="customEndpoint" 
                                value="${api.config.customEndpoint || ''}">
-                        <small class="endpoint-hint">Leave empty to auto-detect. Check Dhan API docs if auto-detection fails.</small>
+                        <small class="endpoint-hint">Leave empty to auto-detect. Check <a href="https://dhanhq.co/docs/v2/" target="_blank">Dhan API v2 docs</a> if auto-detection fails.</small>
+                        <div class="dhan-info-box">
+                            <strong>Note:</strong> Dhan API requires active Data API subscription. Check your subscription at <a href="https://web.dhan.co" target="_blank">web.dhan.co</a> → My Profile → DhanHQ Trading APIs
+                        </div>
                         <button class="btn-secondary test-api-btn" data-api="${key}">Test Connection</button>
                     </div>
                 ` : ''}
@@ -284,12 +304,20 @@ class SettingsManager {
                 const tokenInput = document.querySelector(`[data-api="${apiKey}"][data-field="accessToken"]`);
                 
                 const customEndpointInput = document.querySelector(`[data-api="${apiKey}"][data-field="customEndpoint"]`);
+                const apiKeyInput = document.querySelector(`[data-api="${apiKey}"][data-field="apiKey"]`);
+                const apiSecretInput = document.querySelector(`[data-api="${apiKey}"][data-field="apiSecret"]`);
                 
                 if (clientIdInput) {
                     api.config.clientId = clientIdInput.value.trim();
                 }
                 if (tokenInput) {
                     api.config.accessToken = tokenInput.value.trim();
+                }
+                if (apiKeyInput) {
+                    api.config.apiKey = apiKeyInput.value.trim();
+                }
+                if (apiSecretInput) {
+                    api.config.apiSecret = apiSecretInput.value.trim();
                 }
                 if (customEndpointInput) {
                     api.config.customEndpoint = customEndpointInput.value.trim();
@@ -364,10 +392,18 @@ class SettingsManager {
 
         const clientId = api.config.clientId?.trim();
         const token = api.config.accessToken?.trim();
+        const apiKey = api.config.apiKey?.trim();
+        const apiSecret = api.config.apiSecret?.trim();
         const customEndpoint = api.config.customEndpoint?.trim();
 
-        if (!clientId || !token) {
-            this.showNotification('Please enter both Client ID and Access Token', 'error');
+        if (!token) {
+            this.showNotification('Please enter Access Token (required)', 'error');
+            return;
+        }
+        
+        // Client ID is recommended but not always required for v2.4+
+        if (!clientId && !apiKey) {
+            this.showNotification('Please enter either Client ID or API Key', 'error');
             return;
         }
 
@@ -393,6 +429,8 @@ class SettingsManager {
                 body: JSON.stringify({
                     clientId: clientId,
                     accessToken: token,
+                    apiKey: apiKey,
+                    apiSecret: apiSecret,
                     customEndpoint: customEndpoint
                 })
             });
