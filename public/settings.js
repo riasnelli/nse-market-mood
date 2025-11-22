@@ -120,7 +120,7 @@ class SettingsManager {
                     </span>
                 </div>
                 ${api.type === 'dhan' ? `
-                    <div class="api-config" id="config-${key}">
+                    <form class="api-config-form" id="config-${key}" onsubmit="return false;">
                         <input type="text" placeholder="Client ID" class="form-control api-input" 
                                data-api="${key}" data-field="clientId" value="${api.config.clientId || ''}">
                         <div class="password-input-wrapper">
@@ -154,8 +154,8 @@ class SettingsManager {
                         <div class="dhan-info-box">
                             <strong>Note:</strong> Dhan API requires active Data API subscription. Check your subscription at <a href="https://web.dhan.co" target="_blank">web.dhan.co</a> → My Profile → DhanHQ Trading APIs
                         </div>
-                        <button class="btn-secondary test-api-btn" data-api="${key}">Test Connection</button>
-                    </div>
+                        <button type="button" class="btn-secondary test-api-btn" data-api="${key}">Test Connection</button>
+                    </form>
                 ` : ''}
             `;
             apiListContainer.appendChild(apiItem);
