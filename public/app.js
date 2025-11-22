@@ -2,6 +2,9 @@ class MarketMoodApp {
     constructor() {
         this.timerId = null;
         this.lastMarketStatus = null; // Store last known market status
+        this.lastSuccessfulStatus = null; // Store last successful market status
+        this.consecutiveFailures = 0; // Track consecutive API failures
+        this.maxFailures = 3; // Max failures before marking market as closed
         this.updateApiUrl();
         this.init();
     }
@@ -77,7 +80,9 @@ class MarketMoodApp {
         });
     }
 
-    async loadData() {
+    async loadData(retryCount = 0) {
+        const maxRetries = 2; // Retry up to 2 times on failure
+        
         try {
             this.setLoading(true);
             console.log('Fetching from:', this.apiUrl);
@@ -105,19 +110,93 @@ class MarketMoodApp {
             const data = await response.json();
             console.log('Data received:', data);
             
+            // Check if we got valid data
+            const hasValidData = data.indices && data.indices.length > 0;
+            
             // Store market status from API response
             if (data.marketStatus) {
-                this.lastMarketStatus = data.marketStatus;
-                console.log('Market status from API:', this.lastMarketStatus);
+                // Only update status if we have valid data or if it's explicitly marked as closed
+                if (hasValidData || (data.marketStatus.verified && !data.marketStatus.isOpen)) {
+                    this.lastMarketStatus = data.marketStatus;
+                    this.lastSuccessfulStatus = data.marketStatus;
+                    this.consecutiveFailures = 0; // Reset failure counter on success
+                    console.log('Market status from API:', this.lastMarketStatus);
+                } else {
+                    // Invalid data but API responded - might be transient error
+                    console.warn('API responded but no valid data. Keeping last known status.');
+                    this.consecutiveFailures++;
+                    
+                    // Use last successful status if available
+                    if (this.lastSuccessfulStatus) {
+                        this.lastMarketStatus = { ...this.lastSuccessfulStatus };
+                        // Mark as potentially closed only after multiple failures
+                        if (this.consecutiveFailures >= this.maxFailures) {
+                            this.lastMarketStatus.isOpen = false;
+                            this.lastMarketStatus.verified = false;
+                            this.lastMarketStatus.reason = 'MULTIPLE_FAILURES';
+                        }
+                    } else {
+                        // No previous status - mark as error
+                        this.lastMarketStatus = {
+                            isOpen: false,
+                            verified: false,
+                            reason: 'NO_DATA',
+                            timestamp: new Date().toISOString()
+                        };
+                    }
+                }
             }
             
-            this.updateUI(data);
+            // Only update UI if we have valid data
+            if (hasValidData) {
+                this.updateUI(data);
+            } else if (this.lastSuccessfulStatus && this.lastSuccessfulStatus.isOpen) {
+                // Keep showing last successful data if market was open
+                console.log('No new data, but market was open - keeping last data visible');
+            } else {
+                // Use mock data as fallback
+                this.useMockData();
+            }
             
             // Update timestamp
             this.updateLastUpdated(new Date());
 
         } catch (error) {
             console.error('Error fetching data:', error);
+            this.consecutiveFailures++;
+            
+            // Retry on transient errors
+            if (retryCount < maxRetries && (error.message.includes('fetch') || error.message.includes('network'))) {
+                console.log(`Retrying... (${retryCount + 1}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+                return this.loadData(retryCount + 1);
+            }
+            
+            // After max failures, mark as closed
+            if (this.consecutiveFailures >= this.maxFailures) {
+                if (this.lastSuccessfulStatus) {
+                    this.lastMarketStatus = {
+                        ...this.lastSuccessfulStatus,
+                        isOpen: false,
+                        verified: false,
+                        reason: 'MULTIPLE_FAILURES'
+                    };
+                } else {
+                    this.lastMarketStatus = {
+                        isOpen: false,
+                        verified: false,
+                        reason: 'API_ERROR',
+                        timestamp: new Date().toISOString()
+                    };
+                }
+            } else {
+                // Keep last known status for transient failures
+                if (this.lastSuccessfulStatus) {
+                    this.lastMarketStatus = { ...this.lastSuccessfulStatus };
+                }
+            }
+            
+            // Use mock data as fallback
             this.useMockData();
             // Update timestamp on error
             this.updateLastUpdated(new Date());
@@ -163,11 +242,23 @@ class MarketMoodApp {
             // We'll check again after loadData() updates lastMarketStatus
             this.loadData().then(() => {
                 // After loading, check if market is still open
-                if (this.lastMarketStatus && !this.lastMarketStatus.isOpen) {
-                    // Market closed - stop polling immediately
+                // Only stop polling after multiple consecutive failures
+                if (this.lastMarketStatus && 
+                    !this.lastMarketStatus.isOpen && 
+                    this.consecutiveFailures >= this.maxFailures) {
+                    // Market closed after multiple failures - stop polling
                     this.stopPolling();
-                    console.log('Market closed (from API) - stopped auto-polling');
+                    console.log('Market closed (multiple failures) - stopped auto-polling');
+                } else if (this.lastMarketStatus && 
+                          !this.lastMarketStatus.isOpen && 
+                          this.lastMarketStatus.verified && 
+                          this.lastMarketStatus.reason !== 'MULTIPLE_FAILURES' &&
+                          this.lastMarketStatus.reason !== 'API_ERROR') {
+                    // Market explicitly closed (not due to API errors) - stop polling
+                    this.stopPolling();
+                    console.log('Market closed (verified) - stopped auto-polling');
                 }
+                // Otherwise, continue polling even if there's a transient error
             });
         }, interval);
     }
