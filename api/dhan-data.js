@@ -47,9 +47,12 @@ module.exports = async (req, res) => {
 
     console.log('Fetching data from Dhan API...');
 
-    // Dhan API v2 - Based on documentation: https://dhanhq.co/docs/v2/
-    // Base URL: https://api.dhan.co/v2/ (with /v2/ prefix)
-    const baseUrl = 'https://api.dhan.co/v2';
+    // Dhan API - Try both v2 and non-v2 base URLs
+    // Based on user's Python code, correct base URL might be: https://api.dhan.co (without /v2)
+    const baseUrls = [
+      'https://api.dhan.co',      // Non-v2 base URL (from user's code)
+      'https://api.dhan.co/v2'     // v2 base URL (from docs)
+    ];
     
     const headers = {
       'access-token': accessToken,
@@ -69,92 +72,82 @@ module.exports = async (req, res) => {
       headers['api-secret'] = apiSecret;
     }
 
-    // Step 1: Try to get instruments/indices list first to get correct securityIds
-    console.log('Step 1: Fetching instruments list to get correct securityIds...');
+    // Step 1: Try to get indices list first (based on user's Python code)
+    console.log('Step 1: Fetching indices list from Dhan API...');
     let securityIds = [];
+    let indicesList = [];
     
-    const instrumentsEndpoints = [
-      '/instruments/indices',
-      '/master/indices',
-      '/instruments',
-      '/master',
-      '/indices'
-    ];
-    
-    for (const instEndpoint of instrumentsEndpoints) {
+    // Try /indices endpoint (from user's code)
+    for (const testBaseUrl of baseUrls) {
       try {
-        const instUrl = `${baseUrl}${instEndpoint}`;
-        console.log(`Trying instruments endpoint: ${instUrl}`);
+        const indicesUrl = `${testBaseUrl}/indices`;
+        console.log(`Trying indices endpoint: ${indicesUrl}`);
         
-        const instResponse = await fetch(instUrl, {
+        const indicesResponse = await fetch(indicesUrl, {
           method: 'GET',
           headers: headers,
           timeout: 10000
         });
         
-        if (instResponse.ok) {
-          const instData = await instResponse.json();
-          console.log('Instruments response sample:', JSON.stringify(instData).substring(0, 1000));
+        if (indicesResponse.ok) {
+          const indicesData = await indicesResponse.json();
+          console.log('Indices response sample:', JSON.stringify(indicesData).substring(0, 1000));
           
-          // Try to extract securityIds from instruments response
-          let instrumentsList = [];
-          if (Array.isArray(instData)) {
-            instrumentsList = instData;
-          } else if (instData.data && Array.isArray(instData.data)) {
-            instrumentsList = instData.data;
-          } else if (instData.result && Array.isArray(instData.result)) {
-            instrumentsList = instData.result;
+          // Extract indices list
+          if (Array.isArray(indicesData)) {
+            indicesList = indicesData;
+          } else if (indicesData.data && Array.isArray(indicesData.data)) {
+            indicesList = indicesData.data;
+          } else if (indicesData.result && Array.isArray(indicesData.result)) {
+            indicesList = indicesData.result;
           }
           
-          if (instrumentsList.length > 0) {
-            // Find NIFTY indices in the list
-            const niftyIndices = instrumentsList.filter(inst => {
+          if (indicesList.length > 0) {
+            console.log(`✅ Found ${indicesList.length} indices in list`);
+            // Extract securityIds if available
+            const niftyIndices = indicesList.filter(inst => {
               const name = (inst.name || inst.symbol || inst.securityId || inst.instrumentName || '').toString().toUpperCase();
               return name.includes('NIFTY') || name.includes('VIX');
             });
-            
             securityIds = niftyIndices.map(inst => inst.securityId || inst.instrumentId || inst.id || inst.security_id);
-            securityIds = securityIds.filter(id => id); // Remove undefined/null
-            
+            securityIds = securityIds.filter(id => id);
             if (securityIds.length > 0) {
-              console.log(`✅ Found ${securityIds.length} indices with securityIds:`, securityIds.slice(0, 5));
-              break;
+              console.log(`✅ Found ${securityIds.length} securityIds:`, securityIds.slice(0, 5));
             }
+            break;
           }
         }
       } catch (e) {
-        console.log(`Instruments endpoint ${instEndpoint} failed:`, e.message);
+        console.log(`Indices endpoint failed for ${testBaseUrl}:`, e.message);
         continue;
       }
     }
     
-    // If we couldn't get securityIds from instruments API, use fallback
-    if (securityIds.length === 0) {
-      console.warn('⚠️ Could not fetch instruments. Will try with symbol names and common formats.');
+    // If we couldn't get indices list, use fallback
+    if (indicesList.length === 0) {
+      console.warn('⚠️ Could not fetch indices list. Will try direct quotes API.');
     }
 
     // If custom endpoint provided, use it first
     let endpoints = [];
     if (customEndpoint && customEndpoint.trim()) {
-      // Ensure custom endpoint doesn't start with /v2/ if baseUrl already has it
-      const cleanEndpoint = customEndpoint.trim().startsWith('/v2/') 
-        ? customEndpoint.trim().substring(3) 
-        : customEndpoint.trim();
+      const cleanEndpoint = customEndpoint.trim().startsWith('/') 
+        ? customEndpoint.trim() 
+        : '/' + customEndpoint.trim();
       endpoints = [cleanEndpoint];
     } else {
-      // Based on Dhan API v2 documentation - Market Quote API endpoints
-      // Documentation: https://dhanhq.co/docs/v2/
-      // Market Quote endpoints under Data APIs section
+      // Based on user's Python code and Dhan API docs
+      // Try GET endpoints first (from user's code), then POST endpoints
       endpoints = [
-        '/marketfeed/ltp',                 // Market Quote - Last Traded Price (POST)
-        '/marketfeed/ohlc',                // Market Quote - OHLC (POST)
-        '/marketfeed/quote',               // Market Quote - Full Quote (POST)
-        '/marketfeed/indices',             // Market Quote - Indices (POST)
-        '/market-quote/indices',           // Alternative format
-        '/market-quote',                   // Base market quote
-        '/indices',                        // Direct indices endpoint
-        '/master/indices',                 // Master data indices
-        '/instruments/indices'             // Instruments list for indices
+        '/quotes',                         // GET quotes endpoint (from user's code)
+        '/indices',                        // GET indices list (from user's code)
+        '/marketfeed/ltp',                 // POST Market Quote - Last Traded Price
+        '/marketfeed/ohlc',                 // POST Market Quote - OHLC
+        '/marketfeed/quote',               // POST Market Quote - Full Quote
+        '/marketfeed/indices',             // POST Market Quote - Indices
+        '/v2/marketfeed/ltp',              // v2 version
+        '/v2/quotes',                      // v2 quotes
+        '/v2/indices'                      // v2 indices
       ];
     }
 
@@ -188,27 +181,79 @@ module.exports = async (req, res) => {
           { name: 'objectArray', body: { securityId: symbols.map(s => ({ securityId: s, exchangeSegment: 'INDEX' })) } }
         ];
     
-    for (const endpoint of endpoints) {
-      for (const method of ['POST', 'GET']) {
-        // For POST, try each request format; for GET, try once
-        const formatsToTry = method === 'POST' ? requestFormats : [null];
-        
-        for (const reqFormat of formatsToTry) {
-          try {
-            const fullUrl = `${baseUrl}${endpoint}`;
-            console.log(`Trying Dhan API ${method}: ${fullUrl}${reqFormat ? ` (format: ${reqFormat.name})` : ''}`);
+    // Try each base URL
+    for (const baseUrl of baseUrls) {
+      for (const endpoint of endpoints) {
+        for (const method of ['GET', 'POST']) {
+          // For GET /quotes endpoint, try with query parameters (from user's Python code)
+          if (method === 'GET' && endpoint === '/quotes') {
+            // Try fetching quotes for each index symbol individually
+            const symbols = [
+              'NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 
+              'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 
+              'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 
+              'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 
+              'NIFTY 100', 'INDIA VIX'
+            ];
             
-            const fetchOptions = {
-              method: method,
-              headers: headers,
-              timeout: 10000
-            };
-            
-            // For POST requests, include request body
-            if (method === 'POST' && reqFormat) {
-              fetchOptions.body = JSON.stringify(reqFormat.body);
-              console.log(`📤 Request body (${reqFormat.name}):`, JSON.stringify(reqFormat.body).substring(0, 300));
+            try {
+              const quotesData = [];
+              for (const symbol of symbols) {
+                try {
+                  const fullUrl = `${baseUrl}${endpoint}?symbol=${encodeURIComponent(symbol)}`;
+                  console.log(`Trying GET quotes for ${symbol}: ${fullUrl}`);
+                  
+                  const response = await fetch(fullUrl, {
+                    method: 'GET',
+                    headers: headers,
+                    timeout: 10000
+                  });
+                  
+                  if (response.ok) {
+                    const quoteData = await response.json();
+                    if (quoteData && (quoteData.lastPrice || quoteData.data)) {
+                      quotesData.push({
+                        symbol: symbol,
+                        ...quoteData
+                      });
+                      console.log(`✅ Got quote for ${symbol}`);
+                    }
+                  }
+                } catch (e) {
+                  console.log(`Failed to get quote for ${symbol}:`, e.message);
+                }
+              }
+              
+              if (quotesData.length > 0) {
+                indicesData = { data: quotesData, status: 'success' };
+                workingEndpoint = endpoint;
+                console.log(`✅ Successfully fetched ${quotesData.length} quotes using GET /quotes`);
+                break;
+              }
+            } catch (e) {
+              console.log(`GET /quotes failed:`, e.message);
             }
+          }
+          
+          // For POST, try each request format; for GET (non-quotes), try once
+          const formatsToTry = (method === 'POST') ? requestFormats : [null];
+          
+          for (const reqFormat of formatsToTry) {
+            try {
+              const fullUrl = `${baseUrl}${endpoint}`;
+              console.log(`Trying Dhan API ${method}: ${fullUrl}${reqFormat ? ` (format: ${reqFormat.name})` : ''}`);
+              
+              const fetchOptions = {
+                method: method,
+                headers: headers,
+                timeout: 10000
+              };
+              
+              // For POST requests, include request body
+              if (method === 'POST' && reqFormat) {
+                fetchOptions.body = JSON.stringify(reqFormat.body);
+                console.log(`📤 Request body (${reqFormat.name}):`, JSON.stringify(reqFormat.body).substring(0, 300));
+              }
             
             const response = await fetch(fullUrl, fetchOptions);
 
@@ -264,13 +309,25 @@ module.exports = async (req, res) => {
             const errorText = await response.text();
             lastError = `Status ${response.status} at ${endpoint} (${method}): ${errorText.substring(0, 100)}`;
           }
-        } catch (error) {
-          lastError = error.message;
-          continue;
+            } catch (error) {
+              lastError = error.message;
+              continue;
+            }
+            
+            // If we found data, break out of format loop
+            if (indicesData) break;
+          }
+          
+          // If we found data, break out of method loop
+          if (indicesData) break;
         }
-        }
+        
+        // If we found data, break out of endpoint loop
+        if (indicesData) break;
+      }
       
-      if (indicesData) break; // Found working endpoint, stop searching
+      // If we found data, break out of baseUrl loop
+      if (indicesData) break;
     }
 
     if (!indicesData) {
@@ -395,9 +452,10 @@ function processDhanData(data) {
     // Dhan API Market Quote response structure
     // Response can be:
     // 1. Array of objects: [{securityId: 'NIFTY 50', LTP: 21500, ...}, ...]
-    // 2. Object with data property: {data: [{...}, ...]}
+    // 2. Object with data property: {data: [{...}, ...]} or {data: [{symbol: 'NIFTY 50', lastPrice: ...}, ...]} (from GET /quotes)
     // 3. Object with keys as securityIds: {'NIFTY 50': {LTP: 21500, ...}, ...}
     // 4. Object with nested structure: {result: [{...}, ...]}
+    // 5. Single quote object from GET /quotes: {lastPrice: 21500, change: 100, pChange: 0.5, ...}
     
     let indices = [];
     
@@ -419,6 +477,11 @@ function processDhanData(data) {
       } else if (data.response && Array.isArray(data.response)) {
         indices = data.response;
         console.log('Using data.response array, length:', indices.length);
+      } else if (data.lastPrice !== undefined || data.LTP !== undefined) {
+        // Single quote object from GET /quotes endpoint (from user's Python code)
+        // Wrap it in an array
+        indices = [data];
+        console.log('Using single quote object (GET /quotes format), wrapped in array');
       } else {
         // Check if object keys are securityIds (object with securityId as keys)
         const keys = Object.keys(data);
@@ -528,21 +591,41 @@ function processDhanData(data) {
       console.log('First index sample:', JSON.stringify(indices[0], null, 2));
     }
     
-    // Dhan API Market Quote fields:
-    // - securityId: symbol identifier
-    // - LTP: Last Traded Price
+    // Dhan API Market Quote fields (from user's Python code and docs):
+    // - securityId or symbol: symbol identifier
+    // - LTP or lastPrice: Last Traded Price
     // - change: price change
-    // - changePercent: percentage change
-    // - open, high, low, close: OHLC values
+    // - pChange or changePercent: percentage change
+    // - highPrice or dayHigh: high price
+    // - lowPrice or dayLow: low price
+    // - totalTradedVolume or volume: volume
+    
+    // Process each index to normalize field names
+    const processedIndices = indices.map(idx => {
+      const symbol = idx.symbol || idx.securityId || idx.name || '';
+      return {
+        symbol: symbol,
+        name: symbol,
+        lastPrice: idx.lastPrice || idx.LTP || idx.close || idx.price || 0,
+        change: idx.change || (idx.lastPrice && idx.close ? idx.lastPrice - idx.close : 0) || 0,
+        changePercent: idx.pChange || idx.changePercent || idx.changePercent || 0,
+        dayHigh: idx.dayHigh || idx.highPrice || idx.high || 0,
+        dayLow: idx.dayLow || idx.lowPrice || idx.low || 0,
+        volume: idx.volume || idx.totalTradedVolume || idx.tradedVolume || 0,
+        open: idx.open || idx.openPrice || 0,
+        close: idx.close || idx.closePrice || idx.lastPrice || 0,
+        raw: idx // Keep raw data for debugging
+      };
+    });
     
     // Find key indices by securityId or symbol
-    const nifty50 = indices.find(idx => {
-      const id = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
+    const nifty50 = processedIndices.find(idx => {
+      const id = (idx.symbol || idx.name || '').toString().toUpperCase();
       return id === 'NIFTY' || id === 'NIFTY 50' || id.includes('NIFTY50') || id === 'NIFTY_50';
     });
     
-    const bankNifty = indices.find(idx => {
-      const id = (idx.securityId || idx.symbol || idx.name || '').toString().toUpperCase();
+    const bankNifty = processedIndices.find(idx => {
+      const id = (idx.symbol || idx.name || '').toString().toUpperCase();
       return id === 'BANKNIFTY' || id === 'NIFTY BANK' || id.includes('BANKNIFTY') || id === 'NIFTY_BANK';
     });
 
