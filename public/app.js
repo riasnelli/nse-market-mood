@@ -61,8 +61,11 @@ class MarketMoodApp {
         console.log('Using mock data as fallback');
         const mockData = {
             mood: { score: 65, text: 'Bullish 😊', emoji: '😊' },
-            nifty: { last: 21500.45, change: 125.50, pChange: 0.59 },
-            bankNifty: { last: 47500.75, change: 280.25, pChange: 0.59 },
+            indices: [
+                { symbol: 'NIFTY 50', lastPrice: 21500.45, change: 125.50, pChange: 0.59, advances: 28, declines: 17 },
+                { symbol: 'NIFTY BANK', lastPrice: 47500.75, change: 280.25, pChange: 0.59, advances: 0, declines: 0 },
+                { symbol: 'NIFTY IT', lastPrice: 35000.25, change: 150.30, pChange: 0.43, advances: 0, declines: 0 }
+            ],
             vix: { last: 14.25, change: -0.35, pChange: -2.40 },
             advanceDecline: { advances: 28, declines: 17 },
             note: 'Mock Data'
@@ -154,49 +157,96 @@ class MarketMoodApp {
             this.updateBackgroundColor(data.mood.score);
         }
 
-        // Update NIFTY, BANK NIFTY, VIX
-        const setData = (idVal, idChange, obj) => {
-            const valEl = document.getElementById(idVal);
-            const changeEl = document.getElementById(idChange);
-            
-            if (valEl) {
-                if (obj && obj.last != null) {
-                    valEl.textContent = typeof obj.last === 'number' ? obj.last.toFixed(2) : obj.last;
-                } else {
-                    valEl.textContent = '-';
-                }
-            }
-            
-            if (changeEl) {
-                if (obj && obj.change != null && obj.pChange != null) {
-                    const change = typeof obj.change === 'number' ? obj.change.toFixed(2) : obj.change;
-                    const pChange = typeof obj.pChange === 'number' ? obj.pChange.toFixed(2) : obj.pChange;
-                    const sign = obj.change >= 0 ? '+' : '';
-                    changeEl.textContent = `${sign}${change} (${sign}${pChange}%)`;
-                    
-                    // Add color classes for positive/negative
-                    changeEl.classList.remove('positive', 'negative');
-                    if (obj.change > 0) {
-                        changeEl.classList.add('positive');
-                    } else if (obj.change < 0) {
-                        changeEl.classList.add('negative');
-                    }
-                } else {
-                    changeEl.textContent = '-';
-                    changeEl.classList.remove('positive', 'negative');
-                }
-            }
-        };
-
-        setData('niftyValue', 'niftyChange', data.nifty);
-        setData('bankNiftyValue', 'bankNiftyChange', data.bankNifty);
-        setData('vixValue', 'vixChange', data.vix);
+        // Update indices display
+        this.updateIndices(data.indices || [], data.vix);
 
         // Advance/Decline
         const adv = document.getElementById('advances');
         const dec = document.getElementById('declines');
         if (adv) adv.textContent = (data.advanceDecline && data.advanceDecline.advances != null) ? data.advanceDecline.advances : '-';
         if (dec) dec.textContent = (data.advanceDecline && data.advanceDecline.declines != null) ? data.advanceDecline.declines : '-';
+    }
+
+    updateIndices(indices, vix) {
+        // Main indices to show prominently
+        const mainIndices = ['NIFTY 50', 'NIFTY BANK'];
+        const mainGrid = document.getElementById('mainIndicesGrid');
+        const allIndicesGrid = document.getElementById('allIndicesGrid');
+        const allIndicesSection = document.getElementById('allIndicesSection');
+        
+        if (!mainGrid) return;
+
+        // Clear existing content
+        mainGrid.innerHTML = '';
+        if (allIndicesGrid) allIndicesGrid.innerHTML = '';
+
+        // Display main indices
+        mainIndices.forEach(symbol => {
+            const index = indices.find(idx => idx.symbol === symbol);
+            if (index) {
+                mainGrid.appendChild(this.createIndexCard(index));
+            }
+        });
+
+        // Display VIX
+        if (vix) {
+            mainGrid.appendChild(this.createIndexCard({
+                symbol: 'INDIA VIX',
+                lastPrice: vix.last,
+                change: vix.change,
+                pChange: vix.pChange
+            }));
+        }
+
+        // Display all other indices
+        const otherIndices = indices.filter(idx => !mainIndices.includes(idx.symbol));
+        if (otherIndices.length > 0 && allIndicesGrid && allIndicesSection) {
+            otherIndices.forEach(index => {
+                allIndicesGrid.appendChild(this.createIndexCard(index));
+            });
+            allIndicesSection.style.display = 'block';
+        } else if (allIndicesSection) {
+            allIndicesSection.style.display = 'none';
+        }
+    }
+
+    createIndexCard(index) {
+        const card = document.createElement('div');
+        card.className = 'data-card';
+        
+        const title = document.createElement('h3');
+        title.textContent = index.symbol;
+        card.appendChild(title);
+        
+        const value = document.createElement('div');
+        value.className = 'data-value';
+        if (index.lastPrice != null) {
+            value.textContent = typeof index.lastPrice === 'number' ? index.lastPrice.toFixed(2) : index.lastPrice;
+        } else {
+            value.textContent = '-';
+        }
+        card.appendChild(value);
+        
+        const change = document.createElement('div');
+        change.className = 'data-change';
+        if (index.change != null && index.pChange != null) {
+            const changeVal = typeof index.change === 'number' ? index.change.toFixed(2) : index.change;
+            const pChangeVal = typeof index.pChange === 'number' ? index.pChange.toFixed(2) : index.pChange;
+            const sign = index.change >= 0 ? '+' : '';
+            change.textContent = `${sign}${changeVal} (${sign}${pChangeVal}%)`;
+            
+            // Add color classes
+            if (index.change > 0) {
+                change.classList.add('positive');
+            } else if (index.change < 0) {
+                change.classList.add('negative');
+            }
+        } else {
+            change.textContent = '-';
+        }
+        card.appendChild(change);
+        
+        return card;
     }
 
     updateBackgroundColor(score) {

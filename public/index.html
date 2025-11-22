@@ -29,23 +29,14 @@
                 </div>
             </div>
 
-            <div class="data-grid">
-                <div class="data-card">
-                    <h3>NIFTY 50</h3>
-                    <div class="data-value" id="niftyValue">-</div>
-                    <div class="data-change" id="niftyChange">-</div>
-                </div>
-                
-                <div class="data-card">
-                    <h3>BANK NIFTY</h3>
-                    <div class="data-value" id="bankNiftyValue">-</div>
-                    <div class="data-change" id="bankNiftyChange">-</div>
-                </div>
-                
-                <div class="data-card">
-                    <h3>INDIA VIX</h3>
-                    <div class="data-value" id="vixValue">-</div>
-                    <div class="data-change" id="vixChange">-</div>
+            <div class="data-grid" id="mainIndicesGrid">
+                <!-- Main indices (NIFTY 50, BANK NIFTY, VIX) will be populated here -->
+            </div>
+            
+            <div class="all-indices-section" id="allIndicesSection" style="display: none;">
+                <h3 class="section-title">All Indices</h3>
+                <div class="data-grid all-indices-grid" id="allIndicesGrid">
+                    <!-- All other indices will be populated here -->
                 </div>
             </div>
 

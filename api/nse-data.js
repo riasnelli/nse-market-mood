@@ -19,22 +19,87 @@ module.exports = async (req, res) => {
   try {
     console.log('Fetching NSE data...');
     
-    const response = await fetch('https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050', {
+    // List of indices to fetch
+    const indices = [
+      'NIFTY 50',
+      'NIFTY BANK',
+      'NIFTY IT',
+      'NIFTY NEXT 50',
+      'NIFTY MIDCAP 50',
+      'NIFTY SMALLCAP 50',
+      'NIFTY AUTO',
+      'NIFTY FMCG',
+      'NIFTY PHARMA',
+      'NIFTY ENERGY',
+      'NIFTY METAL',
+      'NIFTY REALTY',
+      'NIFTY PSU BANK',
+      'NIFTY PVT BANK',
+      'NIFTY INFRA'
+    ];
+    
+    // Fetch all indices in parallel
+    const fetchPromises = indices.map(index => {
+      const encodedIndex = encodeURIComponent(index);
+      return fetch(`https://www.nseindia.com/api/equity-stockIndices?index=${encodedIndex}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      }).then(res => res.ok ? res.json() : null).catch(() => null);
+    });
+    
+    // Also fetch VIX
+    const vixPromise = fetch('https://www.nseindia.com/api/equity-stockIndices?index=INDIA%20VIX', {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'application/json',
         'Accept-Language': 'en-US,en;q=0.9'
       }
-    });
-
-    if (!response.ok) {
-      throw new Error(`NSE API responded with status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('NSE data fetched successfully');
+    }).then(res => res.ok ? res.json() : null).catch(() => null);
     
-    const processedData = processMarketData(data);
+    // Wait for all requests
+    const results = await Promise.all([...fetchPromises, vixPromise]);
+    
+    // Combine all data
+    const allData = {
+      indices: [],
+      vix: null
+    };
+    
+    results.forEach((data, index) => {
+      if (data && data.data && data.data.length > 0) {
+        if (index < indices.length) {
+          // This is an index
+          const indexData = data.data.find(item => item.symbol === indices[index]);
+          if (indexData) {
+            allData.indices.push({
+              symbol: indices[index],
+              lastPrice: indexData.lastPrice,
+              change: indexData.change,
+              pChange: indexData.pChange,
+              advances: indexData.advances,
+              declines: indexData.declines
+            });
+          }
+        } else {
+          // This is VIX
+          const vixData = data.data.find(item => item.symbol === 'INDIA VIX');
+          if (vixData) {
+            allData.vix = {
+              last: vixData.lastPrice,
+              change: vixData.change,
+              pChange: vixData.pChange
+            };
+          }
+        }
+      }
+    });
+    
+    console.log(`NSE data fetched successfully: ${allData.indices.length} indices`);
+    
+    const processedData = processMarketData(allData);
     
     res.status(200).json(processedData);
     
@@ -44,8 +109,11 @@ module.exports = async (req, res) => {
     // Return mock data as fallback
     const mockData = {
       mood: { score: 65, text: 'Bullish 😊', emoji: '😊' },
-      nifty: { last: 21500.45, change: 125.50, pChange: 0.59 },
-      bankNifty: { last: 47500.75, change: 280.25, pChange: 0.59 },
+      indices: [
+        { symbol: 'NIFTY 50', lastPrice: 21500.45, change: 125.50, pChange: 0.59, advances: 28, declines: 17 },
+        { symbol: 'NIFTY BANK', lastPrice: 47500.75, change: 280.25, pChange: 0.59, advances: 0, declines: 0 },
+        { symbol: 'NIFTY IT', lastPrice: 35000.25, change: 150.30, pChange: 0.43, advances: 0, declines: 0 }
+      ],
       vix: { last: 14.25, change: -0.35, pChange: -2.40 },
       advanceDecline: { advances: 28, declines: 17 },
       timestamp: new Date().toISOString(),
@@ -58,32 +126,24 @@ module.exports = async (req, res) => {
 
 function processMarketData(data) {
   try {
-    const nifty = data.data.find(item => item.symbol === 'NIFTY 50');
-    const bankNifty = data.data.find(item => item.symbol === 'NIFTY BANK');
+    // Find NIFTY 50 for mood calculation and advance/decline
+    const nifty50 = data.indices.find(item => item.symbol === 'NIFTY 50');
+    const bankNifty = data.indices.find(item => item.symbol === 'NIFTY BANK');
     
-    const moodScore = calculateMoodScore(data);
+    const moodScore = calculateMoodScore(nifty50, data.indices);
     const mood = getMoodFromScore(moodScore);
     
     return {
       mood: mood,
-      nifty: {
-        last: nifty?.lastPrice || 0,
-        change: nifty?.change || 0,
-        pChange: nifty?.pChange || 0
-      },
-      bankNifty: {
-        last: bankNifty?.lastPrice || 0,
-        change: bankNifty?.change || 0,
-        pChange: bankNifty?.pChange || 0
-      },
-      vix: {
-        last: 15.0,
-        change: 0.5,
-        pChange: 3.45
+      indices: data.indices, // All available indices
+      vix: data.vix || {
+        last: 0,
+        change: 0,
+        pChange: 0
       },
       advanceDecline: {
-        advances: nifty?.advances || 25,
-        declines: nifty?.declines || 15
+        advances: nifty50?.advances || 0,
+        declines: nifty50?.declines || 0
       },
       timestamp: new Date().toISOString()
     };
@@ -92,19 +152,31 @@ function processMarketData(data) {
   }
 }
 
-function calculateMoodScore(data) {
+function calculateMoodScore(nifty50, allIndices) {
   let score = 50;
-  const nifty = data.data.find(item => item.symbol === 'NIFTY 50');
   
-  if (!nifty) return score;
+  if (!nifty50) return score;
   
-  if (nifty.pChange > 0.5) score += 20;
-  else if (nifty.pChange < -0.5) score -= 20;
-  else if (nifty.pChange > 0.1) score += 10;
-  else if (nifty.pChange < -0.1) score -= 10;
+  // NIFTY 50 performance
+  if (nifty50.pChange > 0.5) score += 20;
+  else if (nifty50.pChange < -0.5) score -= 20;
+  else if (nifty50.pChange > 0.1) score += 10;
+  else if (nifty50.pChange < -0.1) score -= 10;
   
-  if (nifty.advances > nifty.declines * 1.5) score += 15;
-  else if (nifty.declines > nifty.advances * 1.5) score -= 15;
+  // Market breadth
+  if (nifty50.advances > nifty50.declines * 1.5) score += 15;
+  else if (nifty50.declines > nifty50.advances * 1.5) score -= 15;
+  
+  // Consider other major indices
+  const majorIndices = allIndices.filter(idx => 
+    ['NIFTY BANK', 'NIFTY IT', 'NIFTY NEXT 50'].includes(idx.symbol)
+  );
+  
+  const positiveCount = majorIndices.filter(idx => idx.pChange > 0).length;
+  const negativeCount = majorIndices.filter(idx => idx.pChange < 0).length;
+  
+  if (positiveCount > negativeCount * 1.5) score += 5;
+  else if (negativeCount > positiveCount * 1.5) score -= 5;
   
   return Math.max(0, Math.min(100, score));
 }
