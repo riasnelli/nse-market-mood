@@ -48,18 +48,18 @@ module.exports = async (req, res) => {
     console.log('Fetching data from Dhan API...');
 
     // Dhan API v2 - Based on documentation: https://dhanhq.co/docs/v2/
-    // Try multiple base URLs
-    const baseUrls = [
-      'https://api.dhan.co',
-      'https://api.dhanhq.co',
-      'https://dhan.co/api',
-      'https://dhanhq.co/api'
-    ];
+    // Base URL: https://api.dhan.co/v2/ (with /v2/ prefix)
+    const baseUrl = 'https://api.dhan.co/v2';
     
     const headers = {
       'access-token': accessToken,
       'Content-Type': 'application/json'
     };
+    
+    // Add Client ID if provided (some endpoints may require it)
+    if (clientId) {
+      headers['client-id'] = clientId;
+    }
     
     // Add API Key/Secret if provided (for v2.4+)
     if (apiKey) {
@@ -72,22 +72,25 @@ module.exports = async (req, res) => {
     // If custom endpoint provided, use it first
     let endpoints = [];
     if (customEndpoint && customEndpoint.trim()) {
-      endpoints = [customEndpoint.trim()];
+      // Ensure custom endpoint doesn't start with /v2/ if baseUrl already has it
+      const cleanEndpoint = customEndpoint.trim().startsWith('/v2/') 
+        ? customEndpoint.trim().substring(3) 
+        : customEndpoint.trim();
+      endpoints = [cleanEndpoint];
     } else {
       // Based on Dhan API v2 documentation - Market Quote API endpoints
+      // Documentation: https://dhanhq.co/docs/v2/
+      // Market Quote endpoints under Data APIs section
       endpoints = [
-        '/market-quote/indices',           // Primary market quote endpoint (most likely)
-        '/market-quote/index',             // Singular form
+        '/marketfeed/ltp',                 // Market Quote - Last Traded Price (POST)
+        '/marketfeed/ohlc',                // Market Quote - OHLC (POST)
+        '/marketfeed/quote',               // Market Quote - Full Quote (POST)
+        '/marketfeed/indices',             // Market Quote - Indices (POST)
+        '/market-quote/indices',           // Alternative format
         '/market-quote',                   // Base market quote
-        '/v2/market-quote/indices',        // With v2 prefix
-        '/v2/market-quote/index',          // With v2 prefix singular
         '/indices',                        // Direct indices endpoint
         '/master/indices',                 // Master data indices
-        '/master/index',                   // Master data index
-        '/v2/indices',                     // v2 indices
-        '/v2/index',                       // v2 index
-        '/api/market-quote/indices',       // With api prefix
-        '/api/indices'                     // With api prefix
+        '/instruments/indices'             // Instruments list for indices
       ];
     }
 
@@ -95,34 +98,55 @@ module.exports = async (req, res) => {
     let indicesData = null;
     let lastError = null;
     let workingEndpoint = null;
-    let workingBaseUrl = null;
 
-    // Try each base URL with each endpoint
-    for (const testBaseUrl of baseUrls) {
-      for (const endpoint of endpoints) {
+    // Try each endpoint with POST method (as per Dhan API v2 docs)
+    // Market Quote APIs use POST with request body
+    for (const endpoint of endpoints) {
+      for (const method of ['POST', 'GET']) {
         try {
-          const fullUrl = `${testBaseUrl}${endpoint}`;
-          console.log(`Trying Dhan API: ${fullUrl}`);
+          const fullUrl = `${baseUrl}${endpoint}`;
+          console.log(`Trying Dhan API ${method}: ${fullUrl}`);
           
-          const response = await fetch(fullUrl, {
+          const fetchOptions = {
+            method: method,
             headers: headers,
             timeout: 10000
-          });
+          };
+          
+          // For POST requests, include request body with indices
+          if (method === 'POST') {
+            // Common indices to request
+            const requestBody = {
+              securityId: ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 'NIFTY AUTO', 'NIFTY FMCG', 'NIFTY METAL', 'NIFTY REALTY', 'NIFTY PSU BANK', 'NIFTY PRIVATE BANK', 'NIFTY ENERGY', 'NIFTY INFRA', 'NIFTY MIDCAP 50', 'NIFTY SMLCAP 50', 'NIFTY 100'],
+              ...(clientId && { clientId })
+            };
+            fetchOptions.body = JSON.stringify(requestBody);
+          }
+          
+          const response = await fetch(fullUrl, fetchOptions);
 
           if (response.ok) {
             indicesResponse = response;
             indicesData = await response.json();
             workingEndpoint = endpoint;
-            workingBaseUrl = testBaseUrl;
             console.log(`Successfully connected to Dhan API: ${fullUrl}`);
             break;
           } else if (response.status === 401 || response.status === 403) {
             // Auth error - endpoint exists but credentials wrong
+            const errorText = await response.text();
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (e) {
+              errorData = { message: errorText };
+            }
+            
             return res.status(200).json({
               error: true,
               message: `Authentication failed (${response.status}). Your access token might be expired.`,
               hint: 'Dhan API access tokens are valid for 24 hours only. Generate a new token from Dhan dashboard.',
               suggestion: 'Visit https://dhanhq.co/docs/v2/ to learn how to generate a new access token.',
+              errorDetails: errorData,
               marketStatus: {
                 isOpen: false,
                 verified: false,
@@ -132,13 +156,14 @@ module.exports = async (req, res) => {
             });
           } else if (response.status !== 404) {
             // Other error - might be rate limit or other issue
-            lastError = `Status ${response.status} at ${endpoint}`;
+            const errorText = await response.text();
+            lastError = `Status ${response.status} at ${endpoint} (${method}): ${errorText.substring(0, 100)}`;
           }
         } catch (error) {
           lastError = error.message;
           continue;
         }
-      }
+        }
       
       if (indicesData) break; // Found working endpoint, stop searching
     }
