@@ -69,6 +69,70 @@ module.exports = async (req, res) => {
       headers['api-secret'] = apiSecret;
     }
 
+    // Step 1: Try to get instruments/indices list first to get correct securityIds
+    console.log('Step 1: Fetching instruments list to get correct securityIds...');
+    let securityIds = [];
+    
+    const instrumentsEndpoints = [
+      '/instruments/indices',
+      '/master/indices',
+      '/instruments',
+      '/master',
+      '/indices'
+    ];
+    
+    for (const instEndpoint of instrumentsEndpoints) {
+      try {
+        const instUrl = `${baseUrl}${instEndpoint}`;
+        console.log(`Trying instruments endpoint: ${instUrl}`);
+        
+        const instResponse = await fetch(instUrl, {
+          method: 'GET',
+          headers: headers,
+          timeout: 10000
+        });
+        
+        if (instResponse.ok) {
+          const instData = await instResponse.json();
+          console.log('Instruments response sample:', JSON.stringify(instData).substring(0, 1000));
+          
+          // Try to extract securityIds from instruments response
+          let instrumentsList = [];
+          if (Array.isArray(instData)) {
+            instrumentsList = instData;
+          } else if (instData.data && Array.isArray(instData.data)) {
+            instrumentsList = instData.data;
+          } else if (instData.result && Array.isArray(instData.result)) {
+            instrumentsList = instData.result;
+          }
+          
+          if (instrumentsList.length > 0) {
+            // Find NIFTY indices in the list
+            const niftyIndices = instrumentsList.filter(inst => {
+              const name = (inst.name || inst.symbol || inst.securityId || inst.instrumentName || '').toString().toUpperCase();
+              return name.includes('NIFTY') || name.includes('VIX');
+            });
+            
+            securityIds = niftyIndices.map(inst => inst.securityId || inst.instrumentId || inst.id || inst.security_id);
+            securityIds = securityIds.filter(id => id); // Remove undefined/null
+            
+            if (securityIds.length > 0) {
+              console.log(`✅ Found ${securityIds.length} indices with securityIds:`, securityIds.slice(0, 5));
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.log(`Instruments endpoint ${instEndpoint} failed:`, e.message);
+        continue;
+      }
+    }
+    
+    // If we couldn't get securityIds from instruments API, use fallback
+    if (securityIds.length === 0) {
+      console.warn('⚠️ Could not fetch instruments. Will try with symbol names and common formats.');
+    }
+
     // If custom endpoint provided, use it first
     let endpoints = [];
     if (customEndpoint && customEndpoint.trim()) {
