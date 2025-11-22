@@ -148,7 +148,18 @@ class MarketMoodApp {
                     console.error('Is array:', data.debug.rawResponse?.isArray);
                     console.error('Response keys:', data.debug.rawResponse?.keys);
                     console.error('Raw response sample:', data.debug.rawResponse?.sample || data.debug.receivedData?.sample);
-                    console.error('Full debug:', data.debug);
+                    console.error('Full debug object:', JSON.stringify(data.debug, null, 2));
+                    
+                    // Try to parse the response ourselves if we have the raw data
+                    if (data.debug.rawResponse?.sample) {
+                        try {
+                            const rawData = JSON.parse(data.debug.rawResponse.sample);
+                            console.error('Parsed raw data structure:', rawData);
+                            console.error('Parsed data keys:', Object.keys(rawData || {}));
+                        } catch (e) {
+                            console.error('Could not parse raw response sample');
+                        }
+                    }
                 }
                 throw new Error(data.message || 'API returned an error');
             }
@@ -233,6 +244,15 @@ class MarketMoodApp {
             }
             
             console.log(`Failed after ${retryCount + 1} attempts. Consecutive failures: ${this.consecutiveFailures}/${this.maxFailures}`);
+            
+            // Check if Dhan API is active - don't show mock data for Dhan errors
+            const activeApi = window.settingsManager?.settings?.activeApi;
+            if (activeApi === 'dhan') {
+                console.error('Dhan API error - not using mock data. Error:', error.message);
+                // Show error in UI instead of mock data
+                this.showErrorInUI('Dhan API Error: ' + error.message);
+                return;
+            }
             
             // After max failures, mark as closed
             if (this.consecutiveFailures >= this.maxFailures) {

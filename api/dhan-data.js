@@ -260,7 +260,8 @@ module.exports = async (req, res) => {
     if (error.rawData) {
       errorResponse.debug = {
         dataStructure: error.dataStructure,
-        rawDataSample: JSON.stringify(error.rawData).substring(0, 2000)
+        rawDataSample: JSON.stringify(error.rawData).substring(0, 5000),
+        fullStructure: error.dataStructure?.fullStructure || JSON.stringify(error.rawData, null, 2)
       };
     }
     
@@ -345,15 +346,42 @@ function processDhanData(data) {
     if (indices.length === 0) {
       console.error('No indices found in response!');
       console.error('Full data structure:', JSON.stringify(data, null, 2));
-      const error = new Error('No indices data found in Dhan API response');
-      error.rawData = data;
-      error.dataStructure = {
-        type: typeof data,
-        isArray: Array.isArray(data),
-        keys: Object.keys(data || {}),
-        sample: JSON.stringify(data).substring(0, 1000)
-      };
-      throw error;
+      
+      // Try one more approach - check if data itself is an object with market data
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        // Check if it's a single quote object (not an array)
+        const hasMarketFields = data.LTP !== undefined || data.lastPrice !== undefined || 
+                               data.close !== undefined || data.price !== undefined;
+        if (hasMarketFields) {
+          // Single quote response - wrap in array
+          indices = [data];
+          console.log('Found single quote object, wrapping in array');
+        } else {
+          // Check all nested objects for market data
+          const allValues = Object.values(data);
+          const marketDataObjects = allValues.filter(v => 
+            v && typeof v === 'object' && 
+            (v.LTP !== undefined || v.lastPrice !== undefined || v.close !== undefined)
+          );
+          if (marketDataObjects.length > 0) {
+            indices = marketDataObjects;
+            console.log(`Found ${marketDataObjects.length} market data objects in nested structure`);
+          }
+        }
+      }
+      
+      if (indices.length === 0) {
+        const error = new Error('No indices data found in Dhan API response');
+        error.rawData = data;
+        error.dataStructure = {
+          type: typeof data,
+          isArray: Array.isArray(data),
+          keys: Object.keys(data || {}),
+          sample: JSON.stringify(data).substring(0, 5000), // Increased sample size
+          fullStructure: JSON.stringify(data, null, 2) // Full structure for debugging
+        };
+        throw error;
+      }
     }
     
     // Log first index structure
