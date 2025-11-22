@@ -41,8 +41,15 @@ module.exports = async (req, res) => {
 
     console.log('Fetching data from Dhan API...');
 
-    // Dhan API base URL
-    const baseUrl = 'https://api.dhan.co';
+    // Dhan API v2 - Based on documentation: https://dhanhq.co/docs/v2/
+    // Try multiple base URLs
+    const baseUrls = [
+      'https://api.dhan.co',
+      'https://api.dhanhq.co',
+      'https://dhan.co/api',
+      'https://dhanhq.co/api'
+    ];
+    
     const headers = {
       'access-token': accessToken,
       'Content-Type': 'application/json'
@@ -53,44 +60,73 @@ module.exports = async (req, res) => {
     if (customEndpoint && customEndpoint.trim()) {
       endpoints = [customEndpoint.trim()];
     } else {
-      // Try multiple possible endpoints based on Dhan API v2 documentation
+      // Based on Dhan API v2 documentation - Market Quote API endpoints
       endpoints = [
-        '/v2/market-quote/indices',  // Dhan API v2 market quote endpoint
-        '/v2/indices',               // Dhan API v2 indices
-        '/market-quote/indices',     // Alternative format
-        '/indices',                  // Simple format
-        '/market/indices',           // Market endpoint
-        '/v1/indices',              // v1 format
-        '/api/indices',              // API prefix
-        '/master/indices',           // Master data
-        '/market-data/indices'       // Market data
+        '/market-quote/indices',           // Primary market quote endpoint (most likely)
+        '/market-quote/index',             // Singular form
+        '/market-quote',                   // Base market quote
+        '/v2/market-quote/indices',        // With v2 prefix
+        '/v2/market-quote/index',          // With v2 prefix singular
+        '/indices',                        // Direct indices endpoint
+        '/master/indices',                 // Master data indices
+        '/master/index',                   // Master data index
+        '/v2/indices',                     // v2 indices
+        '/v2/index',                       // v2 index
+        '/api/market-quote/indices',       // With api prefix
+        '/api/indices'                     // With api prefix
       ];
     }
 
     let indicesResponse = null;
     let indicesData = null;
     let lastError = null;
+    let workingEndpoint = null;
+    let workingBaseUrl = null;
 
-    for (const endpoint of endpoints) {
-      try {
-        const response = await fetch(`${baseUrl}${endpoint}`, {
-          headers: headers,
-          timeout: 10000
-        });
+    // Try each base URL with each endpoint
+    for (const testBaseUrl of baseUrls) {
+      for (const endpoint of endpoints) {
+        try {
+          const fullUrl = `${testBaseUrl}${endpoint}`;
+          console.log(`Trying Dhan API: ${fullUrl}`);
+          
+          const response = await fetch(fullUrl, {
+            headers: headers,
+            timeout: 10000
+          });
 
-        if (response.ok) {
-          indicesResponse = response;
-          indicesData = await response.json();
-          console.log(`Successfully connected to Dhan API endpoint: ${endpoint}`);
-          break;
-        } else if (response.status !== 404) {
-          // If it's not 404, it might be auth error
-          lastError = `Status ${response.status}`;
+          if (response.ok) {
+            indicesResponse = response;
+            indicesData = await response.json();
+            workingEndpoint = endpoint;
+            workingBaseUrl = testBaseUrl;
+            console.log(`Successfully connected to Dhan API: ${fullUrl}`);
+            break;
+          } else if (response.status === 401 || response.status === 403) {
+            // Auth error - endpoint exists but credentials wrong
+            return res.status(200).json({
+              error: true,
+              message: `Authentication failed (${response.status}). Your access token might be expired.`,
+              hint: 'Dhan API access tokens are valid for 24 hours only. Generate a new token from Dhan dashboard.',
+              suggestion: 'Visit https://dhanhq.co/docs/v2/ to learn how to generate a new access token.',
+              marketStatus: {
+                isOpen: false,
+                verified: false,
+                reason: 'AUTH_FAILED',
+                timestamp: new Date().toISOString()
+              }
+            });
+          } else if (response.status !== 404) {
+            // Other error - might be rate limit or other issue
+            lastError = `Status ${response.status} at ${endpoint}`;
+          }
+        } catch (error) {
+          lastError = error.message;
+          continue;
         }
-      } catch (error) {
-        lastError = error.message;
-        continue;
       }
+      
+      if (indicesData) break; // Found working endpoint, stop searching
     }
 
     if (!indicesData) {
