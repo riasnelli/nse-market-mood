@@ -115,13 +115,17 @@ module.exports = async (req, res) => {
           
           // For POST requests, include request body with indices
           if (method === 'POST') {
-            // Dhan API Market Quote uses securityId array
-            // Try multiple formats: symbol names, without spaces, numeric IDs
             let requestBody;
             
-            // Try different securityId formats based on endpoint
-            if (endpoint.includes('ltp') || endpoint.includes('quote')) {
-              // For LTP/Quote endpoints, try common formats
+            // Use securityIds from instruments API if available, otherwise try symbol names
+            if (securityIds.length > 0) {
+              // Use numeric securityIds from instruments API
+              requestBody = {
+                securityId: securityIds.slice(0, 15) // Limit to 15 to avoid too many
+              };
+              console.log('Using securityIds from instruments API:', requestBody.securityId);
+            } else {
+              // Fallback: Try different symbol name formats
               requestBody = {
                 securityId: [
                   'NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY PHARMA', 
@@ -131,14 +135,7 @@ module.exports = async (req, res) => {
                   'NIFTY 100', 'INDIA VIX'
                 ]
               };
-            } else {
-              // For other endpoints, try alternative formats
-              requestBody = {
-                securityId: [
-                  'NIFTY50', 'NIFTYBANK', 'NIFTYIT', 'NIFTYPHARMA',
-                  'NIFTY_50', 'NIFTY_BANK', 'NIFTY_IT'
-                ]
-              };
+              console.log('Using symbol names (fallback):', requestBody.securityId);
             }
             
             fetchOptions.body = JSON.stringify(requestBody);
