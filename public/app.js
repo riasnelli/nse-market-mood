@@ -1312,7 +1312,34 @@ class MarketMoodApp {
     }
 }
 
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    window.marketMoodApp = new MarketMoodApp();
-});
+        // Check authentication before initializing app
+        function checkAuth() {
+            const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+            const currentPath = window.location.pathname;
+            
+            // If not logged in and not on login page, redirect to login
+            if (!isLoggedIn && !currentPath.includes('login.html')) {
+                window.location.href = '/login.html';
+                return false;
+            }
+            
+            // If logged in and on login page, redirect to main app
+            if (isLoggedIn && currentPath.includes('login.html')) {
+                window.location.href = '/';
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Initialize app when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            // Only initialize if auth check passes (or if on login page)
+            if (window.location.pathname.includes('login.html')) {
+                return; // Login page handles its own logic
+            }
+            
+            if (checkAuth()) {
+                window.marketMoodApp = new MarketMoodApp();
+            }
+        });
