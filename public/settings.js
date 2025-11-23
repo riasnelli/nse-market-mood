@@ -144,31 +144,50 @@ class SettingsManager {
     }
 
     updateUploadedDataSection() {
-        // Check if uploaded data exists
-        const uploadedData = localStorage.getItem('uploadedIndicesData');
+        // Check if uploaded data exists - try both possible keys
+        let uploadedData = localStorage.getItem('uploadedIndicesData');
+        if (!uploadedData) {
+            // Fallback to old key name
+            uploadedData = localStorage.getItem('uploadedMarketData');
+        }
+        
         const uploadedSection = document.getElementById('uploadedDataSection');
         
-        if (uploadedSection) {
-            if (uploadedData) {
-                try {
-                    const data = JSON.parse(uploadedData);
-                    const sourceEl = document.getElementById('uploadedDataSource');
-                    const dateEl = document.getElementById('uploadedDataDate');
-                    const countEl = document.getElementById('uploadedDataCount');
-                    
-                    if (sourceEl) sourceEl.textContent = data.fileName || 'Uploaded CSV';
-                    if (dateEl) dateEl.textContent = data.date || data.dataDate || 'N/A';
-                    if (countEl) countEl.textContent = data.indices?.length || 0;
-                    
-                    // Use classList for consistent display handling
-                    uploadedSection.classList.add('show');
-                } catch (e) {
-                    console.error('Error parsing uploaded data in settings:', e);
-                    uploadedSection.classList.remove('show');
-                }
-            } else {
+        if (!uploadedSection) {
+            console.warn('uploadedDataSection element not found');
+            return;
+        }
+        
+        if (uploadedData) {
+            try {
+                const data = JSON.parse(uploadedData);
+                const sourceEl = document.getElementById('uploadedDataSource');
+                const dateEl = document.getElementById('uploadedDataDate');
+                const countEl = document.getElementById('uploadedDataCount');
+                
+                if (sourceEl) sourceEl.textContent = data.fileName || data.source || 'Uploaded CSV';
+                if (dateEl) dateEl.textContent = data.date || data.dataDate || 'N/A';
+                if (countEl) countEl.textContent = data.indices?.length || 0;
+                
+                // Use classList for consistent display handling
+                uploadedSection.classList.add('show');
+                // Also set display style directly as fallback for iOS Safari
+                uploadedSection.style.display = 'block';
+                
+                console.log('Uploaded data section shown:', {
+                    fileName: data.fileName || data.source,
+                    date: data.date || data.dataDate,
+                    count: data.indices?.length || 0
+                });
+            } catch (e) {
+                console.error('Error parsing uploaded data in settings:', e);
                 uploadedSection.classList.remove('show');
+                uploadedSection.style.display = 'none';
             }
+        } else {
+            uploadedSection.classList.remove('show');
+            uploadedSection.style.display = 'none';
+            console.log('No uploaded data found in localStorage');
         }
     }
 

@@ -694,11 +694,16 @@ header h1 {
 
 /* Only hide uploadedDataSection if it doesn't have .show class */
 .settings-section#uploadedDataSection:not(.show) {
-    display: none;
+    display: none !important;
 }
 
 .settings-section#uploadedDataSection.show {
-    display: block;
+    display: block !important;
+}
+
+/* Ensure uploadedDataSection is visible when it has the show class - iOS Safari fix */
+.settings-section#uploadedDataSection[style*="display: block"] {
+    display: block !important;
 }
 
 .settings-section h3 {
