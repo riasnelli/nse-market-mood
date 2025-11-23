@@ -768,6 +768,305 @@ class MarketMoodApp {
             this.refreshBtn.disabled = isLoading;
         }
     }
+
+    setupUpload() {
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadModal = document.getElementById('uploadModal');
+        const closeUpload = document.getElementById('closeUpload');
+        const cancelUpload = document.getElementById('cancelUpload');
+        const csvFile = document.getElementById('csvFile');
+        const dataDate = document.getElementById('dataDate');
+        const uploadDataBtn = document.getElementById('uploadDataBtn');
+        const fileName = document.getElementById('fileName');
+        const clearUploadBtn = document.getElementById('clearUploadBtn');
+
+        // Set today's date as default
+        if (dataDate) {
+            const today = new Date().toISOString().split('T')[0];
+            dataDate.value = today;
+        }
+
+        // Open upload modal
+        if (uploadBtn && uploadModal) {
+            uploadBtn.addEventListener('click', () => {
+                uploadModal.style.display = 'block';
+                this.updateUploadedDataInfo();
+            });
+        }
+
+        // Close upload modal
+        if (closeUpload && uploadModal) {
+            closeUpload.addEventListener('click', () => {
+                uploadModal.style.display = 'none';
+            });
+        }
+
+        if (cancelUpload && uploadModal) {
+            cancelUpload.addEventListener('click', () => {
+                uploadModal.style.display = 'none';
+            });
+        }
+
+        // File selection
+        if (csvFile && fileName) {
+            csvFile.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    fileName.textContent = file.name;
+                    if (uploadDataBtn) uploadDataBtn.disabled = false;
+                } else {
+                    fileName.textContent = 'Choose CSV file...';
+                    if (uploadDataBtn) uploadDataBtn.disabled = true;
+                }
+            });
+        }
+
+        // Upload button
+        if (uploadDataBtn && csvFile && dataDate) {
+            uploadDataBtn.addEventListener('click', () => {
+                const file = csvFile.files[0];
+                const date = dataDate.value;
+                
+                if (!file || !date) {
+                    this.showUploadStatus('Please select a file and date', 'error');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const csvData = this.parseCSV(e.target.result);
+                        const processedData = this.processCSVData(csvData, date, file.name);
+                        
+                        // Store in localStorage
+                        localStorage.setItem('uploadedIndicesData', JSON.stringify(processedData));
+                        
+                        this.showUploadStatus('Data uploaded successfully!', 'success');
+                        this.updateUploadedDataInfo();
+                        
+                        // Reload data to use uploaded CSV
+                        setTimeout(() => {
+                            if (uploadModal) uploadModal.style.display = 'none';
+                            this.loadData();
+                        }, 1500);
+                    } catch (error) {
+                        console.error('Error processing CSV:', error);
+                        this.showUploadStatus('Error processing CSV: ' + error.message, 'error');
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        // Clear uploaded data
+        if (clearUploadBtn) {
+            clearUploadBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to clear the uploaded data?')) {
+                    localStorage.removeItem('uploadedIndicesData');
+                    this.updateUploadedDataInfo();
+                    this.updateDataSourceDisplay('api');
+                    this.loadData();
+                }
+            });
+        }
+
+        // Update uploaded data info on load
+        this.updateUploadedDataInfo();
+    }
+
+    parseCSV(csvText) {
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+            throw new Error('CSV file is empty or invalid');
+        }
+
+        // Parse header
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        
+        // Parse data rows
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = this.parseCSVLine(lines[i]);
+            if (values.length === headers.length) {
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index].trim().replace(/^"|"$/g, '');
+                });
+                data.push(row);
+            }
+        }
+
+        return data;
+    }
+
+    parseCSVLine(line) {
+        const values = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                values.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        values.push(current); // Add last value
+
+        return values;
+    }
+
+    processCSVData(csvData, date, fileName) {
+        const indices = [];
+        let vixData = null;
+
+        csvData.forEach(row => {
+            const name = row['Name'] || row['name'] || '';
+            const ltp = parseFloat((row['LTP'] || row['ltp'] || '0').replace(/,/g, ''));
+            const changePercent = parseFloat((row['Change(%)'] || row['Change (%)'] || row['change'] || '0').replace(/%/g, ''));
+
+            if (!name || isNaN(ltp) || isNaN(changePercent)) {
+                return; // Skip invalid rows
+            }
+
+            // Calculate absolute change from percentage
+            const prevClose = ltp / (1 + changePercent / 100);
+            const change = ltp - prevClose;
+
+            if (name.toUpperCase().includes('VIX') || name.toUpperCase() === 'INDIA VIX') {
+                vixData = {
+                    last: ltp,
+                    change: change,
+                    pChange: changePercent
+                };
+            } else {
+                indices.push({
+                    symbol: name,
+                    lastPrice: ltp,
+                    change: change,
+                    pChange: changePercent
+                });
+            }
+        });
+
+        // Calculate mood from NIFTY 50
+        const nifty50 = indices.find(idx => 
+            idx.symbol.toUpperCase().includes('NIFTY 50') || 
+            idx.symbol.toUpperCase() === 'NIFTY 50'
+        );
+
+        let moodScore = 50;
+        if (nifty50) {
+            if (nifty50.pChange > 0.5) moodScore += 20;
+            else if (nifty50.pChange < -0.5) moodScore -= 20;
+            else if (nifty50.pChange > 0.1) moodScore += 10;
+            else if (nifty50.pChange < -0.1) moodScore -= 10;
+        }
+
+        moodScore = Math.max(0, Math.min(100, moodScore));
+        const mood = this.getMoodFromScore(moodScore);
+
+        return {
+            mood: mood,
+            indices: indices,
+            vix: vixData || { last: 0, change: 0, pChange: 0 },
+            advanceDecline: { advances: 0, declines: 0 }, // CSV doesn't have this
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
+    }
+
+    getMoodFromScore(score) {
+        if (score >= 80) return { score, text: 'Extremely Bullish', emoji: '🚀' };
+        if (score >= 70) return { score, text: 'Very Bullish', emoji: '📈' };
+        if (score >= 60) return { score, text: 'Bullish', emoji: '😊' };
+        if (score >= 50) return { score, text: 'Slightly Bullish', emoji: '🙂' };
+        if (score >= 40) return { score, text: 'Neutral', emoji: '😐' };
+        if (score >= 30) return { score, text: 'Slightly Bearish', emoji: '🙁' };
+        if (score >= 20) return { score, text: 'Bearish', emoji: '😟' };
+        if (score >= 10) return { score, text: 'Very Bearish', emoji: '📉' };
+        return { score, text: 'Extremely Bearish', emoji: '🐻' };
+    }
+
+    getUploadedData() {
+        const stored = localStorage.getItem('uploadedIndicesData');
+        if (stored) {
+            try {
+                return JSON.parse(stored);
+            } catch (e) {
+                console.error('Error parsing uploaded data:', e);
+                return null;
+            }
+        }
+        return null;
+    }
+
+    updateUploadedDataInfo() {
+        const uploadedData = this.getUploadedData();
+        const uploadedDataInfo = document.getElementById('uploadedDataInfo');
+        const uploadedFileName = document.getElementById('uploadedFileName');
+        const uploadedDate = document.getElementById('uploadedDate');
+        const uploadedIndicesCount = document.getElementById('uploadedIndicesCount');
+
+        if (uploadedData) {
+            if (uploadedDataInfo) uploadedDataInfo.style.display = 'block';
+            if (uploadedFileName) uploadedFileName.textContent = uploadedData.fileName || 'Unknown';
+            if (uploadedDate) uploadedDate.textContent = uploadedData.date || 'Unknown';
+            if (uploadedIndicesCount) uploadedIndicesCount.textContent = uploadedData.indices ? uploadedData.indices.length : 0;
+        } else {
+            if (uploadedDataInfo) uploadedDataInfo.style.display = 'none';
+        }
+    }
+
+    showUploadStatus(message, type) {
+        const statusEl = document.getElementById('uploadStatus');
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.textContent = message;
+            statusEl.className = `upload-status ${type}`;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 3000);
+            }
+        }
+    }
+
+    updateDataSourceDisplay(source, data = null) {
+        const dataSource = document.getElementById('dataSource');
+        const updateInfo = document.getElementById('updateInfo');
+
+        if (source === 'uploaded' && data) {
+            const date = new Date(data.date).toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+            if (dataSource) {
+                dataSource.textContent = `Data from uploaded CSV (${date})`;
+            }
+            if (updateInfo) {
+                updateInfo.textContent = 'Static data from file';
+            }
+        } else {
+            // Get API name from settings
+            const apiName = window.settingsManager?.getActiveApiConfig()?.name || 'NSE India';
+            if (dataSource) {
+                dataSource.textContent = `Data from ${apiName}`;
+            }
+            if (updateInfo) {
+                updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
+            }
+        }
+    }
 }
 
 // Initialize app when DOM is ready
