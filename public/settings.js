@@ -133,6 +133,28 @@ class SettingsManager {
             const apiItem = document.createElement('div');
             apiItem.className = 'api-item';
             
+            // Create collapsible details for each API
+            const details = document.createElement('details');
+            details.className = 'api-item-collapsible';
+            if (this.settings.activeApi === key) {
+                details.open = true; // Open the active API by default
+            }
+            
+            const summary = document.createElement('summary');
+            summary.className = 'api-item-header';
+            summary.innerHTML = `
+                <label class="api-radio">
+                    <input type="radio" name="activeApi" value="${key}" ${this.settings.activeApi === key ? 'checked' : ''}>
+                    <span class="api-name">${api.name}</span>
+                </label>
+                <span class="api-status ${api.testStatus === 'success' ? 'enabled' : api.testStatus === 'failed' ? 'disabled' : (api.enabled ? 'enabled' : 'disabled')}">
+                    ${api.testStatus === 'success' ? '✓ Connected' : api.testStatus === 'failed' ? '✗ Failed' : (api.enabled ? '✓ Enabled' : '✗ Not Tested')}
+                </span>
+                <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            `;
+            
             // Add description based on API type
             let apiDescription = '';
             if (key === 'nse') {
@@ -141,16 +163,9 @@ class SettingsManager {
                 apiDescription = '<p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">💡 Use for stocks/equities data and backtesting - Requires numeric securityIds (indices not directly supported)</p>';
             }
             
-            apiItem.innerHTML = `
-                <div class="api-item-header">
-                    <label class="api-radio">
-                        <input type="radio" name="activeApi" value="${key}" ${this.settings.activeApi === key ? 'checked' : ''}>
-                        <span class="api-name">${api.name}</span>
-                    </label>
-                    <span class="api-status ${api.testStatus === 'success' ? 'enabled' : api.testStatus === 'failed' ? 'disabled' : (api.enabled ? 'enabled' : 'disabled')}">
-                        ${api.testStatus === 'success' ? '✓ Connected' : api.testStatus === 'failed' ? '✗ Failed' : (api.enabled ? '✓ Enabled' : '✗ Not Tested')}
-                    </span>
-                </div>
+            const content = document.createElement('div');
+            content.className = 'api-item-content';
+            content.innerHTML = `
                 ${apiDescription}
                 ${api.type === 'dhan' ? `
                     <form class="api-config-form" id="config-${key}" onsubmit="return false;">
@@ -201,6 +216,10 @@ class SettingsManager {
                     </form>
                 ` : ''}
             `;
+            
+            details.appendChild(summary);
+            details.appendChild(content);
+            apiItem.appendChild(details);
             apiListContainer.appendChild(apiItem);
         });
 
