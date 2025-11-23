@@ -19,13 +19,15 @@ module.exports = async (req, res) => {
 
   try {
     // Check if MongoDB is configured
-    if (!process.env.MONGODB_URI) {
+    // Support both MONGODB_URI and storage_MONGODB_URI (Vercel Storage naming)
+    const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
+    if (!mongoUri) {
       // MongoDB not configured - return error or fallback to localStorage only
       if (req.method === 'POST') {
         return res.status(200).json({
           success: true,
           message: 'Data saved to localStorage only (MongoDB not configured)',
-          warning: 'MongoDB_URI environment variable not set. Data is only stored in browser localStorage.'
+          warning: 'MONGODB_URI or storage_MONGODB_URI environment variable not set. Data is only stored in browser localStorage.'
         });
       } else if (req.method === 'GET') {
         return res.status(200).json({
@@ -37,7 +39,7 @@ module.exports = async (req, res) => {
         return res.status(200).json({
           success: true,
           message: 'MongoDB not configured. Clear data from localStorage.',
-          warning: 'MongoDB_URI environment variable not set.'
+          warning: 'MONGODB_URI or storage_MONGODB_URI environment variable not set.'
         });
       }
     }

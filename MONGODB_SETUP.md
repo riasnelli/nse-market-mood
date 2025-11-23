@@ -60,10 +60,13 @@ This guide will help you set up MongoDB Atlas (free tier) to store uploaded CSV 
 2. Navigate to **"Settings"** → **"Environment Variables"**
 3. Click **"Add New"**
 4. Enter:
-   - **Key:** `MONGODB_URI`
+   - **Key:** `MONGODB_URI` (or `storage_MONGODB_URI` if using Vercel Storage integration)
    - **Value:** Your complete connection string (from Step 5)
+   - Example: `mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/intraq?retryWrites=true&w=majority`
 5. Select environments: **Production**, **Preview**, and **Development** (or as needed)
 6. Click **"Save"**
+
+**Note:** The code supports both `MONGODB_URI` and `storage_MONGODB_URI` environment variable names. Use whichever fits your Vercel setup.
 
 ## Step 7: Redeploy Your Application
 
