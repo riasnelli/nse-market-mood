@@ -586,50 +586,57 @@ header h1 {
     font-size: 1.1rem;
 }
 
-/* Collapsible Section Styles */
-.collapsible-section {
-    border: 2px solid #e0e0e0;
-    border-radius: 12px;
+/* API Item Collapsible Styles */
+.api-item-collapsible {
+    border: none;
     padding: 0;
-    background: #f8f9fa;
-    overflow: hidden;
+    background: transparent;
 }
 
-.collapsible-header {
+.api-item-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 20px;
+    padding: 15px;
     cursor: pointer;
     user-select: none;
-    background: #f8f9fa;
+    list-style: none;
     transition: background 0.2s;
+    position: relative;
 }
 
-.collapsible-header:hover {
+.api-item-header::-webkit-details-marker {
+    display: none;
+}
+
+.api-item-header:hover {
     background: #f0f4ff;
 }
 
-.collapsible-header h3 {
+.api-item-header .api-radio {
+    flex: 1;
     margin: 0;
-    color: #333;
-    font-size: 1.1rem;
 }
 
-.collapse-icon {
+.api-item-header .api-status {
+    margin-right: 10px;
+}
+
+.api-collapse-icon {
     width: 20px;
     height: 20px;
     transition: transform 0.3s ease;
     color: #667eea;
     flex-shrink: 0;
+    margin-left: 10px;
 }
 
-.collapsible-section[open] .collapse-icon {
+.api-item-collapsible[open] .api-collapse-icon {
     transform: rotate(180deg);
 }
 
-.collapsible-content {
-    padding: 0 20px 20px 20px;
+.api-item-content {
+    padding: 0 15px 15px 15px;
 }
 
 .form-group {
