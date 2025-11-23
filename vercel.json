@@ -40,14 +40,6 @@
       "dest": "/api/test-dhan.js"
     },
             {
-              "src": "/manifest.json",
-              "dest": "/api/manifest.js",
-              "headers": {
-                "Content-Type": "application/manifest+json",
-                "Access-Control-Allow-Origin": "*"
-              }
-            },
-            {
               "src": "/api/save-uploaded-data",
               "dest": "/api/save-uploaded-data.js"
             },
