@@ -499,12 +499,20 @@ header h1 {
     padding: 12px;
     min-width: auto;
     flex: 0 0 auto;
+    font-size: 0; /* Hide any text content */
+    line-height: 0;
+}
+
+#logoutBtn::before,
+#logoutBtn::after {
+    content: none; /* Remove any pseudo-element content */
 }
 
 #logoutBtn svg {
     width: 18px;
     height: 18px;
     display: block;
+    flex-shrink: 0;
 }
 
 .disclaimer {
