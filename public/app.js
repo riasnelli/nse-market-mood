@@ -602,26 +602,26 @@ class MarketMoodApp {
         if (allIndicesGrid) allIndicesGrid.style.display = 'none';
         tableContainer.style.display = 'block';
         
-        // Sort indices: green (positive) first by max value, then red (negative) by max negative value
+        // Sort indices: green (positive) first by highest % change, then red (negative) by highest loss %
         const sortedIndices = [...indices].sort((a, b) => {
-            const aChange = a.change != null ? (typeof a.change === 'number' ? a.change : parseFloat(a.change) || 0) : 0;
-            const bChange = b.change != null ? (typeof b.change === 'number' ? b.change : parseFloat(b.change) || 0) : 0;
+            const aPChange = a.pChange != null ? (typeof a.pChange === 'number' ? a.pChange : parseFloat(a.pChange) || 0) : 0;
+            const bPChange = b.pChange != null ? (typeof b.pChange === 'number' ? b.pChange : parseFloat(b.pChange) || 0) : 0;
             
             // Separate positive and negative
-            const aIsPositive = aChange > 0;
-            const bIsPositive = bChange > 0;
+            const aIsPositive = aPChange > 0;
+            const bIsPositive = bPChange > 0;
             
             // If one is positive and one is negative, positive comes first
             if (aIsPositive && !bIsPositive) return -1;
             if (!aIsPositive && bIsPositive) return 1;
             
-            // Both positive: sort descending (highest first)
+            // Both positive: sort descending by % (highest % first)
             if (aIsPositive && bIsPositive) {
-                return bChange - aChange;
+                return bPChange - aPChange;
             }
             
-            // Both negative: sort ascending (most negative first, i.e., -5 comes before -2)
-            return aChange - bChange;
+            // Both negative: sort ascending by % (most negative % first, i.e., -5% comes before -2%)
+            return aPChange - bPChange;
         });
         
         // Clear and populate table
