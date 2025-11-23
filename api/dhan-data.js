@@ -165,35 +165,20 @@ module.exports = async (req, res) => {
       endpoints = [cleanEndpoint];
     } else {
       // Based on Dhan API v2 documentation
-      // Try various endpoint path formats
+      // Note: baseUrl already includes /v2, so endpoints should NOT start with /v2/
       endpoints = [
-        // Market Quote API endpoints (POST)
-        '/marketfeed/ltp',                 // Standard format
-        '/v2/marketfeed/ltp',              // With /v2/ prefix
-        'marketfeed/ltp',                  // Without leading slash
-        '/marketfeed/ohlc',
-        '/v2/marketfeed/ohlc',
-        '/marketfeed/quote',
-        '/v2/marketfeed/quote',
-        // Alternative formats
-        '/market-quote/ltp',
-        '/v2/market-quote/ltp',
-        '/market-quote',
-        '/v2/market-quote',
-        // Instruments/Master Data endpoints (GET)
-        '/instruments/indices',
-        '/v2/instruments/indices',
-        '/master/indices',
-        '/v2/master/indices',
-        '/instruments',
-        '/v2/instruments',
-        '/master',
-        '/v2/master',
-        // Simple test endpoints
-        '/quotes',
-        '/v2/quotes',
-        '/indices',
-        '/v2/indices'
+        // Market Quote API endpoints (POST) - these are the main ones
+        '/marketfeed/ltp',                 // Last Traded Price
+        '/marketfeed/ohlc',                // OHLC data
+        '/marketfeed/quote',               // Full quote
+        // Instruments/Master Data endpoints (GET) - to get securityIds
+        '/instruments/indices',            // Instruments for indices
+        '/master/indices',                 // Master data for indices
+        '/instruments',                    // All instruments
+        '/master',                         // Master data
+        // Alternative endpoints (if above don't work)
+        '/quotes',                         // Quotes endpoint
+        '/indices'                         // Indices list
       ];
     }
 
@@ -292,7 +277,12 @@ module.exports = async (req, res) => {
           
           for (const reqFormat of formatsToTry) {
             try {
-              const fullUrl = `${baseUrl}${endpoint}`;
+              // Ensure endpoint doesn't start with /v2/ if baseUrl already has it
+              let cleanEndpoint = endpoint;
+              if (baseUrl.includes('/v2') && endpoint.startsWith('/v2/')) {
+                cleanEndpoint = endpoint.substring(3); // Remove /v2 prefix
+              }
+              const fullUrl = `${baseUrl}${cleanEndpoint}`;
               console.log(`Trying Dhan API ${method}: ${fullUrl}${reqFormat ? ` (format: ${reqFormat.name})` : ''}`);
               
               const fetchOptions = {
