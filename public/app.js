@@ -602,9 +602,31 @@ class MarketMoodApp {
         if (allIndicesGrid) allIndicesGrid.style.display = 'none';
         tableContainer.style.display = 'block';
         
+        // Sort indices: green (positive) first by max value, then red (negative) by max negative value
+        const sortedIndices = [...indices].sort((a, b) => {
+            const aChange = a.change != null ? (typeof a.change === 'number' ? a.change : parseFloat(a.change) || 0) : 0;
+            const bChange = b.change != null ? (typeof b.change === 'number' ? b.change : parseFloat(b.change) || 0) : 0;
+            
+            // Separate positive and negative
+            const aIsPositive = aChange > 0;
+            const bIsPositive = bChange > 0;
+            
+            // If one is positive and one is negative, positive comes first
+            if (aIsPositive && !bIsPositive) return -1;
+            if (!aIsPositive && bIsPositive) return 1;
+            
+            // Both positive: sort descending (highest first)
+            if (aIsPositive && bIsPositive) {
+                return bChange - aChange;
+            }
+            
+            // Both negative: sort ascending (most negative first, i.e., -5 comes before -2)
+            return aChange - bChange;
+        });
+        
         // Clear and populate table
         tableBody.innerHTML = '';
-        indices.forEach(index => {
+        sortedIndices.forEach(index => {
             const row = document.createElement('tr');
             
             // Index name - remove "NIFTY" prefix
