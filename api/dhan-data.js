@@ -93,7 +93,11 @@ module.exports = async (req, res) => {
       for (const indicesEndpoint of indicesEndpoints) {
         try {
           // Handle endpoint with or without leading slash
-          const cleanEndpoint = indicesEndpoint.startsWith('/') ? indicesEndpoint : '/' + indicesEndpoint;
+          let cleanEndpoint = indicesEndpoint.startsWith('/') ? indicesEndpoint : '/' + indicesEndpoint;
+          // Remove /v2/ prefix if baseUrl already has it
+          if (testBaseUrl.includes('/v2') && cleanEndpoint.startsWith('/v2/')) {
+            cleanEndpoint = cleanEndpoint.substring(3);
+          }
           const indicesUrl = `${testBaseUrl}${cleanEndpoint}`;
           console.log(`Trying indices endpoint: ${indicesUrl}`);
           
