@@ -921,7 +921,7 @@ class MarketMoodApp {
         // Open upload modal
         if (uploadBtn && uploadModal) {
             uploadBtn.addEventListener('click', () => {
-                uploadModal.style.display = 'block';
+                uploadModal.classList.add('show');
                 this.updateUploadedDataInfo();
             });
         }
@@ -929,13 +929,13 @@ class MarketMoodApp {
         // Close upload modal
         if (closeUpload && uploadModal) {
             closeUpload.addEventListener('click', () => {
-                uploadModal.style.display = 'none';
+                uploadModal.classList.remove('show');
             });
         }
 
         if (cancelUpload && uploadModal) {
             cancelUpload.addEventListener('click', () => {
-                uploadModal.style.display = 'none';
+                uploadModal.classList.remove('show');
             });
         }
 
@@ -983,7 +983,7 @@ class MarketMoodApp {
                         
                         // Reload data to use uploaded CSV
                         setTimeout(() => {
-                            if (uploadModal) uploadModal.style.display = 'none';
+                            if (uploadModal) uploadModal.classList.remove('show');
                             this.loadData();
                         }, 1500);
                     } catch (error) {

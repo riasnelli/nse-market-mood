@@ -517,6 +517,13 @@ header h1 {
     justify-content: center;
 }
 
+/* Ensure modal is always centered */
+.modal[style*="display: block"] {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
 .modal-content {
     background: white;
     border-radius: 20px;
@@ -526,6 +533,8 @@ header h1 {
     overflow-y: auto;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
     animation: slideUp 0.3s;
+    margin: auto;
+    position: relative;
 }
 
 .modal-header {
