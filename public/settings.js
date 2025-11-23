@@ -329,6 +329,7 @@ class SettingsManager {
                 this.updateApiList();
                 this.updateActiveApiDisplay();
                 this.updateConfigForms();
+                this.updateUploadedDataSection();
             });
         }
 
