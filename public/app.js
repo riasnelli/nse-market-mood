@@ -89,6 +89,9 @@ class MarketMoodApp {
             this.updateViewToggleButtons();
         }
 
+        // Setup upload functionality
+        this.setupUpload();
+
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 // When tab becomes visible again, fetch data to check market status
@@ -115,6 +118,20 @@ class MarketMoodApp {
 
     async loadData(retryCount = 0) {
         const maxRetries = 2; // Retry up to 2 times on failure
+        
+        // Check for uploaded CSV data first
+        const uploadedData = this.getUploadedData();
+        if (uploadedData && uploadedData.indices && uploadedData.indices.length > 0) {
+            console.log('Using uploaded CSV data');
+            this.updateDataSourceDisplay('uploaded', uploadedData);
+            this.updateUI(uploadedData);
+            this.setLoading(false);
+            this.lastSuccessfulStatus = uploadedData;
+            return;
+        }
+        
+        // Update data source display for API
+        this.updateDataSourceDisplay('api');
         
         try {
             this.setLoading(true);
