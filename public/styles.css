@@ -190,20 +190,26 @@ header h1 {
 }
 
 .indices-table th {
-    padding: 12px;
+    padding: 10px 12px;
     text-align: left;
     font-weight: 600;
     color: #333;
     border-bottom: 2px solid #e0e0e0;
+    font-size: 0.9rem;
 }
 
 .indices-table td {
-    padding: 12px;
+    padding: 10px 12px;
     border-bottom: 1px solid #f0f0f0;
+    white-space: nowrap;
 }
 
 .indices-table tbody tr:hover {
     background: #f8f9fa;
+}
+
+.indices-table tbody tr {
+    height: 40px;
 }
 
 .indices-table .index-name {

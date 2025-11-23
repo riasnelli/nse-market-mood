@@ -607,10 +607,15 @@ class MarketMoodApp {
         indices.forEach(index => {
             const row = document.createElement('tr');
             
-            // Index name
+            // Index name - remove "NIFTY" prefix
             const nameCell = document.createElement('td');
             nameCell.className = 'index-name';
-            nameCell.textContent = index.symbol;
+            let indexName = index.symbol || '';
+            // Remove "NIFTY" prefix if present
+            if (indexName.toUpperCase().startsWith('NIFTY ')) {
+                indexName = indexName.substring(6); // Remove "NIFTY "
+            }
+            nameCell.textContent = indexName;
             row.appendChild(nameCell);
             
             // Value
@@ -623,13 +628,14 @@ class MarketMoodApp {
             }
             row.appendChild(valueCell);
             
-            // Change
+            // Change and % Change combined in one cell
             const changeCell = document.createElement('td');
             changeCell.className = 'index-change';
-            if (index.change != null) {
+            if (index.change != null && index.pChange != null) {
                 const changeVal = typeof index.change === 'number' ? index.change.toFixed(2) : index.change;
+                const pChangeVal = typeof index.pChange === 'number' ? index.pChange.toFixed(2) : index.pChange;
                 const sign = index.change >= 0 ? '+' : '';
-                changeCell.textContent = `${sign}${changeVal}`;
+                changeCell.textContent = `${sign}${changeVal} (${sign}${pChangeVal}%)`;
                 
                 if (index.change > 0) {
                     changeCell.classList.add('positive');
@@ -640,24 +646,6 @@ class MarketMoodApp {
                 changeCell.textContent = '-';
             }
             row.appendChild(changeCell);
-            
-            // Percentage change
-            const pChangeCell = document.createElement('td');
-            pChangeCell.className = 'index-change';
-            if (index.pChange != null) {
-                const pChangeVal = typeof index.pChange === 'number' ? index.pChange.toFixed(2) : index.pChange;
-                const sign = index.pChange >= 0 ? '+' : '';
-                pChangeCell.textContent = `${sign}${pChangeVal}%`;
-                
-                if (index.pChange > 0) {
-                    pChangeCell.classList.add('positive');
-                } else if (index.pChange < 0) {
-                    pChangeCell.classList.add('negative');
-                }
-            } else {
-                pChangeCell.textContent = '-';
-            }
-            row.appendChild(pChangeCell);
             
             tableBody.appendChild(row);
         });
