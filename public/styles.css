@@ -425,6 +425,37 @@ header h1 {
     transform: scale(0.98);
 }
 
+.upload-btn {
+    flex: 1;
+    padding: 15px;
+    background: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #667eea;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.upload-btn svg {
+    flex-shrink: 0;
+}
+
+.upload-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.upload-btn:active {
+    transform: scale(0.98);
+}
+
 .disclaimer {
     text-align: center;
     color: white;
@@ -434,6 +465,69 @@ header h1 {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Upload Modal Styles */
+.upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.file-label {
+    cursor: pointer;
+}
+
+.file-input-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px;
+    border: 2px dashed #667eea;
+    border-radius: 8px;
+    background: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.file-input-display:hover {
+    background: #e9ecef;
+    border-color: #764ba2;
+}
+
+.file-input-display svg {
+    color: #667eea;
+    flex-shrink: 0;
+}
+
+.date-label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.date-label span {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.upload-status {
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+
+.upload-status.success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.upload-status.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
 }
 
 /* Modal Styles */
