@@ -1037,7 +1037,21 @@ class MarketMoodApp {
             const prevClose = ltp / (1 + changePercent / 100);
             const change = ltp - prevClose;
 
-            if (name.toUpperCase().includes('VIX') || name.toUpperCase() === 'INDIA VIX') {
+            // Normalize symbol name - ensure consistent format
+            let normalizedName = name.trim();
+            
+            // Standardize common variations
+            if (normalizedName.toUpperCase().includes('NIFTY 50') || normalizedName.toUpperCase() === 'NIFTY 50') {
+                normalizedName = 'NIFTY 50';
+            } else if (normalizedName.toUpperCase().includes('NIFTY BANK') || normalizedName.toUpperCase() === 'NIFTY BANK' || normalizedName.toUpperCase() === 'NIFTY BANK') {
+                normalizedName = 'NIFTY BANK';
+            } else if (normalizedName.toUpperCase().includes('NIFTY IT') || normalizedName.toUpperCase() === 'NIFTY IT') {
+                normalizedName = 'NIFTY IT';
+            } else if (normalizedName.toUpperCase().includes('VIX') || normalizedName.toUpperCase() === 'INDIA VIX') {
+                normalizedName = 'INDIA VIX';
+            }
+
+            if (normalizedName.toUpperCase().includes('VIX') || normalizedName.toUpperCase() === 'INDIA VIX') {
                 vixData = {
                     last: ltp,
                     change: change,
@@ -1045,7 +1059,7 @@ class MarketMoodApp {
                 };
             } else {
                 indices.push({
-                    symbol: name,
+                    symbol: normalizedName,
                     lastPrice: ltp,
                     change: change,
                     pChange: changePercent
