@@ -85,20 +85,22 @@ module.exports = async (req, res) => {
     for (const testBaseUrl of baseUrls) {
       const indicesEndpoints = [
         '/indices',
-        '/v2/indices',
-        'indices',
-        'v2/indices'
+        '/instruments/indices',
+        '/master/indices',
+        '/instruments',
+        '/master'
       ];
       
       for (const indicesEndpoint of indicesEndpoints) {
         try {
-          // Handle endpoint with or without leading slash
+          // Ensure endpoint starts with /
           let cleanEndpoint = indicesEndpoint.startsWith('/') ? indicesEndpoint : '/' + indicesEndpoint;
           // Remove /v2/ prefix if baseUrl already has it
           if (testBaseUrl.includes('/v2') && cleanEndpoint.startsWith('/v2/')) {
             cleanEndpoint = cleanEndpoint.substring(3);
           }
-          const indicesUrl = `${testBaseUrl}${cleanEndpoint}`;
+          // Ensure no double slashes
+          const indicesUrl = `${testBaseUrl.replace(/\/+$/, '')}${cleanEndpoint}`;
           console.log(`Trying indices endpoint: ${indicesUrl}`);
           
           const indicesResponse = await fetch(indicesUrl, {
@@ -286,7 +288,8 @@ module.exports = async (req, res) => {
               if (baseUrl.includes('/v2') && endpoint.startsWith('/v2/')) {
                 cleanEndpoint = endpoint.substring(3); // Remove /v2 prefix
               }
-              const fullUrl = `${baseUrl}${cleanEndpoint}`;
+              // Ensure no double slashes
+              const fullUrl = `${baseUrl.replace(/\/+$/, '')}${cleanEndpoint}`;
               console.log(`Trying Dhan API ${method}: ${fullUrl}${reqFormat ? ` (format: ${reqFormat.name})` : ''}`);
               
               const fetchOptions = {
