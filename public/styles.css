@@ -600,6 +600,8 @@ header h1 {
     border: none;
     padding: 0;
     background: transparent;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 .api-item-header {
@@ -612,6 +614,7 @@ header h1 {
     list-style: none;
     transition: background 0.2s;
     position: relative;
+    border-radius: 12px 12px 0 0;
 }
 
 .api-item-header::-webkit-details-marker {
@@ -646,6 +649,7 @@ header h1 {
 
 .api-item-content {
     padding: 0 15px 15px 15px;
+    border-radius: 0 0 12px 12px;
 }
 
 .form-group {
@@ -744,11 +748,16 @@ header h1 {
     border-radius: 12px;
     background: #f8f9fa;
     transition: all 0.3s;
+    overflow: hidden;
 }
 
 .api-item:hover {
     border-color: #667eea;
     background: #f0f4ff;
+}
+
+.api-item:hover .api-item-collapsible {
+    border-radius: 12px;
 }
 
 .api-item-header {
