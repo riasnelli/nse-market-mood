@@ -93,11 +93,44 @@ header h1 {
     margin-bottom: 20px;
 }
 
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
 .section-title {
     color: white;
     font-size: 1.2rem;
-    margin-bottom: 15px;
-    text-align: center;
+    margin: 0;
+    text-align: left;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 5px;
+}
+
+.toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.toggle-btn.active {
+    background: white;
+    color: #667eea;
+    border-color: white;
 }
 
 .all-indices-grid {
@@ -109,6 +142,86 @@ header h1 {
 @media (max-width: 480px) {
     .all-indices-grid {
         grid-template-columns: 1fr 1fr;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .view-toggle {
+        align-self: flex-end;
+    }
+}
+
+/* Table View Styles */
+.table-container {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    overflow-x: auto;
+}
+
+.indices-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.indices-table thead {
+    background: #f8f9fa;
+}
+
+.indices-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.indices-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.indices-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.indices-table .index-name {
+    font-weight: 600;
+    color: #333;
+}
+
+.indices-table .index-value {
+    font-weight: 600;
+    color: #333;
+}
+
+.indices-table .index-change.positive {
+    color: #10b981;
+    font-weight: 600;
+}
+
+.indices-table .index-change.negative {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+@media (max-width: 480px) {
+    .table-container {
+        padding: 10px;
+    }
+    
+    .indices-table {
+        font-size: 0.85rem;
+    }
+    
+    .indices-table th,
+    .indices-table td {
+        padding: 8px;
     }
 }
 

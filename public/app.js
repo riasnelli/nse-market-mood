@@ -5,6 +5,7 @@ class MarketMoodApp {
         this.lastSuccessfulStatus = null; // Store last successful market status
         this.consecutiveFailures = 0; // Track consecutive API failures
         this.maxFailures = 3; // Max failures before marking market as closed
+        this.viewMode = 'card'; // 'card' or 'table' for all indices view
         this.updateApiUrl();
         this.init();
     }
@@ -67,6 +68,25 @@ class MarketMoodApp {
 
         if (this.refreshBtn) {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
+        }
+
+        // Setup view toggle buttons
+        this.cardViewBtn = document.getElementById('cardViewBtn');
+        this.tableViewBtn = document.getElementById('tableViewBtn');
+        
+        if (this.cardViewBtn) {
+            this.cardViewBtn.addEventListener('click', () => this.switchView('card'));
+        }
+        
+        if (this.tableViewBtn) {
+            this.tableViewBtn.addEventListener('click', () => this.switchView('table'));
+        }
+
+        // Load saved view preference
+        const savedView = localStorage.getItem('indicesViewMode');
+        if (savedView === 'table' || savedView === 'card') {
+            this.viewMode = savedView;
+            this.updateViewToggleButtons();
         }
 
         document.addEventListener('visibilitychange', () => {
@@ -501,11 +521,15 @@ class MarketMoodApp {
 
         // Display all other indices
         const otherIndices = indices.filter(idx => !mainIndices.includes(idx.symbol));
-        if (otherIndices.length > 0 && allIndicesGrid && allIndicesSection) {
-            otherIndices.forEach(index => {
-                allIndicesGrid.appendChild(this.createIndexCard(index));
-            });
+        if (otherIndices.length > 0 && allIndicesSection) {
             allIndicesSection.style.display = 'block';
+            
+            // Render based on current view mode
+            if (this.viewMode === 'table') {
+                this.renderIndicesTable(otherIndices);
+            } else {
+                this.renderIndicesCards(otherIndices);
+            }
         } else if (allIndicesSection) {
             allIndicesSection.style.display = 'none';
         }
@@ -548,6 +572,132 @@ class MarketMoodApp {
         card.appendChild(change);
         
         return card;
+    }
+
+    renderIndicesCards(indices) {
+        const allIndicesGrid = document.getElementById('allIndicesGrid');
+        const tableContainer = document.getElementById('tableContainer');
+        
+        if (!allIndicesGrid) return;
+        
+        // Show grid, hide table
+        allIndicesGrid.style.display = 'grid';
+        if (tableContainer) tableContainer.style.display = 'none';
+        
+        // Clear and populate grid
+        allIndicesGrid.innerHTML = '';
+        indices.forEach(index => {
+            allIndicesGrid.appendChild(this.createIndexCard(index));
+        });
+    }
+
+    renderIndicesTable(indices) {
+        const allIndicesGrid = document.getElementById('allIndicesGrid');
+        const tableContainer = document.getElementById('tableContainer');
+        const tableBody = document.getElementById('indicesTableBody');
+        
+        if (!tableContainer || !tableBody) return;
+        
+        // Hide grid, show table
+        if (allIndicesGrid) allIndicesGrid.style.display = 'none';
+        tableContainer.style.display = 'block';
+        
+        // Clear and populate table
+        tableBody.innerHTML = '';
+        indices.forEach(index => {
+            const row = document.createElement('tr');
+            
+            // Index name
+            const nameCell = document.createElement('td');
+            nameCell.className = 'index-name';
+            nameCell.textContent = index.symbol;
+            row.appendChild(nameCell);
+            
+            // Value
+            const valueCell = document.createElement('td');
+            valueCell.className = 'index-value';
+            if (index.lastPrice != null) {
+                valueCell.textContent = typeof index.lastPrice === 'number' ? index.lastPrice.toFixed(2) : index.lastPrice;
+            } else {
+                valueCell.textContent = '-';
+            }
+            row.appendChild(valueCell);
+            
+            // Change
+            const changeCell = document.createElement('td');
+            changeCell.className = 'index-change';
+            if (index.change != null) {
+                const changeVal = typeof index.change === 'number' ? index.change.toFixed(2) : index.change;
+                const sign = index.change >= 0 ? '+' : '';
+                changeCell.textContent = `${sign}${changeVal}`;
+                
+                if (index.change > 0) {
+                    changeCell.classList.add('positive');
+                } else if (index.change < 0) {
+                    changeCell.classList.add('negative');
+                }
+            } else {
+                changeCell.textContent = '-';
+            }
+            row.appendChild(changeCell);
+            
+            // Percentage change
+            const pChangeCell = document.createElement('td');
+            pChangeCell.className = 'index-change';
+            if (index.pChange != null) {
+                const pChangeVal = typeof index.pChange === 'number' ? index.pChange.toFixed(2) : index.pChange;
+                const sign = index.pChange >= 0 ? '+' : '';
+                pChangeCell.textContent = `${sign}${pChangeVal}%`;
+                
+                if (index.pChange > 0) {
+                    pChangeCell.classList.add('positive');
+                } else if (index.pChange < 0) {
+                    pChangeCell.classList.add('negative');
+                }
+            } else {
+                pChangeCell.textContent = '-';
+            }
+            row.appendChild(pChangeCell);
+            
+            tableBody.appendChild(row);
+        });
+    }
+
+    switchView(mode) {
+        if (mode !== 'card' && mode !== 'table') return;
+        
+        this.viewMode = mode;
+        localStorage.setItem('indicesViewMode', mode);
+        this.updateViewToggleButtons();
+        
+        // Re-render indices with new view mode
+        const allIndicesSection = document.getElementById('allIndicesSection');
+        if (allIndicesSection && allIndicesSection.style.display !== 'none') {
+            // Get current indices data from the last successful load
+            if (this.lastSuccessfulStatus && this.lastSuccessfulStatus.indices) {
+                const mainIndices = ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT'];
+                const otherIndices = this.lastSuccessfulStatus.indices.filter(idx => !mainIndices.includes(idx.symbol));
+                if (otherIndices.length > 0) {
+                    if (mode === 'table') {
+                        this.renderIndicesTable(otherIndices);
+                    } else {
+                        this.renderIndicesCards(otherIndices);
+                    }
+                }
+            }
+        }
+    }
+
+    updateViewToggleButtons() {
+        if (this.cardViewBtn && this.tableViewBtn) {
+            if (this.viewMode === 'card') {
+                this.cardViewBtn.classList.add('active');
+                this.tableViewBtn.classList.remove('active');
+            } else {
+                this.tableViewBtn.classList.add('active');
+                this.cardViewBtn.classList.remove('active');
+            }
+        }
     }
 
     updateBackgroundColor(score) {
