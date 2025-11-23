@@ -499,20 +499,30 @@ header h1 {
     padding: 12px;
     min-width: auto;
     flex: 0 0 auto;
-    font-size: 0; /* Hide any text content */
-    line-height: 0;
+    font-size: 0 !important; /* Hide any text content */
+    line-height: 0 !important;
+    text-indent: -9999px; /* Move any text off-screen */
+    overflow: hidden;
 }
 
 #logoutBtn::before,
 #logoutBtn::after {
-    content: none; /* Remove any pseudo-element content */
+    content: none !important; /* Remove any pseudo-element content */
+    display: none !important;
 }
 
 #logoutBtn svg {
     width: 18px;
     height: 18px;
-    display: block;
+    display: block !important;
     flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+}
+
+/* Hide any text nodes */
+#logoutBtn * {
+    font-size: 0;
 }
 
 .disclaimer {
