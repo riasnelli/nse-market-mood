@@ -175,14 +175,18 @@ header h1 {
 .table-container {
     background: white;
     border-radius: 15px;
-    padding: 20px;
+    padding: 15px;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    overflow-x: auto;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
 }
 
 .indices-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.8rem;
 }
 
 .indices-table thead {
@@ -190,18 +194,35 @@ header h1 {
 }
 
 .indices-table th {
-    padding: 10px 12px;
+    padding: 8px 6px;
     text-align: left;
     font-weight: 600;
     color: #333;
     border-bottom: 2px solid #e0e0e0;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.indices-table th:nth-child(1) {
+    width: 25%;
+}
+
+.indices-table th:nth-child(2) {
+    width: 35%;
+}
+
+.indices-table th:nth-child(3) {
+    width: 40%;
 }
 
 .indices-table td {
-    padding: 10px 12px;
+    padding: 8px 6px;
     border-bottom: 1px solid #f0f0f0;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.8rem;
 }
 
 .indices-table tbody tr:hover {
@@ -209,7 +230,7 @@ header h1 {
 }
 
 .indices-table tbody tr {
-    height: 40px;
+    height: 36px;
 }
 
 .indices-table .index-name {
@@ -238,12 +259,21 @@ header h1 {
     }
     
     .indices-table {
-        font-size: 0.85rem;
+        font-size: 0.75rem;
     }
     
-    .indices-table th,
+    .indices-table th {
+        font-size: 0.7rem;
+        padding: 6px 4px;
+    }
+    
     .indices-table td {
-        padding: 8px;
+        padding: 6px 4px;
+        font-size: 0.75rem;
+    }
+    
+    .indices-table tbody tr {
+        height: 32px;
     }
 }
 
