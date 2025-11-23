@@ -872,30 +872,53 @@ class MarketMoodApp {
         if (!body) return;
 
         let gradient;
+        let themeColor; // Primary color for PWA theme-color
+        
         if (score >= 70) {
             // Very Bullish - Green gradient
             gradient = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+            themeColor = '#10b981'; // Primary green
         } else if (score >= 60) {
             // Bullish - Light green gradient
             gradient = 'linear-gradient(135deg, #34d399 0%, #10b981 100%)';
+            themeColor = '#34d399'; // Light green
         } else if (score >= 50) {
             // Slightly Bullish - Yellow/Green gradient
             gradient = 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)';
+            themeColor = '#fbbf24'; // Yellow
         } else if (score >= 40) {
             // Neutral - Orange gradient
             gradient = 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)';
+            themeColor = '#f97316'; // Orange
         } else if (score >= 30) {
             // Slightly Bearish - Orange/Red gradient
             gradient = 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)';
+            themeColor = '#fb923c'; // Orange-red
         } else if (score >= 20) {
             // Bearish - Red gradient
             gradient = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+            themeColor = '#ef4444'; // Red
         } else {
             // Very Bearish - Dark red gradient
             gradient = 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)';
+            themeColor = '#dc2626'; // Dark red
         }
 
         body.style.background = gradient;
+        
+        // Update PWA theme-color meta tag for mobile browser inset
+        this.updateThemeColor(themeColor);
+    }
+
+    updateThemeColor(color) {
+        // Update or create theme-color meta tag
+        let themeColorMeta = document.querySelector('meta[name="theme-color"]');
+        if (!themeColorMeta) {
+            themeColorMeta = document.createElement('meta');
+            themeColorMeta.setAttribute('name', 'theme-color');
+            document.head.appendChild(themeColorMeta);
+        }
+        themeColorMeta.setAttribute('content', color);
     }
 
     setLoading(isLoading) {
