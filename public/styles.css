@@ -84,21 +84,9 @@ header h1 {
 
 .data-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 15px;
     margin-bottom: 20px;
-}
-
-/* For mobile, show 2 columns */
-@media (max-width: 480px) {
-    .data-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    
-    /* On mobile, VIX card spans full width and is centered */
-    .data-grid .vix-card {
-        grid-column: 1 / -1 !important;
-    }
 }
 
 .all-indices-section {

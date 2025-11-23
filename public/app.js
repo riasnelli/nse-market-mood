@@ -459,7 +459,9 @@ class MarketMoodApp {
     }
 
     updateIndices(indices, vix) {
-        // Main indices to show prominently: NIFTY 50, NIFTY BANK, NIFTY IT (3rd position)
+        // Main indices layout:
+        // First row: NIFTY 50, NIFTY BANK
+        // Second row: NIFTY IT, INDIA VIX
         const mainIndices = ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT'];
         const mainGrid = document.getElementById('mainIndicesGrid');
         const allIndicesGrid = document.getElementById('allIndicesGrid');
@@ -471,27 +473,30 @@ class MarketMoodApp {
         mainGrid.innerHTML = '';
         if (allIndicesGrid) allIndicesGrid.innerHTML = '';
 
-        // Display main indices (NIFTY 50, NIFTY BANK, NIFTY IT)
-        mainIndices.forEach(symbol => {
+        // Display first row: NIFTY 50, NIFTY BANK
+        const firstRowIndices = ['NIFTY 50', 'NIFTY BANK'];
+        firstRowIndices.forEach(symbol => {
             const index = indices.find(idx => idx.symbol === symbol);
             if (index) {
                 mainGrid.appendChild(this.createIndexCard(index));
             }
         });
 
-        // Display VIX last (4th position) - centered in the middle column
+        // Display second row: NIFTY IT, INDIA VIX
+        // First add NIFTY IT
+        const niftyIT = indices.find(idx => idx.symbol === 'NIFTY IT');
+        if (niftyIT) {
+            mainGrid.appendChild(this.createIndexCard(niftyIT));
+        }
+
+        // Then add VIX
         if (vix) {
-            const vixCard = this.createIndexCard({
+            mainGrid.appendChild(this.createIndexCard({
                 symbol: 'INDIA VIX',
                 lastPrice: vix.last,
                 change: vix.change,
                 pChange: vix.pChange
-            });
-            // Center VIX in the middle column (column 2) on desktop
-            // On mobile, it will span full width
-            vixCard.style.gridColumn = '2';
-            vixCard.classList.add('vix-card');
-            mainGrid.appendChild(vixCard);
+            }));
         }
 
         // Display all other indices
