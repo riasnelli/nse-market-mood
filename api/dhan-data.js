@@ -130,19 +130,25 @@ module.exports = async (req, res) => {
               if (securityIds.length > 0) {
                 console.log(`✅ Found ${securityIds.length} securityIds:`, securityIds.slice(0, 5));
               }
-              break;
             }
           } else if (indicesResponse.status !== 404) {
             // Log non-404 errors for debugging
             const errorText = await indicesResponse.text().catch(() => '');
             console.log(`Indices endpoint returned ${indicesResponse.status}: ${errorText.substring(0, 200)}`);
           }
+          
+          // If we found data, break out of endpoint loop
+          if (indicesList.length > 0) {
+            break;
+          }
         } catch (e) {
           console.log(`Indices endpoint failed for ${testBaseUrl}${indicesEndpoint}:`, e.message);
         }
         
         // If we found data, break out of endpoint loop
-        if (indicesList.length > 0) break;
+        if (indicesList.length > 0) {
+          break;
+        }
       }
       
       // If we found data, break out of baseUrl loop
