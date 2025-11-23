@@ -95,6 +95,29 @@ class SettingsManager {
         }
         this.updateActiveApiDisplay();
         this.updateConfigForms();
+        this.updateUploadedDataSection();
+    }
+
+    updateUploadedDataSection() {
+        // Check if uploaded data exists
+        const uploadedData = localStorage.getItem('uploadedMarketData');
+        const uploadedSection = document.getElementById('uploadedDataSection');
+        
+        if (uploadedSection) {
+            if (uploadedData) {
+                try {
+                    const data = JSON.parse(uploadedData);
+                    document.getElementById('uploadedDataSource').textContent = data.source || 'Uploaded CSV';
+                    document.getElementById('uploadedDataDate').textContent = data.dataDate || 'N/A';
+                    document.getElementById('uploadedDataCount').textContent = data.indices?.length || 0;
+                    uploadedSection.style.display = 'block';
+                } catch (e) {
+                    uploadedSection.style.display = 'none';
+                }
+            } else {
+                uploadedSection.style.display = 'none';
+            }
+        }
     }
 
     updateApiList() {

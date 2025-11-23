@@ -586,6 +586,52 @@ header h1 {
     font-size: 1.1rem;
 }
 
+/* Collapsible Section Styles */
+.collapsible-section {
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 0;
+    background: #f8f9fa;
+    overflow: hidden;
+}
+
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    cursor: pointer;
+    user-select: none;
+    background: #f8f9fa;
+    transition: background 0.2s;
+}
+
+.collapsible-header:hover {
+    background: #f0f4ff;
+}
+
+.collapsible-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 1.1rem;
+}
+
+.collapse-icon {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s ease;
+    color: #667eea;
+    flex-shrink: 0;
+}
+
+.collapsible-section[open] .collapse-icon {
+    transform: rotate(180deg);
+}
+
+.collapsible-content {
+    padding: 0 20px 20px 20px;
+}
+
 .form-group {
     margin-bottom: 15px;
 }
