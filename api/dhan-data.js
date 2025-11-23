@@ -386,14 +386,23 @@ module.exports = async (req, res) => {
       console.log('Tested endpoints:', endpoints);
       console.log('Headers used:', JSON.stringify(headers).replace(/access-token":"[^"]+/, 'access-token":"***'));
       
+      // Check if we got empty data responses (auth works but wrong format)
+      const hasEmptyDataResponse = lastError && (lastError.includes('empty data') || lastError.includes('data: {}'));
+      
       return res.status(200).json({
         error: true,
-        message: `Dhan API endpoints not found. All tested endpoints returned 404.`,
-        hint: `Dhan API endpoints are responding but returning empty data. This usually means:\n1. The API requires numeric securityIds, not symbol names\n2. You need to use the Instruments API to get securityIds first\n3. Check Dhan API v2 documentation for the correct Instruments endpoint`,
+        message: hasEmptyDataResponse 
+          ? `Dhan API authentication works but returns empty data. The API requires numeric securityIds, not symbol names.`
+          : `Dhan API endpoints not found. All tested endpoints returned 404.`,
+        hint: hasEmptyDataResponse
+          ? `The Dhan API is responding with {"data":{},"status":"success"} which means:\n\n✅ Authentication is working\n✅ Endpoints exist (/marketfeed/ltp, /marketfeed/ohlc, /marketfeed/quote)\n❌ But securityId format is incorrect - API requires NUMERIC IDs, not symbol names\n\n💡 Solution:\n1. Dhan API requires NUMERIC securityIds (e.g., 11536) not symbol names (e.g., "NIFTY 50")\n2. You need to get these numeric IDs from the Instruments API\n3. Check Dhan API v2 docs for the correct Instruments endpoint\n4. Or manually provide numeric securityIds if you know them\n\n📚 Documentation: https://dhanhq.co/docs/v2/\n🔗 Subscription: https://web.dhan.co → My Profile → DhanHQ Trading APIs`
+          : `Dhan API endpoints are responding but returning empty data. This usually means:\n1. The API requires numeric securityIds, not symbol names\n2. You need to use the Instruments API to get securityIds first\n3. Check Dhan API v2 documentation for the correct Instruments endpoint`,
         testedBaseUrls: baseUrls,
         testedEndpoints: endpoints,
-        lastError: lastError || 'All endpoints returned empty data (data: {})',
-        suggestion: `The Dhan API is responding with {"data":{},"status":"success"} which means:\n\n✅ Authentication is working\n❌ But securityId format is incorrect\n\n💡 Solution:\n1. Dhan API requires NUMERIC securityIds, not symbol names like "NIFTY 50"\n2. You need to call the Instruments API first to get numeric IDs\n3. Check Dhan API v2 docs for: /instruments or /master endpoints\n4. Or manually provide numeric securityIds in the custom endpoint field\n\n📚 Documentation: https://dhanhq.co/docs/v2/\n🔗 Subscription: https://web.dhan.co → My Profile → DhanHQ Trading APIs`,
+        lastError: lastError || (hasEmptyDataResponse ? 'All endpoints returned empty data (data: {})' : 'All endpoints returned 404'),
+        suggestion: hasEmptyDataResponse
+          ? `The Dhan API accepts your requests but returns empty data because:\n\n✅ Authentication works\n✅ Endpoints exist (/marketfeed/ltp, /marketfeed/ohlc, /marketfeed/quote)\n❌ But symbol names like "NIFTY 50" are not recognized\n\n💡 The API needs NUMERIC securityIds. To get them:\n1. Check Dhan API v2 documentation for Instruments/Master API endpoints\n2. Call the Instruments API to get numeric securityIds for indices\n3. Use those numeric IDs in the marketfeed requests\n4. Or contact Dhan support for the correct Instruments endpoint\n\nExample: Instead of "NIFTY 50", you need something like 11536 (numeric ID)`
+          : `Possible issues:\n1. Your account might not have Data API subscription enabled\n2. Check subscription at: https://web.dhan.co → My Profile → DhanHQ Trading APIs\n3. The endpoint might require different authentication\n4. Try entering a custom endpoint from Dhan API v2 documentation\n5. Verify your access token is valid (tokens expire after 24 hours)\n6. Contact Dhan support: help@dhan.co`,
         helpLinks: {
           docs: 'https://dhanhq.co/docs/v2/',
           subscription: 'https://web.dhan.co',
