@@ -130,16 +130,19 @@ header h1 {
     background: transparent;
     border: none;
     color: #6b7280;
-    padding: 8px 16px;
+    padding: 8px 12px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     transition: all 0.2s ease;
     position: relative;
     z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.segment-btn svg {
+    display: block;
 }
 
 .segment-btn:hover {
@@ -176,8 +179,12 @@ header h1 {
     }
     
     .segment-btn {
-        font-size: 0.75rem;
-        padding: 6px 12px;
+        padding: 6px 10px;
+    }
+    
+    .segment-btn svg {
+        width: 16px;
+        height: 16px;
     }
 }
 
