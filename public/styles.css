@@ -618,7 +618,7 @@ header h1 {
     list-style: none;
     transition: background 0.2s;
     position: relative;
-    border-radius: 12px 12px 0 0;
+    border-radius: 12px 12px 0 0 !important;
     overflow: hidden;
 }
 
@@ -766,13 +766,6 @@ header h1 {
     border-radius: 12px;
 }
 
-.api-item-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    border-radius: 12px 12px 0 0;
-}
 
 .api-radio {
     display: flex;
