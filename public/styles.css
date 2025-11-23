@@ -618,8 +618,9 @@ header h1 {
     list-style: none;
     transition: background 0.2s;
     position: relative;
-    border-radius: 12px 12px 0 0 !important;
+    border-radius: 12px 12px 0 0;
     overflow: hidden;
+    margin: -2px -2px 0 -2px;
 }
 
 .api-item-header::-webkit-details-marker {
@@ -629,6 +630,7 @@ header h1 {
 .api-item-header:hover {
     background: #f0f4ff;
     border-radius: 12px 12px 0 0;
+    overflow: hidden;
 }
 
 .api-item-header .api-radio {
@@ -755,6 +757,7 @@ header h1 {
     background: #f8f9fa;
     transition: all 0.3s;
     overflow: hidden;
+    position: relative;
 }
 
 .api-item:hover {
