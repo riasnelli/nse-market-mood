@@ -49,9 +49,12 @@ module.exports = async (req, res) => {
 
     // Dhan API - Base URL per documentation: https://api.dhan.co/v2/
     // According to Dhan API v2 docs, base URL is https://api.dhan.co/v2/
+    // Try different base URL formats
     const baseUrls = [
-      'https://api.dhan.co/v2',    // v2 base URL (from official docs)
-      'https://api.dhan.co'        // Non-v2 base URL (fallback)
+      'https://api.dhan.co/v2',           // v2 base URL (from official docs)
+      'https://api.dhan.co',              // Non-v2 base URL
+      'https://api.dhan.co/v2/',          // v2 with trailing slash
+      'https://dhan.co/api/v2'            // Alternative format
     ];
     
     const headers = {
@@ -115,12 +118,21 @@ module.exports = async (req, res) => {
               console.log(`✅ Found ${securityIds.length} securityIds:`, securityIds.slice(0, 5));
             }
             break;
+          } else if (indicesResponse.status !== 404) {
+            // Log non-404 errors for debugging
+            const errorText = await indicesResponse.text().catch(() => '');
+            console.log(`Indices endpoint returned ${indicesResponse.status}: ${errorText.substring(0, 200)}`);
           }
+        } catch (e) {
+          console.log(`Indices endpoint failed for ${testBaseUrl}${cleanEndpoint}:`, e.message);
         }
-      } catch (e) {
-        console.log(`Indices endpoint failed for ${testBaseUrl}:`, e.message);
-        continue;
+        
+        // If we found data, break out of endpoint loop
+        if (indicesList.length > 0) break;
       }
+      
+      // If we found data, break out of baseUrl loop
+      if (indicesList.length > 0) break;
     }
     
     // If we couldn't get indices list, use fallback
@@ -137,20 +149,35 @@ module.exports = async (req, res) => {
       endpoints = [cleanEndpoint];
     } else {
       // Based on Dhan API v2 documentation
-      // Market Quote API endpoints (POST with request body)
-      // Instruments/Master Data API endpoints (GET)
+      // Try various endpoint path formats
       endpoints = [
-        '/marketfeed/ltp',                 // POST - Last Traded Price (most common)
-        '/marketfeed/ohlc',               // POST - OHLC data
-        '/marketfeed/quote',              // POST - Full quote
-        '/market-quote/ltp',              // Alternative format
-        '/market-quote',                  // Base market quote
-        '/instruments/indices',           // GET - Instruments list for indices
-        '/master/indices',                // GET - Master data for indices
-        '/instruments',                   // GET - All instruments
-        '/master',                        // GET - Master data
-        '/quotes',                        // GET - Quotes (if exists)
-        '/indices'                        // GET - Indices list (if exists)
+        // Market Quote API endpoints (POST)
+        '/marketfeed/ltp',                 // Standard format
+        '/v2/marketfeed/ltp',              // With /v2/ prefix
+        'marketfeed/ltp',                  // Without leading slash
+        '/marketfeed/ohlc',
+        '/v2/marketfeed/ohlc',
+        '/marketfeed/quote',
+        '/v2/marketfeed/quote',
+        // Alternative formats
+        '/market-quote/ltp',
+        '/v2/market-quote/ltp',
+        '/market-quote',
+        '/v2/market-quote',
+        // Instruments/Master Data endpoints (GET)
+        '/instruments/indices',
+        '/v2/instruments/indices',
+        '/master/indices',
+        '/v2/master/indices',
+        '/instruments',
+        '/v2/instruments',
+        '/master',
+        '/v2/master',
+        // Simple test endpoints
+        '/quotes',
+        '/v2/quotes',
+        '/indices',
+        '/v2/indices'
       ];
     }
 
