@@ -357,21 +357,71 @@ header h1 {
     font-size: 1.3rem;
 }
 
-.refresh-btn {
+.footer-buttons {
+    display: flex;
+    gap: 10px;
     width: 100%;
+}
+
+.refresh-btn {
+    flex: 1;
     padding: 15px;
     background: white;
     border: none;
-    border-radius: 15px;
-    font-size: 1.1rem;
-    font-weight: bold;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
     color: #667eea;
     cursor: pointer;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    transition: transform 0.2s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.refresh-btn svg {
+    flex-shrink: 0;
+}
+
+.refresh-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
 }
 
 .refresh-btn:active {
+    transform: scale(0.98);
+}
+
+.settings-btn {
+    flex: 1;
+    padding: 15px;
+    background: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #667eea;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.settings-btn svg {
+    flex-shrink: 0;
+}
+
+.settings-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.settings-btn:active {
     transform: scale(0.98);
 }
 
@@ -379,42 +429,11 @@ header h1 {
     text-align: center;
     color: white;
     margin-top: 15px;
-    font-size: 0.8rem;
-    opacity: 0.7;
-}
-
-.footer-actions {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-top: 10px;
-}
-
-.settings-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    width: 45px;
-    height: 45px;
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.settings-btn svg {
-    width: 20px;
-    height: 20px;
-}
-    align-items: center;
-    justify-content: center;
-}
-
-.settings-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: rotate(90deg);
+    font-size: 0.85rem;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Modal Styles */
