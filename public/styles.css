@@ -282,23 +282,29 @@ header h1 {
     position: relative;
 }
 
-/* Tooltip for truncated values */
+/* Tooltip for truncated values - show on hover */
+.indices-table td[title] {
+    cursor: help;
+}
+
 .indices-table td[title]:hover::after {
     content: attr(title);
     position: absolute;
     left: 50%;
     bottom: 100%;
     transform: translateX(-50%);
-    background: #333;
+    background: #1f2937;
     color: white;
-    padding: 6px 10px;
+    padding: 8px 12px;
     border-radius: 6px;
     font-size: 0.75rem;
     white-space: nowrap;
     z-index: 1000;
-    margin-bottom: 5px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    margin-bottom: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     pointer-events: none;
+    max-width: 300px;
+    word-wrap: break-word;
 }
 
 .indices-table td[title]:hover::before {
@@ -307,10 +313,10 @@ header h1 {
     left: 50%;
     bottom: 100%;
     transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: #333;
+    border: 6px solid transparent;
+    border-top-color: #1f2937;
     z-index: 1000;
-    margin-bottom: -5px;
+    margin-bottom: 2px;
     pointer-events: none;
 }
 
