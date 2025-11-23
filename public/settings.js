@@ -109,6 +109,15 @@ class SettingsManager {
         Object.entries(this.settings.apis).forEach(([key, api]) => {
             const apiItem = document.createElement('div');
             apiItem.className = 'api-item';
+            
+            // Add description based on API type
+            let apiDescription = '';
+            if (key === 'nse') {
+                apiDescription = '<p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">✅ Recommended for Market Mood Box - Provides indices data (NIFTY 50, BANK NIFTY, etc.)</p>';
+            } else if (key === 'dhan') {
+                apiDescription = '<p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">💡 Use for stocks/equities data and backtesting - Requires numeric securityIds (indices not directly supported)</p>';
+            }
+            
             apiItem.innerHTML = `
                 <div class="api-item-header">
                     <label class="api-radio">
@@ -119,6 +128,7 @@ class SettingsManager {
                         ${api.testStatus === 'success' ? '✓ Connected' : api.testStatus === 'failed' ? '✗ Failed' : (api.enabled ? '✓ Enabled' : '✗ Not Tested')}
                     </span>
                 </div>
+                ${apiDescription}
                 ${api.type === 'dhan' ? `
                     <form class="api-config-form" id="config-${key}" onsubmit="return false;">
                         <input type="text" placeholder="Client ID" class="form-control api-input" 
@@ -152,7 +162,11 @@ class SettingsManager {
                                value="${api.config.customEndpoint || ''}">
                         <small class="endpoint-hint">Leave empty to auto-detect. Check <a href="https://dhanhq.co/docs/v2/" target="_blank">Dhan API v2 docs</a> if auto-detection fails.</small>
                         <div class="dhan-info-box">
-                            <strong>Note:</strong> Dhan API requires active Data API subscription. Check your subscription at <a href="https://web.dhan.co" target="_blank">web.dhan.co</a> → My Profile → DhanHQ Trading APIs
+                            <strong>⚠️ Important:</strong> Dhan API doesn't provide direct indices data. It's best for:<br>
+                            • Stocks/Equities data (with numeric securityIds)<br>
+                            • Backtesting and trading strategies<br><br>
+                            <strong>For Market Mood Box:</strong> Use NSE India API (recommended for indices like NIFTY 50, BANK NIFTY, etc.)<br><br>
+                            Dhan API requires active Data API subscription. Check at <a href="https://web.dhan.co" target="_blank">web.dhan.co</a> → My Profile → DhanHQ Trading APIs
                         </div>
                         <button type="button" class="btn-secondary test-api-btn" data-api="${key}">Test Connection</button>
                     </form>
