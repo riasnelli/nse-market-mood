@@ -175,7 +175,16 @@ class SettingsManager {
     updateApiList() {
         const apiListContainer = document.getElementById('apiList');
         if (!apiListContainer) {
-            console.warn('apiList container not found');
+            console.error('apiList container not found - modal may not be ready');
+            // Try to find it again after a short delay
+            setTimeout(() => {
+                const retryContainer = document.getElementById('apiList');
+                if (retryContainer) {
+                    this.updateApiList();
+                } else {
+                    console.error('apiList container still not found after retry');
+                }
+            }, 50);
             return;
         }
 
@@ -453,11 +462,25 @@ class SettingsManager {
         if (settingsBtn && settingsModal) {
             settingsBtn.addEventListener('click', () => {
                 settingsModal.classList.add('show');
-                // Refresh settings in modal when opened
-                this.updateApiList();
-                this.updateActiveApiDisplay();
-                this.updateConfigForms();
-                this.updateUploadedDataSection();
+                // Use setTimeout to ensure modal is visible before updating content
+                setTimeout(() => {
+                    // Refresh settings in modal when opened
+                    try {
+                        this.updateApiList();
+                        this.updateActiveApiDisplay();
+                        this.updateConfigForms();
+                        this.updateUploadedDataSection();
+                    } catch (error) {
+                        console.error('Error updating settings modal:', error);
+                        // Fallback: try again after a short delay
+                        setTimeout(() => {
+                            this.updateApiList();
+                            this.updateActiveApiDisplay();
+                            this.updateConfigForms();
+                            this.updateUploadedDataSection();
+                        }, 100);
+                    }
+                }, 10);
             });
         }
 
