@@ -61,8 +61,12 @@
             height: 40px;
             margin-right: 12px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-mask: url('/icons/logo.svg') no-repeat center;
-            mask: url('/icons/logo.svg') no-repeat center;
+            -webkit-mask-image: url('/icons/logo.svg');
+            mask-image: url('/icons/logo.svg');
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-position: center;
+            mask-position: center;
             -webkit-mask-size: contain;
             mask-size: contain;
             display: inline-block;
