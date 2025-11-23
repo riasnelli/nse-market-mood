@@ -287,7 +287,7 @@ module.exports = async (req, res) => {
     
     // Return mock data as fallback
     const mockData = {
-      mood: { score: 65, text: 'Bullish 😊', emoji: '😊' },
+      mood: { score: 65, text: 'Bullish', emoji: '😊' },
       indices: [
         { symbol: 'NIFTY 50', lastPrice: 21500.45, change: 125.50, pChange: 0.59, advances: 28, declines: 17 },
         { symbol: 'NIFTY BANK', lastPrice: 47500.75, change: 280.25, pChange: 0.59, advances: 0, declines: 0 },
@@ -368,13 +368,13 @@ function calculateMoodScore(nifty50, allIndices, marketBreadth) {
 }
 
 function getMoodFromScore(score) {
-  if (score >= 80) return { score, text: 'Extremely Bullish 🚀', emoji: '🚀' };
-  if (score >= 70) return { score, text: 'Very Bullish 📈', emoji: '📈' };
-  if (score >= 60) return { score, text: 'Bullish 😊', emoji: '😊' };
-  if (score >= 50) return { score, text: 'Slightly Bullish 🙂', emoji: '🙂' };
-  if (score >= 40) return { score, text: 'Neutral 😐', emoji: '😐' };
-  if (score >= 30) return { score, text: 'Slightly Bearish 🙁', emoji: '🙁' };
-  if (score >= 20) return { score, text: 'Bearish 😟', emoji: '😟' };
-  if (score >= 10) return { score, text: 'Very Bearish 📉', emoji: '📉' };
-  return { score, text: 'Extremely Bearish 🐻', emoji: '🐻' };
+  if (score >= 80) return { score, text: 'Extremely Bullish', emoji: '🚀' };
+  if (score >= 70) return { score, text: 'Very Bullish', emoji: '📈' };
+  if (score >= 60) return { score, text: 'Bullish', emoji: '😊' };
+  if (score >= 50) return { score, text: 'Slightly Bullish', emoji: '🙂' };
+  if (score >= 40) return { score, text: 'Neutral', emoji: '😐' };
+  if (score >= 30) return { score, text: 'Slightly Bearish', emoji: '🙁' };
+  if (score >= 20) return { score, text: 'Bearish', emoji: '😟' };
+  if (score >= 10) return { score, text: 'Very Bearish', emoji: '📉' };
+  return { score, text: 'Extremely Bearish', emoji: '🐻' };
 }

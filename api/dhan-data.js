@@ -820,15 +820,15 @@ function calculateMoodFromDhan(indices) {
 }
 
 function getMoodFromScore(score) {
-  if (score >= 80) return { score, text: 'Extremely Bullish 🚀', emoji: '🚀' };
-  if (score >= 70) return { score, text: 'Very Bullish 📈', emoji: '📈' };
-  if (score >= 60) return { score, text: 'Bullish 😊', emoji: '😊' };
-  if (score >= 50) return { score, text: 'Slightly Bullish 🙂', emoji: '🙂' };
-  if (score >= 40) return { score, text: 'Neutral 😐', emoji: '😐' };
-  if (score >= 30) return { score, text: 'Slightly Bearish 🙁', emoji: '🙁' };
-  if (score >= 20) return { score, text: 'Bearish 😟', emoji: '😟' };
-  if (score >= 10) return { score, text: 'Very Bearish 📉', emoji: '📉' };
-  return { score, text: 'Extremely Bearish 🐻', emoji: '🐻' };
+  if (score >= 80) return { score, text: 'Extremely Bullish', emoji: '🚀' };
+  if (score >= 70) return { score, text: 'Very Bullish', emoji: '📈' };
+  if (score >= 60) return { score, text: 'Bullish', emoji: '😊' };
+  if (score >= 50) return { score, text: 'Slightly Bullish', emoji: '🙂' };
+  if (score >= 40) return { score, text: 'Neutral', emoji: '😐' };
+  if (score >= 30) return { score, text: 'Slightly Bearish', emoji: '🙁' };
+  if (score >= 20) return { score, text: 'Bearish', emoji: '😟' };
+  if (score >= 10) return { score, text: 'Very Bearish', emoji: '📉' };
+  return { score, text: 'Extremely Bearish', emoji: '🐻' };
 }
 
 function checkMarketStatusFromDhan(data) {
