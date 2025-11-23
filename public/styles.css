@@ -414,13 +414,13 @@ header h1 {
 
 .footer-segment-btn:hover {
     color: #374151;
-    background: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .footer-segment-btn:active {
-    background: white;
-    color: #374151;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: transparent;
+    color: #6b7280;
+    box-shadow: none;
 }
 
 .disclaimer {
