@@ -75,91 +75,96 @@ module.exports = async (req, res) => {
       headers['api-secret'] = apiSecret;
     }
 
-    // Step 1: Try to get indices list first (based on user's Python code)
-    console.log('Step 1: Fetching indices list from Dhan API...');
+    // Step 1: Try to get instruments list to find securityIds for indices
+    // Note: Dhan API doesn't provide direct indices endpoints, so we need to get securityIds from Instruments API
+    console.log('Step 1: Fetching instruments list from Dhan API to get securityIds...');
     let securityIds = [];
-    let indicesList = [];
+    let instrumentsList = [];
     
-    // Try /indices endpoint (from user's code)
-    // Also try with /v2/ prefix in case base URL doesn't include it
+    // Try Instruments API endpoints to get all instruments (not just indices-specific)
+    // Then filter for indices
+    const instrumentsEndpoints = [
+      '/instruments',           // All instruments
+      '/master',                // Master data
+      '/instruments/indices',   // If indices-specific exists
+      '/master/indices'         // If indices-specific exists
+    ];
+    
     for (const testBaseUrl of baseUrls) {
-      const indicesEndpoints = [
-        '/indices',
-        '/instruments/indices',
-        '/master/indices',
-        '/instruments',
-        '/master'
-      ];
-      
-      for (const indicesEndpoint of indicesEndpoints) {
+      for (const instEndpoint of instrumentsEndpoints) {
         try {
           // Ensure endpoint starts with /
-          let cleanEndpoint = indicesEndpoint.startsWith('/') ? indicesEndpoint : '/' + indicesEndpoint;
+          let cleanEndpoint = instEndpoint.startsWith('/') ? instEndpoint : '/' + instEndpoint;
           // Remove /v2/ prefix if baseUrl already has it
           if (testBaseUrl.includes('/v2') && cleanEndpoint.startsWith('/v2/')) {
             cleanEndpoint = cleanEndpoint.substring(3);
           }
           // Ensure no double slashes
-          const indicesUrl = `${testBaseUrl.replace(/\/+$/, '')}${cleanEndpoint}`;
-          console.log(`Trying indices endpoint: ${indicesUrl}`);
+          const instUrl = `${testBaseUrl.replace(/\/+$/, '')}${cleanEndpoint}`;
+          console.log(`Trying instruments endpoint: ${instUrl}`);
           
-          const indicesResponse = await fetch(indicesUrl, {
+          const instResponse = await fetch(instUrl, {
             method: 'GET',
             headers: headers,
             timeout: 10000
           });
           
-          console.log(`Indices endpoint response: ${indicesResponse.status} ${indicesResponse.statusText}`);
+          console.log(`Instruments endpoint response: ${instResponse.status} ${instResponse.statusText}`);
           
-          if (indicesResponse.ok) {
-            const indicesData = await indicesResponse.json();
-            console.log('Indices response sample:', JSON.stringify(indicesData).substring(0, 1000));
+          if (instResponse.ok) {
+            const instData = await instResponse.json();
+            console.log('Instruments response sample:', JSON.stringify(instData).substring(0, 1000));
             
-            // Extract indices list
-            if (Array.isArray(indicesData)) {
-              indicesList = indicesData;
-            } else if (indicesData.data && Array.isArray(indicesData.data)) {
-              indicesList = indicesData.data;
-            } else if (indicesData.result && Array.isArray(indicesData.result)) {
-              indicesList = indicesData.result;
+            // Extract instruments list
+            let instruments = [];
+            if (Array.isArray(instData)) {
+              instruments = instData;
+            } else if (instData.data && Array.isArray(instData.data)) {
+              instruments = instData.data;
+            } else if (instData.result && Array.isArray(instData.result)) {
+              instruments = instData.result;
+            } else if (instData.instruments && Array.isArray(instData.instruments)) {
+              instruments = instData.instruments;
             }
             
-            if (indicesList.length > 0) {
-              console.log(`✅ Found ${indicesList.length} indices in list`);
-              // Extract securityIds if available
-              const niftyIndices = indicesList.filter(inst => {
-                const name = (inst.name || inst.symbol || inst.securityId || inst.instrumentName || '').toString().toUpperCase();
+            if (instruments.length > 0) {
+              console.log(`✅ Found ${instruments.length} instruments`);
+              
+              // Filter for NIFTY indices by symbol/name
+              const niftyIndices = instruments.filter(inst => {
+                const name = (inst.name || inst.symbol || inst.tradingSymbol || inst.instrumentName || '').toString().toUpperCase();
                 return name.includes('NIFTY') || name.includes('VIX');
               });
-              securityIds = niftyIndices.map(inst => inst.securityId || inst.instrumentId || inst.id || inst.security_id);
-              securityIds = securityIds.filter(id => id);
+              
+              // Extract numeric securityIds
+              securityIds = niftyIndices.map(inst => {
+                return inst.securityId || inst.instrumentId || inst.id || inst.security_id || inst.dhanScripCode;
+              }).filter(id => id && !isNaN(id)); // Only numeric IDs
+              
               if (securityIds.length > 0) {
-                console.log(`✅ Found ${securityIds.length} securityIds:`, securityIds.slice(0, 5));
+                console.log(`✅ Found ${securityIds.length} numeric securityIds for indices:`, securityIds.slice(0, 5));
+                instrumentsList = niftyIndices;
+                break;
               }
             }
-          } else if (indicesResponse.status !== 404) {
-            // Log non-404 errors for debugging
-            const errorText = await indicesResponse.text().catch(() => '');
-            console.log(`Indices endpoint returned ${indicesResponse.status}: ${errorText.substring(0, 200)}`);
+          } else if (instResponse.status !== 404) {
+            const errorText = await instResponse.text().catch(() => '');
+            console.log(`Instruments endpoint returned ${instResponse.status}: ${errorText.substring(0, 200)}`);
           }
-          
         } catch (e) {
-          console.log(`Indices endpoint failed for ${testBaseUrl}${indicesEndpoint}:`, e.message);
+          console.log(`Instruments endpoint failed for ${testBaseUrl}${instEndpoint}:`, e.message);
         }
         
-        // If we found data, break out of endpoint loop
-        if (indicesList.length > 0) {
-          break;
-        }
+        if (securityIds.length > 0) break;
       }
       
-      // If we found data, break out of baseUrl loop
-      if (indicesList.length > 0) break;
+      if (securityIds.length > 0) break;
     }
     
-    // If we couldn't get indices list, use fallback
-    if (indicesList.length === 0) {
-      console.warn('⚠️ Could not fetch indices list. Will try direct quotes API.');
+    // If we couldn't get securityIds, log warning
+    if (securityIds.length === 0) {
+      console.warn('⚠️ Could not fetch numeric securityIds from Instruments API. Dhan API may not support indices directly.');
+      console.warn('💡 Consider using NSE API for indices data, or manually provide numeric securityIds if available.');
     }
 
     // If custom endpoint provided, use it first
@@ -171,20 +176,17 @@ module.exports = async (req, res) => {
       endpoints = [cleanEndpoint];
     } else {
       // Based on Dhan API v2 documentation
+      // Note: Dhan API doesn't provide direct indices endpoints
+      // We need to use marketfeed endpoints with numeric securityIds
       // Note: baseUrl already includes /v2, so endpoints should NOT start with /v2/
       endpoints = [
-        // Market Quote API endpoints (POST) - these are the main ones
+        // Market Quote API endpoints (POST) - these work but need numeric securityIds
         '/marketfeed/ltp',                 // Last Traded Price
         '/marketfeed/ohlc',                // OHLC data
         '/marketfeed/quote',               // Full quote
         // Instruments/Master Data endpoints (GET) - to get securityIds
-        '/instruments/indices',            // Instruments for indices
-        '/master/indices',                 // Master data for indices
-        '/instruments',                    // All instruments
-        '/master',                         // Master data
-        // Alternative endpoints (if above don't work)
-        '/quotes',                         // Quotes endpoint
-        '/indices'                         // Indices list
+        '/instruments',                    // All instruments (to find indices securityIds)
+        '/master'                          // Master data (to find indices securityIds)
       ];
     }
 
@@ -395,14 +397,14 @@ module.exports = async (req, res) => {
           ? `Dhan API authentication works but returns empty data. The API requires numeric securityIds, not symbol names.`
           : `Dhan API endpoints not found. All tested endpoints returned 404.`,
         hint: hasEmptyDataResponse
-          ? `The Dhan API is responding with {"data":{},"status":"success"} which means:\n\n✅ Authentication is working\n✅ Endpoints exist (/marketfeed/ltp, /marketfeed/ohlc, /marketfeed/quote)\n❌ But securityId format is incorrect - API requires NUMERIC IDs, not symbol names\n\n💡 Solution:\n1. Dhan API requires NUMERIC securityIds (e.g., 11536) not symbol names (e.g., "NIFTY 50")\n2. You need to get these numeric IDs from the Instruments API\n3. Check Dhan API v2 docs for the correct Instruments endpoint\n4. Or manually provide numeric securityIds if you know them\n\n📚 Documentation: https://dhanhq.co/docs/v2/\n🔗 Subscription: https://web.dhan.co → My Profile → DhanHQ Trading APIs`
-          : `Dhan API endpoints are responding but returning empty data. This usually means:\n1. The API requires numeric securityIds, not symbol names\n2. You need to use the Instruments API to get securityIds first\n3. Check Dhan API v2 documentation for the correct Instruments endpoint`,
+          ? `Dhan API doesn't provide direct indices data through standard endpoints.\n\n✅ Authentication is working\n✅ Endpoints exist (/marketfeed/ltp, /marketfeed/ohlc, /marketfeed/quote)\n❌ But indices are not directly supported - API requires NUMERIC securityIds for indices\n\n💡 Important:\n1. Dhan API may not support indices through Data API\n2. You need NUMERIC securityIds (e.g., 11536) not symbol names (e.g., "NIFTY 50")\n3. Get numeric IDs from Instruments API (/instruments or /master endpoints)\n4. Or use NSE API for indices data (recommended for indices)\n5. Or manually provide numeric securityIds if you know them\n\n📚 Documentation: https://dhanhq.co/docs/v2/\n🔗 Subscription: https://web.dhan.co → My Profile → DhanHQ Trading APIs`
+          : `Dhan API doesn't provide direct indices endpoints. The API requires numeric securityIds for indices, which need to be obtained from the Instruments API first.`,
         testedBaseUrls: baseUrls,
         testedEndpoints: endpoints,
         lastError: lastError || (hasEmptyDataResponse ? 'All endpoints returned empty data (data: {})' : 'All endpoints returned 404'),
         suggestion: hasEmptyDataResponse
-          ? `The Dhan API accepts your requests but returns empty data because:\n\n✅ Authentication works\n✅ Endpoints exist (/marketfeed/ltp, /marketfeed/ohlc, /marketfeed/quote)\n❌ But symbol names like "NIFTY 50" are not recognized\n\n💡 The API needs NUMERIC securityIds. To get them:\n1. Check Dhan API v2 documentation for Instruments/Master API endpoints\n2. Call the Instruments API to get numeric securityIds for indices\n3. Use those numeric IDs in the marketfeed requests\n4. Or contact Dhan support for the correct Instruments endpoint\n\nExample: Instead of "NIFTY 50", you need something like 11536 (numeric ID)`
-          : `Possible issues:\n1. Your account might not have Data API subscription enabled\n2. Check subscription at: https://web.dhan.co → My Profile → DhanHQ Trading APIs\n3. The endpoint might require different authentication\n4. Try entering a custom endpoint from Dhan API v2 documentation\n5. Verify your access token is valid (tokens expire after 24 hours)\n6. Contact Dhan support: help@dhan.co`,
+          ? `Dhan API Limitations for Indices:\n\n✅ Authentication works\n✅ Endpoints exist (/marketfeed/ltp, /marketfeed/ohlc, /marketfeed/quote)\n❌ But indices are not directly supported - symbol names like "NIFTY 50" are not recognized\n\n💡 Solutions:\n\nOption 1 (Recommended): Use NSE API for indices\n- Switch to NSE API in settings for indices data\n- NSE API provides direct indices support\n\nOption 2: Get numeric securityIds from Instruments API\n1. Call /instruments or /master endpoint to get all instruments\n2. Filter for NIFTY indices and extract their numeric securityIds\n3. Use those numeric IDs in marketfeed requests\n4. Note: This may not work if indices aren't in the instruments list\n\nOption 3: Manual securityIds\n- If you know the numeric securityIds for indices, provide them manually\n- Check Dhan dashboard or contact support for these IDs\n\n📚 Documentation: https://dhanhq.co/docs/v2/\n📧 Support: help@dhan.co`
+          : `Possible issues:\n1. Your account might not have Data API subscription enabled\n2. Check subscription at: https://web.dhan.co → My Profile → DhanHQ Trading APIs\n3. Dhan API may not support indices directly - consider using NSE API for indices\n4. The endpoint might require different authentication\n5. Verify your access token is valid (tokens expire after 24 hours)\n6. Contact Dhan support: help@dhan.co`,
         helpLinks: {
           docs: 'https://dhanhq.co/docs/v2/',
           subscription: 'https://web.dhan.co',
