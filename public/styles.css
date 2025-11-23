@@ -491,6 +491,22 @@ header h1 {
     box-shadow: none;
 }
 
+/* Logout button - icon only */
+#logoutBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    min-width: auto;
+    flex: 0 0 auto;
+}
+
+#logoutBtn svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
 .disclaimer {
     text-align: center;
     color: white;
