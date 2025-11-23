@@ -689,13 +689,15 @@ header h1 {
 
 .settings-section {
     margin-bottom: 25px;
+    display: block; /* Always show by default */
 }
 
-.settings-section:not(.show) {
+/* Only hide uploadedDataSection if it doesn't have .show class */
+.settings-section#uploadedDataSection:not(.show) {
     display: none;
 }
 
-.settings-section.show {
+.settings-section#uploadedDataSection.show {
     display: block;
 }
 
