@@ -138,7 +138,10 @@ class SettingsManager {
                                    data-api="${key}" data-field="accessToken" 
                                    id="token-${key}" value="${api.config.accessToken || ''}">
                             <button type="button" class="toggle-password" data-target="token-${key}" title="Show/Hide">
-                                <span class="eye-icon">👁️</span>
+                                <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
                             </button>
                         </div>
                         <details class="api-advanced-config">
@@ -151,7 +154,10 @@ class SettingsManager {
                                            data-api="${key}" data-field="apiSecret" 
                                            id="secret-${key}" value="${api.config.apiSecret || ''}">
                                     <button type="button" class="toggle-password" data-target="secret-${key}" title="Show/Hide">
-                                        <span class="eye-icon">👁️</span>
+                                        <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
                                     </button>
                                 </div>
                             </div>
