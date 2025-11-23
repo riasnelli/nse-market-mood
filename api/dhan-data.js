@@ -81,43 +81,57 @@ module.exports = async (req, res) => {
     let indicesList = [];
     
     // Try /indices endpoint (from user's code)
+    // Also try with /v2/ prefix in case base URL doesn't include it
     for (const testBaseUrl of baseUrls) {
-      try {
-        const indicesUrl = `${testBaseUrl}/indices`;
-        console.log(`Trying indices endpoint: ${indicesUrl}`);
-        
-        const indicesResponse = await fetch(indicesUrl, {
-          method: 'GET',
-          headers: headers,
-          timeout: 10000
-        });
-        
-        if (indicesResponse.ok) {
-          const indicesData = await indicesResponse.json();
-          console.log('Indices response sample:', JSON.stringify(indicesData).substring(0, 1000));
+      const indicesEndpoints = [
+        '/indices',
+        '/v2/indices',
+        'indices',
+        'v2/indices'
+      ];
+      
+      for (const indicesEndpoint of indicesEndpoints) {
+        try {
+          // Handle endpoint with or without leading slash
+          const cleanEndpoint = indicesEndpoint.startsWith('/') ? indicesEndpoint : '/' + indicesEndpoint;
+          const indicesUrl = `${testBaseUrl}${cleanEndpoint}`;
+          console.log(`Trying indices endpoint: ${indicesUrl}`);
           
-          // Extract indices list
-          if (Array.isArray(indicesData)) {
-            indicesList = indicesData;
-          } else if (indicesData.data && Array.isArray(indicesData.data)) {
-            indicesList = indicesData.data;
-          } else if (indicesData.result && Array.isArray(indicesData.result)) {
-            indicesList = indicesData.result;
-          }
+          const indicesResponse = await fetch(indicesUrl, {
+            method: 'GET',
+            headers: headers,
+            timeout: 10000
+          });
           
-          if (indicesList.length > 0) {
-            console.log(`✅ Found ${indicesList.length} indices in list`);
-            // Extract securityIds if available
-            const niftyIndices = indicesList.filter(inst => {
-              const name = (inst.name || inst.symbol || inst.securityId || inst.instrumentName || '').toString().toUpperCase();
-              return name.includes('NIFTY') || name.includes('VIX');
-            });
-            securityIds = niftyIndices.map(inst => inst.securityId || inst.instrumentId || inst.id || inst.security_id);
-            securityIds = securityIds.filter(id => id);
-            if (securityIds.length > 0) {
-              console.log(`✅ Found ${securityIds.length} securityIds:`, securityIds.slice(0, 5));
+          console.log(`Indices endpoint response: ${indicesResponse.status} ${indicesResponse.statusText}`);
+          
+          if (indicesResponse.ok) {
+            const indicesData = await indicesResponse.json();
+            console.log('Indices response sample:', JSON.stringify(indicesData).substring(0, 1000));
+            
+            // Extract indices list
+            if (Array.isArray(indicesData)) {
+              indicesList = indicesData;
+            } else if (indicesData.data && Array.isArray(indicesData.data)) {
+              indicesList = indicesData.data;
+            } else if (indicesData.result && Array.isArray(indicesData.result)) {
+              indicesList = indicesData.result;
             }
-            break;
+            
+            if (indicesList.length > 0) {
+              console.log(`✅ Found ${indicesList.length} indices in list`);
+              // Extract securityIds if available
+              const niftyIndices = indicesList.filter(inst => {
+                const name = (inst.name || inst.symbol || inst.securityId || inst.instrumentName || '').toString().toUpperCase();
+                return name.includes('NIFTY') || name.includes('VIX');
+              });
+              securityIds = niftyIndices.map(inst => inst.securityId || inst.instrumentId || inst.id || inst.security_id);
+              securityIds = securityIds.filter(id => id);
+              if (securityIds.length > 0) {
+                console.log(`✅ Found ${securityIds.length} securityIds:`, securityIds.slice(0, 5));
+              }
+              break;
+            }
           } else if (indicesResponse.status !== 404) {
             // Log non-404 errors for debugging
             const errorText = await indicesResponse.text().catch(() => '');
