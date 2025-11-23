@@ -1067,7 +1067,13 @@ class MarketMoodApp {
             const ltp = parseFloat((row['LTP'] || row['ltp'] || '0').replace(/,/g, ''));
             const changePercent = parseFloat((row['Change(%)'] || row['Change (%)'] || row['change'] || '0').replace(/%/g, ''));
 
-            if (!name || isNaN(ltp) || isNaN(changePercent)) {
+            // Skip rows with empty name, but allow 0 values for ltp and changePercent
+            if (!name || name.trim() === '') {
+                return; // Skip invalid rows
+            }
+            
+            // Allow 0 values, but check if ltp is actually a number
+            if (isNaN(ltp) || isNaN(changePercent)) {
                 return; // Skip invalid rows
             }
 
