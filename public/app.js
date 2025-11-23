@@ -523,19 +523,25 @@ class MarketMoodApp {
                     const termUpper = term.toUpperCase().trim();
                     // Exact match
                     if (symbolUpper === termUpper) return true;
-                    // Contains match (but be careful - "NIFTY 50" should match "Nifty 50" but not "Nifty 500")
-                    if (termUpper === 'NIFTY 50') {
+                    
+                    // Special handling for NIFTY 50 - must be exactly "NIFTY 50" or "NIFTY50", not "NIFTY 500" or "NIFTY 50 Equal Weight"
+                    if (termUpper === 'NIFTY 50' || termUpper === 'NIFTY50') {
                         return symbolUpper === 'NIFTY 50' || symbolUpper === 'NIFTY50' || 
-                               (symbolUpper.includes('NIFTY') && symbolUpper.includes('50') && 
-                                !symbolUpper.includes('500') && !symbolUpper.includes('100'));
+                               symbolUpper === 'NIFTY 50' || symbolUpper === 'NIFTY 50';
                     }
-                    if (termUpper === 'NIFTY BANK') {
-                        return symbolUpper.includes('NIFTY') && symbolUpper.includes('BANK') && 
-                               !symbolUpper.includes('PSU') && !symbolUpper.includes('PRIVATE');
+                    
+                    // Special handling for NIFTY BANK - must be exactly "NIFTY BANK", not "NIFTY PSU BANK" or "NIFTY PRIVATE BANK"
+                    if (termUpper === 'NIFTY BANK' || termUpper === 'NIFTYBANK') {
+                        return symbolUpper === 'NIFTY BANK' || symbolUpper === 'NIFTYBANK' ||
+                               (symbolUpper.startsWith('NIFTY') && symbolUpper.endsWith('BANK') && 
+                                symbolUpper.length <= 11); // "NIFTY BANK" is 10 chars
                     }
-                    if (termUpper === 'NIFTY IT') {
+                    
+                    // Special handling for NIFTY IT
+                    if (termUpper === 'NIFTY IT' || termUpper === 'NIFTYIT') {
                         return symbolUpper === 'NIFTY IT' || symbolUpper === 'NIFTYIT';
                     }
+                    
                     return symbolUpper.includes(termUpper);
                 });
             });
