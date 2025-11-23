@@ -459,8 +459,8 @@ class MarketMoodApp {
     }
 
     updateIndices(indices, vix) {
-        // Main indices to show prominently
-        const mainIndices = ['NIFTY 50', 'NIFTY BANK'];
+        // Main indices to show prominently: NIFTY 50, NIFTY BANK, NIFTY IT (3rd position)
+        const mainIndices = ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT'];
         const mainGrid = document.getElementById('mainIndicesGrid');
         const allIndicesGrid = document.getElementById('allIndicesGrid');
         const allIndicesSection = document.getElementById('allIndicesSection');
@@ -471,7 +471,7 @@ class MarketMoodApp {
         mainGrid.innerHTML = '';
         if (allIndicesGrid) allIndicesGrid.innerHTML = '';
 
-        // Display main indices
+        // Display main indices (NIFTY 50, NIFTY BANK, NIFTY IT)
         mainIndices.forEach(symbol => {
             const index = indices.find(idx => idx.symbol === symbol);
             if (index) {
@@ -479,14 +479,17 @@ class MarketMoodApp {
             }
         });
 
-        // Display VIX
+        // Display VIX last (4th position)
         if (vix) {
-            mainGrid.appendChild(this.createIndexCard({
+            const vixCard = this.createIndexCard({
                 symbol: 'INDIA VIX',
                 lastPrice: vix.last,
                 change: vix.change,
                 pChange: vix.pChange
-            }));
+            });
+            // Add a class to center VIX in the last row
+            vixCard.style.gridColumn = '1 / -1';
+            mainGrid.appendChild(vixCard);
         }
 
         // Display all other indices
