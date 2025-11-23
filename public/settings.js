@@ -105,15 +105,20 @@ class SettingsManager {
     }
 
     getUploadedDataList() {
-        // Get all uploaded data files from localStorage
-        const uploadedData = localStorage.getItem('uploadedIndicesData');
+        // Get all uploaded data files from localStorage - try both possible keys
+        let uploadedData = localStorage.getItem('uploadedIndicesData');
+        if (!uploadedData) {
+            // Fallback to old key name
+            uploadedData = localStorage.getItem('uploadedMarketData');
+        }
+        
         const uploadedDataList = [];
         
         if (uploadedData) {
             try {
                 const data = JSON.parse(uploadedData);
                 uploadedDataList.push({
-                    fileName: data.fileName || 'Uploaded CSV',
+                    fileName: data.fileName || data.source || 'Uploaded CSV',
                     dataDate: data.date || data.dataDate || 'N/A',
                     indicesCount: data.indices?.length || 0,
                     data: data
