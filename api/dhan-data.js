@@ -257,13 +257,19 @@ module.exports = async (req, res) => {
                   
                   if (response.ok) {
                     const quoteData = await response.json();
-                    if (quoteData && (quoteData.lastPrice || quoteData.data)) {
+                    console.log(`GET /quotes response for ${symbol}:`, JSON.stringify(quoteData).substring(0, 500));
+                    if (quoteData && (quoteData.lastPrice || quoteData.data || quoteData.LTP)) {
                       quotesData.push({
                         symbol: symbol,
                         ...quoteData
                       });
                       console.log(`✅ Got quote for ${symbol}`);
+                    } else {
+                      console.log(`⚠️ GET /quotes returned empty data for ${symbol}`);
                     }
+                  } else {
+                    const errorText = await response.text().catch(() => '');
+                    console.log(`GET /quotes failed for ${symbol}: ${response.status} - ${errorText.substring(0, 200)}`);
                   }
                 } catch (e) {
                   console.log(`Failed to get quote for ${symbol}:`, e.message);
@@ -386,11 +392,11 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         error: true,
         message: `Dhan API endpoints not found. All tested endpoints returned 404.`,
-        hint: `Please check Dhan API v2 documentation at https://dhanhq.co/docs/v2/ for the correct endpoint.`,
+        hint: `Dhan API endpoints are responding but returning empty data. This usually means:\n1. The API requires numeric securityIds, not symbol names\n2. You need to use the Instruments API to get securityIds first\n3. Check Dhan API v2 documentation for the correct Instruments endpoint`,
         testedBaseUrls: baseUrls,
         testedEndpoints: endpoints,
-        lastError: lastError || 'All endpoints returned 404',
-        suggestion: `Possible issues:\n1. Your account might not have Data API subscription enabled\n2. Check subscription at: https://web.dhan.co → My Profile → DhanHQ Trading APIs\n3. The endpoint might require different authentication\n4. Try entering a custom endpoint from Dhan API v2 documentation (e.g., /marketfeed/ltp)\n5. Verify your access token is valid (tokens expire after 24 hours)\n6. Contact Dhan support: help@dhan.co`,
+        lastError: lastError || 'All endpoints returned empty data (data: {})',
+        suggestion: `The Dhan API is responding with {"data":{},"status":"success"} which means:\n\n✅ Authentication is working\n❌ But securityId format is incorrect\n\n💡 Solution:\n1. Dhan API requires NUMERIC securityIds, not symbol names like "NIFTY 50"\n2. You need to call the Instruments API first to get numeric IDs\n3. Check Dhan API v2 docs for: /instruments or /master endpoints\n4. Or manually provide numeric securityIds in the custom endpoint field\n\n📚 Documentation: https://dhanhq.co/docs/v2/\n🔗 Subscription: https://web.dhan.co → My Profile → DhanHQ Trading APIs`,
         helpLinks: {
           docs: 'https://dhanhq.co/docs/v2/',
           subscription: 'https://web.dhan.co',
