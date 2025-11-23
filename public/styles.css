@@ -205,15 +205,15 @@ header h1 {
 }
 
 .indices-table th:nth-child(1) {
-    width: 25%;
-}
-
-.indices-table th:nth-child(2) {
     width: 35%;
 }
 
+.indices-table th:nth-child(2) {
+    width: 30%;
+}
+
 .indices-table th:nth-child(3) {
-    width: 40%;
+    width: 35%;
 }
 
 .indices-table td {
