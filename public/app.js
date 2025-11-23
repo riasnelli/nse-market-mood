@@ -1315,33 +1315,49 @@ class MarketMoodApp {
             }
 
             updateDataSourceDisplay(source, data = null) {
-        const dataSource = document.getElementById('dataSource');
-        const updateInfo = document.getElementById('updateInfo');
+                const dataSource = document.getElementById('dataSource');
+                const updateInfo = document.getElementById('updateInfo');
 
-        if (source === 'uploaded' && data) {
-            const date = new Date(data.date).toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric' 
-            });
-            if (dataSource) {
-                dataSource.textContent = `Data from uploaded CSV (${date})`;
+                if (source === 'uploaded' && data) {
+                    const date = new Date(data.date).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric' 
+                    });
+                    if (dataSource) {
+                        dataSource.textContent = `Data from uploaded CSV (${date})`;
+                    }
+                    if (updateInfo) {
+                        updateInfo.textContent = 'Static data from file';
+                    }
+                } else {
+                    // Get API name from settings
+                    const apiName = window.settingsManager?.getActiveApiConfig()?.name || 'NSE India';
+                    if (dataSource) {
+                        dataSource.textContent = `Data from ${apiName}`;
+                    }
+                    if (updateInfo) {
+                        updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
+                    }
+                }
             }
-            if (updateInfo) {
-                updateInfo.textContent = 'Static data from file';
+
+            updateLogoutButton() {
+                const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+                if (this.logoutBtn) {
+                    this.logoutBtn.style.display = isLoggedIn ? 'flex' : 'none';
+                }
             }
-        } else {
-            // Get API name from settings
-            const apiName = window.settingsManager?.getActiveApiConfig()?.name || 'NSE India';
-            if (dataSource) {
-                dataSource.textContent = `Data from ${apiName}`;
-            }
-            if (updateInfo) {
-                updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
+
+            handleLogout() {
+                if (confirm('Are you sure you want to logout?')) {
+                    localStorage.removeItem('isLoggedIn');
+                    localStorage.removeItem('userEmail');
+                    localStorage.removeItem('loginMethod');
+                    window.location.href = '/login.html';
+                }
             }
         }
-    }
-}
 
         // Check authentication before initializing app
         function checkAuth() {
