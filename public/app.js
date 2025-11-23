@@ -259,6 +259,8 @@ class MarketMoodApp {
                 this.updateUI(data);
             } else {
                 console.warn('No valid data received from API');
+                // Update data source display for API
+                this.updateDataSourceDisplay('api');
                 // Check if Dhan API is active - don't show mock data for Dhan errors
                 const activeApi = window.settingsManager?.settings?.activeApi;
                 if (activeApi === 'dhan') {
