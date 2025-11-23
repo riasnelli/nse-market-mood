@@ -283,9 +283,6 @@ header h1 {
 }
 
 /* Tooltip for truncated values - show on hover */
-.indices-table td[title] {
-    cursor: help;
-}
 
 .indices-table td[title]:hover::after {
     content: attr(title);
