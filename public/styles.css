@@ -31,9 +31,12 @@ header h1 {
     gap: 10px;
 }
 
-.header-icon {
+.header-logo {
     display: inline-block;
     vertical-align: middle;
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
 }
 
 .last-updated {
