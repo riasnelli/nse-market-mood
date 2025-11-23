@@ -137,10 +137,6 @@ module.exports = async (req, res) => {
             console.log(`Indices endpoint returned ${indicesResponse.status}: ${errorText.substring(0, 200)}`);
           }
           
-          // If we found data, break out of endpoint loop
-          if (indicesList.length > 0) {
-            break;
-          }
         } catch (e) {
           console.log(`Indices endpoint failed for ${testBaseUrl}${indicesEndpoint}:`, e.message);
         }
