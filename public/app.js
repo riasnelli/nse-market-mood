@@ -1183,24 +1183,35 @@ class MarketMoodApp {
                 },
                 body: JSON.stringify({
                     fileName: fileName || 'uploaded.csv',
-                    dataDate: dataDate || new Date().toISOString().split('T')[0],
+                    date: dataDate || new Date().toISOString().split('T')[0],
                     indices: data.indices || [],
                     mood: data.mood,
                     vix: data.vix,
-                    advanceDecline: data.advanceDecline
+                    advanceDecline: data.advanceDecline,
+                    timestamp: data.timestamp || new Date().toISOString(),
+                    source: data.source || 'uploaded'
                 })
             });
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('Data saved to database:', result);
+                if (result.success) {
+                    console.log('✅ Data saved to MongoDB:', result.id);
+                    if (result.warning) {
+                        console.warn('⚠️', result.warning);
+                    }
+                } else {
+                    console.warn('⚠️ Database save returned:', result);
+                }
                 return result;
             } else {
-                throw new Error(`Failed to save: ${response.statusText}`);
+                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                throw new Error(errorData.message || `Failed to save: ${response.statusText}`);
             }
         } catch (error) {
-            console.error('Error saving to database:', error);
-            throw error;
+            console.error('❌ Error saving to database:', error);
+            // Don't throw - allow localStorage to work as fallback
+            return { success: false, error: error.message };
         }
     }
 

@@ -1,13 +1,5 @@
-const fetch = require('node-fetch');
-
-// For database storage, you can use:
-// - MongoDB with MongoDB Atlas (free tier available)
-// - PostgreSQL with Supabase (free tier available)
-// - Firebase Firestore (free tier available)
-// - Vercel KV (Redis-based, for Vercel projects)
-
-// Example using a simple JSON file storage (for development)
-// In production, replace this with actual database calls
+const { getUploadedDataCollection } = require('./lib/mongodb');
+const { ObjectId } = require('mongodb');
 
 module.exports = async (req, res) => {
   // Enable CORS
@@ -26,90 +18,181 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // Check if MongoDB is configured
+    if (!process.env.MONGODB_URI) {
+      // MongoDB not configured - return error or fallback to localStorage only
+      if (req.method === 'POST') {
+        return res.status(200).json({
+          success: true,
+          message: 'Data saved to localStorage only (MongoDB not configured)',
+          warning: 'MongoDB_URI environment variable not set. Data is only stored in browser localStorage.'
+        });
+      } else if (req.method === 'GET') {
+        return res.status(200).json({
+          success: true,
+          data: [],
+          warning: 'MongoDB not configured. Check localStorage for data.'
+        });
+      } else if (req.method === 'DELETE') {
+        return res.status(200).json({
+          success: true,
+          message: 'MongoDB not configured. Clear data from localStorage.',
+          warning: 'MongoDB_URI environment variable not set.'
+        });
+      }
+    }
+
+    const collection = await getUploadedDataCollection();
+
     if (req.method === 'POST') {
       // Save uploaded data to database
-      const { fileName, dataDate, indices, mood, vix, advanceDecline } = req.body;
+      const { fileName, date, indices, mood, vix, advanceDecline, timestamp, source } = req.body;
 
       if (!indices || !Array.isArray(indices)) {
-        return res.status(400).json({ error: 'Invalid data format' });
+        return res.status(400).json({ 
+          error: 'Invalid data format',
+          message: 'indices must be an array'
+        });
       }
 
-      // TODO: Replace this with actual database save
-      // Example for MongoDB:
-      // const db = await getMongoClient();
-      // await db.collection('uploadedData').insertOne({
-      //   fileName,
-      //   dataDate,
-      //   indices,
-      //   mood,
-      //   vix,
-      //   advanceDecline,
-      //   uploadedAt: new Date(),
-      //   userId: req.body.userId || 'anonymous'
-      // });
-
-      // For now, return success (you'll need to implement actual database storage)
-      const savedData = {
-        id: `upload_${Date.now()}`,
+      const dataToSave = {
         fileName: fileName || 'uploaded.csv',
-        dataDate: dataDate || new Date().toISOString().split('T')[0],
+        date: date || new Date().toISOString().split('T')[0],
         indices,
-        mood,
-        vix,
-        advanceDecline,
-        uploadedAt: new Date().toISOString()
+        mood: mood || null,
+        vix: vix || null,
+        advanceDecline: advanceDecline || { advances: 0, declines: 0 },
+        timestamp: timestamp || new Date().toISOString(),
+        source: source || 'uploaded',
+        uploadedAt: new Date(),
+        updatedAt: new Date()
       };
 
-      // TODO: Save to database here
-      console.log('Would save to database:', savedData);
+      // Insert into MongoDB
+      const result = await collection.insertOne(dataToSave);
+
+      console.log(`✅ Data saved to MongoDB: ${result.insertedId}`);
 
       return res.status(200).json({
         success: true,
-        message: 'Data saved successfully',
-        data: savedData
+        message: 'Data saved successfully to MongoDB',
+        id: result.insertedId.toString(),
+        data: {
+          ...dataToSave,
+          _id: result.insertedId.toString()
+        }
       });
+
     } else if (req.method === 'GET') {
       // Retrieve uploaded data from database
-      const { id, dataDate } = req.query;
+      const { id, date } = req.query;
 
-      // TODO: Replace this with actual database query
-      // Example for MongoDB:
-      // const db = await getMongoClient();
-      // const query = {};
-      // if (id) query._id = id;
-      // if (dataDate) query.dataDate = dataDate;
-      // const data = await db.collection('uploadedData').find(query).toArray();
+      let query = {};
+      
+      if (id) {
+        // Validate ObjectId format
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ 
+            error: 'Invalid ID format',
+            message: 'ID must be a valid MongoDB ObjectId'
+          });
+        }
+        query._id = new ObjectId(id);
+      }
+      
+      if (date) {
+        query.date = date;
+      }
 
-      // For now, return empty array
+      // Find documents, sort by most recent first
+      const documents = await collection
+        .find(query)
+        .sort({ uploadedAt: -1 })
+        .toArray();
+
+      // Format response
+      const formattedData = documents.map(doc => ({
+        id: doc._id.toString(),
+        fileName: doc.fileName,
+        date: doc.date,
+        indicesCount: doc.indices?.length || 0,
+        uploadedAt: doc.uploadedAt,
+        mood: doc.mood,
+        source: doc.source
+      }));
+
       return res.status(200).json({
         success: true,
-        data: []
+        data: formattedData,
+        count: formattedData.length
       });
+
     } else if (req.method === 'DELETE') {
       // Delete uploaded data from database
       const { id } = req.query;
 
       if (!id) {
-        return res.status(400).json({ error: 'ID required' });
+        return res.status(400).json({ 
+          error: 'ID required',
+          message: 'Please provide an id query parameter'
+        });
       }
 
-      // TODO: Replace this with actual database delete
-      // Example for MongoDB:
-      // const db = await getMongoClient();
-      // await db.collection('uploadedData').deleteOne({ _id: id });
+      // Validate ObjectId format
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({ 
+          error: 'Invalid ID format',
+          message: 'ID must be a valid MongoDB ObjectId'
+        });
+      }
+
+      const result = await collection.deleteOne({ _id: new ObjectId(id) });
+
+      if (result.deletedCount === 0) {
+        return res.status(404).json({
+          error: 'Not found',
+          message: `Data with ID ${id} not found`
+        });
+      }
+
+      console.log(`✅ Data deleted from MongoDB: ${id}`);
 
       return res.status(200).json({
         success: true,
-        message: 'Data deleted successfully'
+        message: `Data with ID ${id} deleted successfully`,
+        deletedCount: result.deletedCount
       });
+
     } else {
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json({ 
+        error: 'Method not allowed',
+        message: `Method ${req.method} is not supported`
+      });
     }
   } catch (error) {
-    console.error('Error in save-uploaded-data:', error);
+    console.error('❌ Error in save-uploaded-data:', error);
+    
+    // Provide helpful error messages
+    if (error.message.includes('MONGODB_URI')) {
+      return res.status(500).json({
+        error: 'Database configuration error',
+        message: 'MongoDB connection string is not configured. Please set MONGODB_URI environment variable.',
+        details: error.message
+      });
+    }
+
+    if (error.name === 'MongoServerError' || error.name === 'MongoNetworkError') {
+      return res.status(500).json({
+        error: 'Database connection error',
+        message: 'Failed to connect to MongoDB. Please check your connection string and network settings.',
+        details: error.message
+      });
+    }
+
     return res.status(500).json({
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
+      type: error.name || 'UnknownError'
     });
   }
 };

@@ -1,0 +1,66 @@
+const { MongoClient } = require('mongodb');
+
+// MongoDB connection caching for serverless functions
+let cachedClient = null;
+let cachedDb = null;
+
+/**
+ * Connect to MongoDB Atlas
+ * Uses connection caching to reuse connections in serverless environments
+ */
+async function connectToDatabase() {
+  // Return cached connection if available
+  if (cachedClient && cachedDb) {
+    return { client: cachedClient, db: cachedDb };
+  }
+
+  // Get MongoDB URI from environment variable
+  const uri = process.env.MONGODB_URI;
+  
+  if (!uri) {
+    throw new Error('MONGODB_URI environment variable is not set');
+  }
+
+  // Create MongoDB client
+  const client = new MongoClient(uri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    maxPoolSize: 10, // Maintain up to 10 socket connections
+    serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+  });
+
+  try {
+    // Connect to MongoDB
+    await client.connect();
+    
+    // Get database name from URI or use default
+    const dbName = new URL(uri).pathname.substring(1) || 'marketmood';
+    const db = client.db(dbName);
+
+    // Cache the connection
+    cachedClient = client;
+    cachedDb = db;
+
+    console.log('✅ Connected to MongoDB Atlas');
+    
+    return { client, db };
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get the uploaded data collection
+ */
+async function getUploadedDataCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('uploadedData');
+}
+
+module.exports = {
+  connectToDatabase,
+  getUploadedDataCollection,
+};
+
