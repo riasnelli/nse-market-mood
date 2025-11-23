@@ -515,32 +515,53 @@ class MarketMoodApp {
         if (allIndicesGrid) allIndicesGrid.innerHTML = '';
 
         // Display main indices: NIFTY 50, NIFTY BANK, NIFTY IT, INDIA VIX
-        // Helper function to find index by flexible matching
+        // Helper function to find index by flexible matching (case-insensitive, handles variations)
         const findIndex = (indices, searchTerms) => {
             return indices.find(idx => {
-                const symbolUpper = idx.symbol.toUpperCase();
-                return searchTerms.some(term => 
-                    symbolUpper === term.toUpperCase() || 
-                    symbolUpper.includes(term.toUpperCase())
-                );
+                const symbolUpper = idx.symbol.toUpperCase().trim();
+                return searchTerms.some(term => {
+                    const termUpper = term.toUpperCase().trim();
+                    // Exact match
+                    if (symbolUpper === termUpper) return true;
+                    // Contains match (but be careful - "NIFTY 50" should match "Nifty 50" but not "Nifty 500")
+                    if (termUpper === 'NIFTY 50') {
+                        return symbolUpper === 'NIFTY 50' || symbolUpper === 'NIFTY50' || 
+                               (symbolUpper.includes('NIFTY') && symbolUpper.includes('50') && 
+                                !symbolUpper.includes('500') && !symbolUpper.includes('100'));
+                    }
+                    if (termUpper === 'NIFTY BANK') {
+                        return symbolUpper.includes('NIFTY') && symbolUpper.includes('BANK') && 
+                               !symbolUpper.includes('PSU') && !symbolUpper.includes('PRIVATE');
+                    }
+                    if (termUpper === 'NIFTY IT') {
+                        return symbolUpper === 'NIFTY IT' || symbolUpper === 'NIFTYIT';
+                    }
+                    return symbolUpper.includes(termUpper);
+                });
             });
         };
 
         // First row: NIFTY 50, NIFTY BANK
         const nifty50 = findIndex(indices, ['NIFTY 50', 'Nifty 50', 'Nifty50']);
-        const niftyBank = findIndex(indices, ['NIFTY BANK', 'Nifty Bank', 'NIFTY BANK', 'NiftyBank']);
+        const niftyBank = findIndex(indices, ['NIFTY BANK', 'Nifty Bank', 'NiftyBank']);
         
         if (nifty50) {
             mainGrid.appendChild(this.createIndexCard(nifty50));
+        } else {
+            console.warn('NIFTY 50 not found in indices');
         }
         if (niftyBank) {
             mainGrid.appendChild(this.createIndexCard(niftyBank));
+        } else {
+            console.warn('NIFTY BANK not found in indices');
         }
 
         // Second row: NIFTY IT, INDIA VIX
         const niftyIT = findIndex(indices, ['NIFTY IT', 'Nifty IT', 'NIFTYIT']);
         if (niftyIT) {
             mainGrid.appendChild(this.createIndexCard(niftyIT));
+        } else {
+            console.warn('NIFTY IT not found in indices');
         }
 
         // Add VIX (from vix parameter or from indices array)
@@ -1039,15 +1060,21 @@ class MarketMoodApp {
 
             // Normalize symbol name - ensure consistent format
             let normalizedName = name.trim();
+            const nameUpper = normalizedName.toUpperCase();
             
-            // Standardize common variations
-            if (normalizedName.toUpperCase().includes('NIFTY 50') || normalizedName.toUpperCase() === 'NIFTY 50') {
+            // Standardize common variations - be precise to avoid matching wrong indices
+            if (nameUpper === 'NIFTY 50' || nameUpper === 'NIFTY50' || 
+                (nameUpper.includes('NIFTY') && nameUpper.includes('50') && 
+                 !nameUpper.includes('500') && !nameUpper.includes('100') && 
+                 !nameUpper.includes('150') && !nameUpper.includes('250'))) {
                 normalizedName = 'NIFTY 50';
-            } else if (normalizedName.toUpperCase().includes('NIFTY BANK') || normalizedName.toUpperCase() === 'NIFTY BANK' || normalizedName.toUpperCase() === 'NIFTY BANK') {
+            } else if (nameUpper === 'NIFTY BANK' || nameUpper === 'NIFTYBANK' ||
+                       (nameUpper.includes('NIFTY') && nameUpper.includes('BANK') && 
+                        !nameUpper.includes('PSU') && !nameUpper.includes('PRIVATE'))) {
                 normalizedName = 'NIFTY BANK';
-            } else if (normalizedName.toUpperCase().includes('NIFTY IT') || normalizedName.toUpperCase() === 'NIFTY IT') {
+            } else if (nameUpper === 'NIFTY IT' || nameUpper === 'NIFTYIT') {
                 normalizedName = 'NIFTY IT';
-            } else if (normalizedName.toUpperCase().includes('VIX') || normalizedName.toUpperCase() === 'INDIA VIX') {
+            } else if (nameUpper.includes('VIX') || nameUpper === 'INDIA VIX') {
                 normalizedName = 'INDIA VIX';
             }
 
