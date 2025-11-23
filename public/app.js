@@ -65,10 +65,25 @@ class MarketMoodApp {
     init() {
         this.updateTimeEl = document.getElementById('updateTime');
         this.refreshBtn = document.getElementById('refreshBtn');
+        this.settingsBtn = document.getElementById('settingsBtn');
+        this.uploadBtn = document.getElementById('uploadBtn');
+        this.logoutBtn = document.getElementById('logoutBtn');
 
         if (this.refreshBtn) {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
         }
+        if (this.settingsBtn) {
+            this.settingsBtn.addEventListener('click', () => window.settingsManager?.openSettings());
+        }
+        if (this.uploadBtn) {
+            this.uploadBtn.addEventListener('click', () => this.openUploadModal());
+        }
+        if (this.logoutBtn) {
+            this.logoutBtn.addEventListener('click', () => this.handleLogout());
+        }
+
+        // Show/hide logout button based on login status
+        this.updateLogoutButton();
 
         // Setup view toggle buttons
         this.cardViewBtn = document.getElementById('cardViewBtn');
@@ -1283,7 +1298,23 @@ class MarketMoodApp {
         }
     }
 
-    updateDataSourceDisplay(source, data = null) {
+            updateLogoutButton() {
+                const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+                if (this.logoutBtn) {
+                    this.logoutBtn.style.display = isLoggedIn ? 'flex' : 'none';
+                }
+            }
+
+            handleLogout() {
+                if (confirm('Are you sure you want to logout?')) {
+                    localStorage.removeItem('isLoggedIn');
+                    localStorage.removeItem('userEmail');
+                    localStorage.removeItem('loginMethod');
+                    window.location.href = '/login.html';
+                }
+            }
+
+            updateDataSourceDisplay(source, data = null) {
         const dataSource = document.getElementById('dataSource');
         const updateInfo = document.getElementById('updateInfo');
 
