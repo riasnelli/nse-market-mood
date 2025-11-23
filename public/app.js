@@ -1069,18 +1069,23 @@ class MarketMoodApp {
             const nameUpper = normalizedName.toUpperCase();
             
             // Standardize common variations - be precise to avoid matching wrong indices
+            // Match exactly "Nifty 50" or "NIFTY 50" (not "Nifty 500" or "Nifty 50 Equal Weight")
             if (nameUpper === 'NIFTY 50' || nameUpper === 'NIFTY50' || 
-                (nameUpper.includes('NIFTY') && nameUpper.includes('50') && 
-                 !nameUpper.includes('500') && !nameUpper.includes('100') && 
-                 !nameUpper.includes('150') && !nameUpper.includes('250'))) {
+                nameUpper === 'NIFTY 50' || nameUpper === 'NIFTY 50') {
                 normalizedName = 'NIFTY 50';
-            } else if (nameUpper === 'NIFTY BANK' || nameUpper === 'NIFTYBANK' ||
-                       (nameUpper.includes('NIFTY') && nameUpper.includes('BANK') && 
-                        !nameUpper.includes('PSU') && !nameUpper.includes('PRIVATE'))) {
+            } 
+            // Match exactly "Nifty Bank" or "NIFTY BANK" (not "Nifty PSU Bank" or "Nifty Private Bank")
+            else if (nameUpper === 'NIFTY BANK' || nameUpper === 'NIFTYBANK' ||
+                     (nameUpper.startsWith('NIFTY') && nameUpper.endsWith('BANK') && 
+                      nameUpper.split(' ').length === 2)) {
                 normalizedName = 'NIFTY BANK';
-            } else if (nameUpper === 'NIFTY IT' || nameUpper === 'NIFTYIT') {
+            } 
+            // Match exactly "NIFTY IT"
+            else if (nameUpper === 'NIFTY IT' || nameUpper === 'NIFTYIT') {
                 normalizedName = 'NIFTY IT';
-            } else if (nameUpper.includes('VIX') || nameUpper === 'INDIA VIX') {
+            } 
+            // Match VIX variations
+            else if (nameUpper.includes('VIX') || nameUpper === 'INDIA VIX') {
                 normalizedName = 'INDIA VIX';
             }
 
