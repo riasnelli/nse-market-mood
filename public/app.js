@@ -1130,9 +1130,20 @@ class MarketMoodApp {
         moodScore = Math.max(0, Math.min(100, moodScore));
         const mood = this.getMoodFromScore(moodScore);
 
+        // Include VIX in indices array if it exists, so total count is correct
+        const allIndices = [...indices];
+        if (vixData) {
+            allIndices.push({
+                symbol: 'INDIA VIX',
+                lastPrice: vixData.last,
+                change: vixData.change,
+                pChange: vixData.pChange
+            });
+        }
+
         return {
             mood: mood,
-            indices: indices,
+            indices: allIndices, // Include VIX in total count
             vix: vixData || { last: 0, change: 0, pChange: 0 },
             advanceDecline: { advances: 0, declines: 0 }, // CSV doesn't have this
             timestamp: new Date(date).toISOString(),
