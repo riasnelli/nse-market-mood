@@ -515,9 +515,20 @@ class MarketMoodApp {
         if (allIndicesGrid) allIndicesGrid.innerHTML = '';
 
         // Display main indices: NIFTY 50, NIFTY BANK, NIFTY IT, INDIA VIX
+        // Helper function to find index by flexible matching
+        const findIndex = (indices, searchTerms) => {
+            return indices.find(idx => {
+                const symbolUpper = idx.symbol.toUpperCase();
+                return searchTerms.some(term => 
+                    symbolUpper === term.toUpperCase() || 
+                    symbolUpper.includes(term.toUpperCase())
+                );
+            });
+        };
+
         // First row: NIFTY 50, NIFTY BANK
-        const nifty50 = indices.find(idx => idx.symbol === 'NIFTY 50');
-        const niftyBank = indices.find(idx => idx.symbol === 'NIFTY BANK');
+        const nifty50 = findIndex(indices, ['NIFTY 50', 'Nifty 50', 'Nifty50']);
+        const niftyBank = findIndex(indices, ['NIFTY BANK', 'Nifty Bank', 'NIFTY BANK', 'NiftyBank']);
         
         if (nifty50) {
             mainGrid.appendChild(this.createIndexCard(nifty50));
@@ -527,7 +538,7 @@ class MarketMoodApp {
         }
 
         // Second row: NIFTY IT, INDIA VIX
-        const niftyIT = indices.find(idx => idx.symbol === 'NIFTY IT');
+        const niftyIT = findIndex(indices, ['NIFTY IT', 'Nifty IT', 'NIFTYIT']);
         if (niftyIT) {
             mainGrid.appendChild(this.createIndexCard(niftyIT));
         }
@@ -558,9 +569,26 @@ class MarketMoodApp {
         }
 
         // Display all other indices (excluding the 4 main ones)
+        // Helper function to check if index is a main index
+        const isMainIndex = (symbol) => {
+            const symbolUpper = symbol.toUpperCase();
+            return symbolUpper.includes('NIFTY 50') || 
+                   symbolUpper === 'NIFTY 50' ||
+                   symbolUpper.includes('NIFTY BANK') ||
+                   symbolUpper === 'NIFTY BANK' ||
+                   symbolUpper.includes('NIFTY IT') ||
+                   symbolUpper === 'NIFTY IT' ||
+                   symbolUpper.includes('VIX') ||
+                   symbolUpper === 'INDIA VIX';
+        };
+        
         const otherIndices = indices.filter(idx => {
-            const symbol = idx.symbol.toUpperCase();
-            return !mainIndicesSymbols.some(main => symbol === main.toUpperCase() || symbol.includes('VIX'));
+            // Exclude the 4 main indices we already displayed
+            if (nifty50 && idx.symbol === nifty50.symbol) return false;
+            if (niftyBank && idx.symbol === niftyBank.symbol) return false;
+            if (niftyIT && idx.symbol === niftyIT.symbol) return false;
+            // Exclude VIX
+            return !isMainIndex(idx.symbol);
         });
         
         // Sort other indices by percentage change: highest gain first, then highest loss
