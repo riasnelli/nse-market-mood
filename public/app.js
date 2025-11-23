@@ -119,15 +119,21 @@ class MarketMoodApp {
     async loadData(retryCount = 0) {
         const maxRetries = 2; // Retry up to 2 times on failure
         
-        // Check for uploaded CSV data first
-        const uploadedData = this.getUploadedData();
-        if (uploadedData && uploadedData.indices && uploadedData.indices.length > 0) {
-            console.log('Using uploaded CSV data');
-            this.updateDataSourceDisplay('uploaded', uploadedData);
-            this.updateUI(uploadedData);
-            this.setLoading(false);
-            this.lastSuccessfulStatus = uploadedData;
-            return;
+        // Check if uploaded data is selected as active API
+        const activeApi = window.settingsManager?.settings?.activeApi;
+        if (activeApi === 'uploaded') {
+            const uploadedData = this.getUploadedData();
+            if (uploadedData && uploadedData.indices && uploadedData.indices.length > 0) {
+                console.log('Using uploaded CSV data (selected as active source)');
+                this.updateDataSourceDisplay('uploaded', uploadedData);
+                this.updateUI(uploadedData);
+                this.setLoading(false);
+                this.lastSuccessfulStatus = uploadedData;
+                return;
+            } else {
+                console.warn('Uploaded data selected but no data found. Falling back to API.');
+                // Fall through to API data
+            }
         }
         
         // Update data source display for API

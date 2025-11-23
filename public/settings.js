@@ -24,6 +24,12 @@ class SettingsManager {
                         apiSecret: '', // API Secret (optional, for v2.4+)
                         customEndpoint: '' // Allow custom endpoint override
                     }
+                },
+                uploaded: {
+                    name: 'Uploaded Data',
+                    type: 'uploaded',
+                    enabled: false,
+                    config: {}
                 }
             }
         };
@@ -130,6 +136,11 @@ class SettingsManager {
         apiListContainer.innerHTML = '';
         
         Object.entries(this.settings.apis).forEach(([key, api]) => {
+            // Skip uploaded data from main API list - it will be shown separately
+            if (key === 'uploaded') {
+                return;
+            }
+            
             const apiItem = document.createElement('div');
             apiItem.className = 'api-item';
             
@@ -222,6 +233,58 @@ class SettingsManager {
             apiItem.appendChild(details);
             apiListContainer.appendChild(apiItem);
         });
+        
+        // Add Uploaded Data as a selectable option if data exists
+        const uploadedData = this.getUploadedDataList();
+        if (uploadedData && uploadedData.length > 0) {
+            const uploadedApiItem = document.createElement('div');
+            uploadedApiItem.className = 'api-item';
+            
+            const details = document.createElement('details');
+            details.className = 'api-item-collapsible';
+            if (this.settings.activeApi === 'uploaded') {
+                details.open = true;
+            }
+            
+            const summary = document.createElement('summary');
+            summary.className = 'api-item-header';
+            summary.innerHTML = `
+                <label class="api-radio">
+                    <input type="radio" name="activeApi" value="uploaded" ${this.settings.activeApi === 'uploaded' ? 'checked' : ''}>
+                    <span class="api-name">Uploaded Data</span>
+                </label>
+                <span class="api-status ${uploadedData.length > 0 ? 'enabled' : 'disabled'}">
+                    ${uploadedData.length > 0 ? '✓ Available' : '✗ No Data'}
+                </span>
+                <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            `;
+            
+            const content = document.createElement('div');
+            content.className = 'api-item-content';
+            content.innerHTML = `
+                <p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">📁 Use previously uploaded CSV data for market mood analysis</p>
+                <div class="uploaded-files-list" style="margin-top: 10px;">
+                    ${uploadedData.map((file, index) => `
+                        <div class="uploaded-file-item" style="padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>${file.fileName || 'Uploaded File'}</strong><br>
+                                    <small style="color: #666;">Date: ${file.dataDate || 'N/A'} • Indices: ${file.indicesCount || 0}</small>
+                                </div>
+                                <button type="button" class="btn-secondary" style="padding: 5px 10px; font-size: 0.85rem;" data-file-index="${index}" onclick="window.settingsManager.selectUploadedFile(${index})">Select</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            details.appendChild(summary);
+            details.appendChild(content);
+            uploadedApiItem.appendChild(details);
+            apiListContainer.appendChild(uploadedApiItem);
+        }
 
         // Add event listeners
         document.querySelectorAll('input[name="activeApi"]').forEach(radio => {
