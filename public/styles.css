@@ -604,6 +604,10 @@ header h1 {
     overflow: hidden;
 }
 
+.api-item-collapsible:not([open]) .api-item-header {
+    border-radius: 12px;
+}
+
 .api-item-header {
     display: flex;
     justify-content: space-between;
@@ -615,6 +619,7 @@ header h1 {
     transition: background 0.2s;
     position: relative;
     border-radius: 12px 12px 0 0;
+    overflow: hidden;
 }
 
 .api-item-header::-webkit-details-marker {
@@ -623,6 +628,7 @@ header h1 {
 
 .api-item-header:hover {
     background: #f0f4ff;
+    border-radius: 12px 12px 0 0;
 }
 
 .api-item-header .api-radio {
