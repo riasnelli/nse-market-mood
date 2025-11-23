@@ -247,10 +247,34 @@ header h1 {
 .indices-table td {
     padding: 8px 6px;
     border-bottom: 1px solid #f0f0f0;
+    font-size: 0.8rem;
+    height: 36px;
+    vertical-align: middle;
+}
+
+.indices-table td:nth-child(1) {
+    text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 0.8rem;
+}
+
+.indices-table td:nth-child(2) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.indices-table td:nth-child(3) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.indices-table td:nth-child(4) {
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .indices-table tbody tr:hover {
