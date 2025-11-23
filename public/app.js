@@ -1149,6 +1149,36 @@ class MarketMoodApp {
         return { score, text: 'Extremely Bearish', emoji: '🐻' };
     }
 
+    async saveToDatabase(data, fileName, dataDate) {
+        try {
+            const response = await fetch('/api/save-uploaded-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fileName: fileName || 'uploaded.csv',
+                    dataDate: dataDate || new Date().toISOString().split('T')[0],
+                    indices: data.indices || [],
+                    mood: data.mood,
+                    vix: data.vix,
+                    advanceDecline: data.advanceDecline
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Data saved to database:', result);
+                return result;
+            } else {
+                throw new Error(`Failed to save: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error saving to database:', error);
+            throw error;
+        }
+    }
+
     getUploadedData() {
         const stored = localStorage.getItem('uploadedIndicesData');
         if (stored) {
