@@ -256,6 +256,8 @@ class MarketMoodApp {
             // Only update UI if we have valid data
             if (hasValidData) {
                 console.log('Updating UI with fresh data from API');
+                // Update data source display for API
+                this.updateDataSourceDisplay('api');
                 this.updateUI(data);
             } else {
                 console.warn('No valid data received from API');
