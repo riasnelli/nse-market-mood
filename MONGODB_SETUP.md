@@ -47,10 +47,12 @@ This guide will help you set up MongoDB Atlas (free tier) to store uploaded CSV 
    ```
 6. Replace `<username>` with your database username
 7. Replace `<password>` with your database password (URL-encode special characters if needed)
-8. Add your database name at the end (before `?`):
+8. Add your database name at the end (before `?`). For this project, use `intraq`:
    ```
-   mongodb+srv://marketmood_user:yourpassword@cluster0.xxxxx.mongodb.net/marketmood?retryWrites=true&w=majority
+   mongodb+srv://marketmood_user:yourpassword@cluster0.xxxxx.mongodb.net/intraq?retryWrites=true&w=majority
    ```
+   
+   **Note:** The database name `intraq` is already configured in the code. If your connection string doesn't include a database name, it will default to `intraq`.
 
 ## Step 6: Set Environment Variable in Vercel
 

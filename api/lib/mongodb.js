@@ -30,13 +30,15 @@ async function connectToDatabase() {
     socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
   });
 
-  try {
-    // Connect to MongoDB
-    await client.connect();
-    
-    // Get database name from URI or use default
-    const dbName = new URL(uri).pathname.substring(1) || 'marketmood';
-    const db = client.db(dbName);
+    try {
+      // Connect to MongoDB
+      await client.connect();
+      
+      // Get database name from URI or use default
+      // Database name should be in the connection string: mongodb+srv://.../intraq?...
+      const url = new URL(uri);
+      const dbName = url.pathname.substring(1) || 'intraq'; // Default to 'intraq' if not in URI
+      const db = client.db(dbName);
 
     // Cache the connection
     cachedClient = client;
