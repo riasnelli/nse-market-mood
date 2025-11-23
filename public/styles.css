@@ -757,8 +757,13 @@ header h1 {
     border-radius: 12px;
     background: #f8f9fa;
     transition: all 0.3s;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
+}
+
+.api-item .api-item-collapsible {
+    overflow: hidden;
+    border-radius: 12px;
 }
 
 .api-item:hover {
