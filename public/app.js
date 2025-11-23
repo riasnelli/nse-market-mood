@@ -973,6 +973,11 @@ class MarketMoodApp {
                         // Store in localStorage
                         localStorage.setItem('uploadedIndicesData', JSON.stringify(processedData));
                         
+                        // Also save to database (optional - will work even if DB is not configured)
+                        this.saveToDatabase(processedData, file.name, date).catch(err => {
+                            console.warn('Failed to save to database (continuing with localStorage):', err);
+                        });
+                        
                         this.showUploadStatus('Data uploaded successfully!', 'success');
                         this.updateUploadedDataInfo();
                         
