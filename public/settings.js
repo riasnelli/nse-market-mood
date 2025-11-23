@@ -145,22 +145,29 @@ class SettingsManager {
 
     updateUploadedDataSection() {
         // Check if uploaded data exists
-        const uploadedData = localStorage.getItem('uploadedMarketData') || localStorage.getItem('uploadedIndicesData');
+        const uploadedData = localStorage.getItem('uploadedIndicesData');
         const uploadedSection = document.getElementById('uploadedDataSection');
         
         if (uploadedSection) {
             if (uploadedData) {
                 try {
                     const data = JSON.parse(uploadedData);
-                    document.getElementById('uploadedDataSource').textContent = data.source || data.fileName || 'Uploaded CSV';
-                    document.getElementById('uploadedDataDate').textContent = data.dataDate || data.date || 'N/A';
-                    document.getElementById('uploadedDataCount').textContent = data.indices?.length || 0;
-                    uploadedSection.style.display = 'block';
+                    const sourceEl = document.getElementById('uploadedDataSource');
+                    const dateEl = document.getElementById('uploadedDataDate');
+                    const countEl = document.getElementById('uploadedDataCount');
+                    
+                    if (sourceEl) sourceEl.textContent = data.fileName || 'Uploaded CSV';
+                    if (dateEl) dateEl.textContent = data.date || data.dataDate || 'N/A';
+                    if (countEl) countEl.textContent = data.indices?.length || 0;
+                    
+                    // Use classList for consistent display handling
+                    uploadedSection.classList.add('show');
                 } catch (e) {
-                    uploadedSection.style.display = 'none';
+                    console.error('Error parsing uploaded data in settings:', e);
+                    uploadedSection.classList.remove('show');
                 }
             } else {
-                uploadedSection.style.display = 'none';
+                uploadedSection.classList.remove('show');
             }
         }
     }

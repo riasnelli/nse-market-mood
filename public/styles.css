@@ -657,6 +657,14 @@ header h1 {
     margin-bottom: 25px;
 }
 
+.settings-section:not(.show) {
+    display: none;
+}
+
+.settings-section.show {
+    display: block;
+}
+
 .settings-section h3 {
     margin: 0 0 15px 0;
     color: #333;
