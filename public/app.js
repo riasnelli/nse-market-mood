@@ -479,7 +479,7 @@ class MarketMoodApp {
             }
         });
 
-        // Display VIX last (4th position)
+        // Display VIX last (4th position) - centered in the middle column
         if (vix) {
             const vixCard = this.createIndexCard({
                 symbol: 'INDIA VIX',
@@ -487,8 +487,10 @@ class MarketMoodApp {
                 change: vix.change,
                 pChange: vix.pChange
             });
-            // Add a class to center VIX in the last row
-            vixCard.style.gridColumn = '1 / -1';
+            // Center VIX in the middle column (column 2) on desktop
+            // On mobile, it will span full width
+            vixCard.style.gridColumn = '2';
+            vixCard.classList.add('vix-card');
             mainGrid.appendChild(vixCard);
         }
 

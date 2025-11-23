@@ -89,20 +89,14 @@ header h1 {
     margin-bottom: 20px;
 }
 
-/* Center the last card (VIX) if it spans full width */
-.data-grid .data-card[style*="grid-column"] {
-    max-width: 100%;
-    margin: 0 auto;
-}
-
 /* For mobile, show 2 columns */
 @media (max-width: 480px) {
     .data-grid {
         grid-template-columns: 1fr 1fr;
     }
     
-    /* On mobile, VIX will span full width in its row */
-    .data-grid .data-card[style*="grid-column"] {
+    /* On mobile, VIX card spans full width and is centered */
+    .data-grid .vix-card {
         grid-column: 1 / -1 !important;
     }
 }
