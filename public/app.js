@@ -500,10 +500,10 @@ class MarketMoodApp {
     }
 
     updateIndices(indices, vix) {
-        // Main indices layout:
+        // Main indices: Always show these 4 in cards under mood box
         // First row: NIFTY 50, NIFTY BANK
         // Second row: NIFTY IT, INDIA VIX
-        const mainIndices = ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT'];
+        const mainIndicesSymbols = ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'INDIA VIX'];
         const mainGrid = document.getElementById('mainIndicesGrid');
         const allIndicesGrid = document.getElementById('allIndicesGrid');
         const allIndicesSection = document.getElementById('allIndicesSection');
@@ -514,42 +514,85 @@ class MarketMoodApp {
         mainGrid.innerHTML = '';
         if (allIndicesGrid) allIndicesGrid.innerHTML = '';
 
-        // Display first row: NIFTY 50, NIFTY BANK
-        const firstRowIndices = ['NIFTY 50', 'NIFTY BANK'];
-        firstRowIndices.forEach(symbol => {
-            const index = indices.find(idx => idx.symbol === symbol);
-            if (index) {
-                mainGrid.appendChild(this.createIndexCard(index));
-            }
-        });
+        // Display main indices: NIFTY 50, NIFTY BANK, NIFTY IT, INDIA VIX
+        // First row: NIFTY 50, NIFTY BANK
+        const nifty50 = indices.find(idx => idx.symbol === 'NIFTY 50');
+        const niftyBank = indices.find(idx => idx.symbol === 'NIFTY BANK');
+        
+        if (nifty50) {
+            mainGrid.appendChild(this.createIndexCard(nifty50));
+        }
+        if (niftyBank) {
+            mainGrid.appendChild(this.createIndexCard(niftyBank));
+        }
 
-        // Display second row: NIFTY IT, INDIA VIX
-        // First add NIFTY IT
+        // Second row: NIFTY IT, INDIA VIX
         const niftyIT = indices.find(idx => idx.symbol === 'NIFTY IT');
         if (niftyIT) {
             mainGrid.appendChild(this.createIndexCard(niftyIT));
         }
 
-        // Then add VIX
-        if (vix) {
+        // Add VIX (from vix parameter or from indices array)
+        let vixData = vix;
+        if (!vixData) {
+            const vixFromIndices = indices.find(idx => 
+                idx.symbol.toUpperCase().includes('VIX') || 
+                idx.symbol.toUpperCase() === 'INDIA VIX'
+            );
+            if (vixFromIndices) {
+                vixData = {
+                    last: vixFromIndices.lastPrice,
+                    change: vixFromIndices.change,
+                    pChange: vixFromIndices.pChange
+                };
+            }
+        }
+        
+        if (vixData) {
             mainGrid.appendChild(this.createIndexCard({
                 symbol: 'INDIA VIX',
-                lastPrice: vix.last,
-                change: vix.change,
-                pChange: vix.pChange
+                lastPrice: vixData.last,
+                change: vixData.change,
+                pChange: vixData.pChange
             }));
         }
 
-        // Display all other indices
-        const otherIndices = indices.filter(idx => !mainIndices.includes(idx.symbol));
-        if (otherIndices.length > 0 && allIndicesSection) {
+        // Display all other indices (excluding the 4 main ones)
+        const otherIndices = indices.filter(idx => {
+            const symbol = idx.symbol.toUpperCase();
+            return !mainIndicesSymbols.some(main => symbol === main.toUpperCase() || symbol.includes('VIX'));
+        });
+        
+        // Sort other indices by percentage change: highest gain first, then highest loss
+        const sortedOtherIndices = [...otherIndices].sort((a, b) => {
+            const aPChange = a.pChange != null ? (typeof a.pChange === 'number' ? a.pChange : parseFloat(a.pChange) || 0) : 0;
+            const bPChange = b.pChange != null ? (typeof b.pChange === 'number' ? b.pChange : parseFloat(b.pChange) || 0) : 0;
+            
+            // Separate positive and negative
+            const aIsPositive = aPChange > 0;
+            const bIsPositive = bPChange > 0;
+            
+            // If one is positive and one is negative, positive comes first
+            if (aIsPositive && !bIsPositive) return -1;
+            if (!aIsPositive && bIsPositive) return 1;
+            
+            // Both positive: sort descending by % (highest % first)
+            if (aIsPositive && bIsPositive) {
+                return bPChange - aPChange;
+            }
+            
+            // Both negative: sort ascending by % (most negative % first, i.e., -5% comes before -2%)
+            return aPChange - bPChange;
+        });
+        
+        if (sortedOtherIndices.length > 0 && allIndicesSection) {
             allIndicesSection.style.display = 'block';
             
             // Render based on current view mode
             if (this.viewMode === 'table') {
-                this.renderIndicesTable(otherIndices);
+                this.renderIndicesTable(sortedOtherIndices);
             } else {
-                this.renderIndicesCards(otherIndices);
+                this.renderIndicesCards(sortedOtherIndices);
             }
         } else if (allIndicesSection) {
             allIndicesSection.style.display = 'none';
@@ -706,13 +749,35 @@ class MarketMoodApp {
         if (allIndicesSection && allIndicesSection.style.display !== 'none') {
             // Get current indices data from the last successful load
             if (this.lastSuccessfulStatus && this.lastSuccessfulStatus.indices) {
-                const mainIndices = ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT'];
-                const otherIndices = this.lastSuccessfulStatus.indices.filter(idx => !mainIndices.includes(idx.symbol));
-                if (otherIndices.length > 0) {
+                const mainIndicesSymbols = ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'INDIA VIX'];
+                const otherIndices = this.lastSuccessfulStatus.indices.filter(idx => {
+                    const symbol = idx.symbol.toUpperCase();
+                    return !mainIndicesSymbols.some(main => symbol === main.toUpperCase() || symbol.includes('VIX'));
+                });
+                
+                // Sort by percentage change: highest gain first, then highest loss
+                const sortedOtherIndices = [...otherIndices].sort((a, b) => {
+                    const aPChange = a.pChange != null ? (typeof a.pChange === 'number' ? a.pChange : parseFloat(a.pChange) || 0) : 0;
+                    const bPChange = b.pChange != null ? (typeof b.pChange === 'number' ? b.pChange : parseFloat(b.pChange) || 0) : 0;
+                    
+                    const aIsPositive = aPChange > 0;
+                    const bIsPositive = bPChange > 0;
+                    
+                    if (aIsPositive && !bIsPositive) return -1;
+                    if (!aIsPositive && bIsPositive) return 1;
+                    
+                    if (aIsPositive && bIsPositive) {
+                        return bPChange - aPChange;
+                    }
+                    
+                    return aPChange - bPChange;
+                });
+                
+                if (sortedOtherIndices.length > 0) {
                     if (mode === 'table') {
-                        this.renderIndicesTable(otherIndices);
+                        this.renderIndicesTable(sortedOtherIndices);
                     } else {
-                        this.renderIndicesCards(otherIndices);
+                        this.renderIndicesCards(sortedOtherIndices);
                     }
                 }
             }
