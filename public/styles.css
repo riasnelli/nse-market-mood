@@ -222,7 +222,7 @@ header h1 {
 }
 
 .indices-table th:nth-child(1) {
-    width: 35%;
+    width: 10%;
 }
 
 .indices-table th:nth-child(2) {
@@ -230,7 +230,18 @@ header h1 {
 }
 
 .indices-table th:nth-child(3) {
-    width: 35%;
+    width: 30%;
+}
+
+.indices-table th:nth-child(4) {
+    width: 30%;
+}
+
+.indices-table .row-number {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
 .indices-table td {

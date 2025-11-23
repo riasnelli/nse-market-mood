@@ -690,8 +690,14 @@ class MarketMoodApp {
         
         // Clear and populate table
         tableBody.innerHTML = '';
-        sortedIndices.forEach(index => {
+        sortedIndices.forEach((index, indexNum) => {
             const row = document.createElement('tr');
+            
+            // Row number
+            const rowNumCell = document.createElement('td');
+            rowNumCell.className = 'row-number';
+            rowNumCell.textContent = indexNum + 1;
+            row.appendChild(rowNumCell);
             
             // Index name - remove "NIFTY" prefix
             const nameCell = document.createElement('td');
