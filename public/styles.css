@@ -222,19 +222,23 @@ header h1 {
 }
 
 .indices-table th:nth-child(1) {
-    width: 8%;
+    width: 7%;
+    min-width: 30px;
 }
 
 .indices-table th:nth-child(2) {
-    width: 25%;
+    width: 28%;
+    min-width: 80px;
 }
 
 .indices-table th:nth-child(3) {
-    width: 25%;
+    width: 28%;
+    min-width: 90px;
 }
 
 .indices-table th:nth-child(4) {
-    width: 42%;
+    width: 37%;
+    min-width: 120px;
 }
 
 .indices-table .row-number {
@@ -273,8 +277,41 @@ header h1 {
 
 .indices-table td:nth-child(4) {
     white-space: nowrap;
-    overflow: visible;
-    text-overflow: clip;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+}
+
+/* Tooltip for truncated values */
+.indices-table td[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    pointer-events: none;
+}
+
+.indices-table td[title]:hover::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+    z-index: 1000;
+    margin-bottom: -5px;
+    pointer-events: none;
 }
 
 .indices-table tbody tr:hover {

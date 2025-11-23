@@ -758,31 +758,40 @@ class MarketMoodApp {
             const nameCell = document.createElement('td');
             nameCell.className = 'index-name';
             let indexName = index.symbol || '';
+            const originalIndexName = indexName; // Keep original for tooltip
             // Remove "NIFTY" prefix if present
             if (indexName.toUpperCase().startsWith('NIFTY ')) {
                 indexName = indexName.substring(6); // Remove "NIFTY "
             }
             nameCell.textContent = indexName;
+            // Add tooltip with full name if different
+            if (originalIndexName !== indexName || indexName.length > 15) {
+                nameCell.title = originalIndexName;
+            }
             row.appendChild(nameCell);
             
             // Value
             const valueCell = document.createElement('td');
             valueCell.className = 'index-value';
+            let valueText = '-';
             if (index.lastPrice != null) {
-                valueCell.textContent = typeof index.lastPrice === 'number' ? index.lastPrice.toFixed(2) : index.lastPrice;
-            } else {
-                valueCell.textContent = '-';
+                valueText = typeof index.lastPrice === 'number' ? index.lastPrice.toFixed(2) : index.lastPrice;
             }
+            valueCell.textContent = valueText;
+            valueCell.title = valueText; // Tooltip for full value
             row.appendChild(valueCell);
             
             // Change and % Change combined in one cell
             const changeCell = document.createElement('td');
             changeCell.className = 'index-change';
+            let changeText = '-';
             if (index.change != null && index.pChange != null) {
                 const changeVal = typeof index.change === 'number' ? index.change.toFixed(2) : index.change;
                 const pChangeVal = typeof index.pChange === 'number' ? index.pChange.toFixed(2) : index.pChange;
                 const sign = index.change >= 0 ? '+' : '';
-                changeCell.textContent = `${sign}${changeVal} (${sign}${pChangeVal}%)`;
+                changeText = `${sign}${changeVal} (${sign}${pChangeVal}%)`;
+                changeCell.textContent = changeText;
+                changeCell.title = changeText; // Tooltip for full change value
                 
                 if (index.change > 0) {
                     changeCell.classList.add('positive');
@@ -790,7 +799,7 @@ class MarketMoodApp {
                     changeCell.classList.add('negative');
                 }
             } else {
-                changeCell.textContent = '-';
+                changeCell.textContent = changeText;
             }
             row.appendChild(changeCell);
             
