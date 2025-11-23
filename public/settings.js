@@ -104,17 +104,56 @@ class SettingsManager {
         this.updateUploadedDataSection();
     }
 
+    getUploadedDataList() {
+        // Get all uploaded data files from localStorage
+        const uploadedData = localStorage.getItem('uploadedIndicesData');
+        const uploadedDataList = [];
+        
+        if (uploadedData) {
+            try {
+                const data = JSON.parse(uploadedData);
+                uploadedDataList.push({
+                    fileName: data.fileName || 'Uploaded CSV',
+                    dataDate: data.date || data.dataDate || 'N/A',
+                    indicesCount: data.indices?.length || 0,
+                    data: data
+                });
+            } catch (e) {
+                console.error('Error parsing uploaded data:', e);
+            }
+        }
+        
+        return uploadedDataList;
+    }
+
+    selectUploadedFile(index) {
+        const uploadedDataList = this.getUploadedDataList();
+        if (uploadedDataList[index]) {
+            // Set uploaded as active API
+            this.settings.activeApi = 'uploaded';
+            this.saveSettings();
+            this.updateApiList();
+            this.updateActiveApiDisplay();
+            this.showNotification('Switched to uploaded data', 'success');
+            
+            // Reload app with uploaded data
+            if (window.marketMoodApp) {
+                window.marketMoodApp.loadData();
+            }
+        }
+    }
+
     updateUploadedDataSection() {
         // Check if uploaded data exists
-        const uploadedData = localStorage.getItem('uploadedMarketData');
+        const uploadedData = localStorage.getItem('uploadedMarketData') || localStorage.getItem('uploadedIndicesData');
         const uploadedSection = document.getElementById('uploadedDataSection');
         
         if (uploadedSection) {
             if (uploadedData) {
                 try {
                     const data = JSON.parse(uploadedData);
-                    document.getElementById('uploadedDataSource').textContent = data.source || 'Uploaded CSV';
-                    document.getElementById('uploadedDataDate').textContent = data.dataDate || 'N/A';
+                    document.getElementById('uploadedDataSource').textContent = data.source || data.fileName || 'Uploaded CSV';
+                    document.getElementById('uploadedDataDate').textContent = data.dataDate || data.date || 'N/A';
                     document.getElementById('uploadedDataCount').textContent = data.indices?.length || 0;
                     uploadedSection.style.display = 'block';
                 } catch (e) {
