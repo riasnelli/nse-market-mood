@@ -112,22 +112,47 @@ module.exports = async (req, res) => {
         .sort({ uploadedAt: -1 })
         .toArray();
 
-      // Format response
-      const formattedData = documents.map(doc => ({
-        id: doc._id.toString(),
-        fileName: doc.fileName,
-        date: doc.date,
-        indicesCount: doc.indices?.length || 0,
-        uploadedAt: doc.uploadedAt,
-        mood: doc.mood,
-        source: doc.source
-      }));
+      // Check if full data is requested (for loading into UI)
+      const { full } = req.query;
+      
+      if (full === 'true') {
+        // Return full data including indices array
+        const fullData = documents.map(doc => ({
+          id: doc._id.toString(),
+          fileName: doc.fileName,
+          date: doc.date,
+          indices: doc.indices || [],
+          indicesCount: doc.indices?.length || 0,
+          mood: doc.mood,
+          vix: doc.vix,
+          advanceDecline: doc.advanceDecline,
+          uploadedAt: doc.uploadedAt,
+          source: doc.source
+        }));
 
-      return res.status(200).json({
-        success: true,
-        data: formattedData,
-        count: formattedData.length
-      });
+        return res.status(200).json({
+          success: true,
+          data: fullData,
+          count: fullData.length
+        });
+      } else {
+        // Return metadata only (default)
+        const formattedData = documents.map(doc => ({
+          id: doc._id.toString(),
+          fileName: doc.fileName,
+          date: doc.date,
+          indicesCount: doc.indices?.length || 0,
+          uploadedAt: doc.uploadedAt,
+          mood: doc.mood,
+          source: doc.source
+        }));
+
+        return res.status(200).json({
+          success: true,
+          data: formattedData,
+          count: formattedData.length
+        });
+      }
 
     } else if (req.method === 'DELETE') {
       // Delete uploaded data from database

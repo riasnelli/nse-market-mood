@@ -97,6 +97,20 @@ class MarketMoodApp {
             this.tableViewBtn.addEventListener('click', () => this.switchView('table'));
         }
 
+        // Setup date picker for loading data from database
+        this.dataDatePicker = document.getElementById('dataDatePicker');
+        if (this.dataDatePicker) {
+            this.dataDatePicker.addEventListener('change', (e) => {
+                const selectedDate = e.target.value;
+                if (selectedDate) {
+                    this.loadDataFromDatabaseByDate(selectedDate);
+                } else {
+                    // If date is cleared, reload current data
+                    this.loadData();
+                }
+            });
+        }
+
         // Load saved view preference
         const savedView = localStorage.getItem('indicesViewMode');
         if (savedView === 'table' || savedView === 'card') {
@@ -1264,6 +1278,60 @@ class MarketMoodApp {
             }
         }
         return null;
+    }
+
+    async loadDataFromDatabaseByDate(date) {
+        try {
+            console.log('Loading data from database for date:', date);
+            this.setLoading(true);
+
+            // Fetch data from database by date with full data
+            const response = await fetch(`/api/save-uploaded-data?date=${date}&full=true`);
+            const result = await response.json();
+
+            if (result.success && result.data && result.data.length > 0) {
+                // Use the most recent upload for that date
+                const data = result.data[0];
+                
+                if (data.indices && data.indices.length > 0) {
+                    // Format data to match expected structure
+                    const formattedData = {
+                        indices: data.indices,
+                        mood: data.mood,
+                        vix: data.vix,
+                        advanceDecline: data.advanceDecline,
+                        fileName: data.fileName,
+                        date: data.date,
+                        source: 'database',
+                        timestamp: data.uploadedAt
+                    };
+
+                    console.log(`✅ Loaded ${data.indices.length} indices from database for ${date}`);
+                    
+                    // Update UI with database data
+                    this.updateDataSourceDisplay('database', formattedData);
+                    this.updateUI(formattedData);
+                    
+                    // Also save to localStorage for consistency
+                    localStorage.setItem('uploadedIndicesData', JSON.stringify(formattedData));
+                    
+                    // Show notification
+                    this.showNotification(`Loaded data from ${date}`, 'success');
+                } else {
+                    console.warn('No indices data found for date:', date);
+                    this.showNotification(`No data found for ${date}`, 'error');
+                    this.setLoading(false);
+                }
+            } else {
+                console.warn('No data found in database for date:', date);
+                this.showNotification(`No uploaded data found for ${date}`, 'error');
+                this.setLoading(false);
+            }
+        } catch (error) {
+            console.error('Error loading data from database:', error);
+            this.showNotification('Error loading data from database', 'error');
+            this.setLoading(false);
+        }
     }
 
     updateUploadedDataInfo() {
