@@ -109,6 +109,9 @@ class MarketMoodApp {
                     this.loadData();
                 }
             });
+            
+            // Check if uploaded data is available and show/hide date picker
+            this.checkAndShowDatePicker();
         }
 
         // Load saved view preference
@@ -1278,6 +1281,40 @@ class MarketMoodApp {
             }
         }
         return null;
+    }
+
+    async checkAndShowDatePicker() {
+        // Check if there's any uploaded data in the database
+        try {
+            const response = await fetch('/api/save-uploaded-data');
+            const result = await response.json();
+            
+            const datePickerWrapper = document.querySelector('.date-picker-wrapper');
+            if (datePickerWrapper) {
+                if (result.success && result.data && result.data.length > 0) {
+                    // Show date picker if data exists
+                    datePickerWrapper.style.display = 'flex';
+                    
+                    // Optionally populate with available dates
+                    const availableDates = result.data.map(item => item.date).filter((date, index, self) => self.indexOf(date) === index);
+                    if (availableDates.length > 0 && this.dataDatePicker) {
+                        // Set min/max dates if needed
+                        this.dataDatePicker.min = availableDates.sort()[0];
+                        this.dataDatePicker.max = availableDates.sort()[availableDates.length - 1];
+                    }
+                } else {
+                    // Hide date picker if no data
+                    datePickerWrapper.style.display = 'none';
+                }
+            }
+        } catch (error) {
+            console.error('Error checking for uploaded data:', error);
+            // Hide date picker on error
+            const datePickerWrapper = document.querySelector('.date-picker-wrapper');
+            if (datePickerWrapper) {
+                datePickerWrapper.style.display = 'none';
+            }
+        }
     }
 
     async loadDataFromDatabaseByDate(date) {

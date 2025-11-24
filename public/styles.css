@@ -129,7 +129,7 @@ header h1 {
 }
 
 .date-picker-wrapper {
-    display: flex;
+    display: none; /* Hidden by default, shown when data is available */
     align-items: center;
 }
 
