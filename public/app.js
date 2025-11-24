@@ -1315,21 +1315,21 @@ class MarketMoodApp {
                     // Also save to localStorage for consistency
                     localStorage.setItem('uploadedIndicesData', JSON.stringify(formattedData));
                     
-                    // Show notification
-                    this.showNotification(`Loaded data from ${date}`, 'success');
+                    // Show notification using showUploadStatus
+                    this.showUploadStatus(`Loaded data from ${date}`, 'success');
                 } else {
                     console.warn('No indices data found for date:', date);
-                    this.showNotification(`No data found for ${date}`, 'error');
+                    this.showUploadStatus(`No data found for ${date}`, 'error');
                     this.setLoading(false);
                 }
             } else {
                 console.warn('No data found in database for date:', date);
-                this.showNotification(`No uploaded data found for ${date}`, 'error');
+                this.showUploadStatus(`No uploaded data found for ${date}`, 'error');
                 this.setLoading(false);
             }
         } catch (error) {
             console.error('Error loading data from database:', error);
-            this.showNotification('Error loading data from database', 'error');
+            this.showUploadStatus('Error loading data from database', 'error');
             this.setLoading(false);
         }
     }
