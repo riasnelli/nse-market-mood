@@ -1039,6 +1039,9 @@ class MarketMoodApp {
                         this.showUploadStatus('Data uploaded successfully!', 'success');
                         this.updateUploadedDataInfo();
                         
+                        // Check and show date picker after upload
+                        this.checkAndShowDatePicker();
+                        
                         // Reload data to use uploaded CSV
                         setTimeout(() => {
                             if (uploadModal) uploadModal.classList.remove('show');
@@ -1060,6 +1063,8 @@ class MarketMoodApp {
                     localStorage.removeItem('uploadedIndicesData');
                     this.updateUploadedDataInfo();
                     this.updateDataSourceDisplay('api');
+                    // Hide date picker after clearing data
+                    this.checkAndShowDatePicker();
                     this.loadData();
                 }
             });
