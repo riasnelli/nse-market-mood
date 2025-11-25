@@ -413,13 +413,13 @@ header h1 {
 
 @media (min-width: 768px) {
     .modal-content {
-        max-width: 500px;
-        border-radius: 20px;
-        margin-bottom: 20px;
+        max-width: 100%;
+        border-radius: 20px 20px 0 0;
+        margin-bottom: 0;
     }
     
     .modal-header::before {
-        display: none; /* Hide drag handle on desktop */
+        display: block; /* Show drag handle on all screens */
     }
 }
 
@@ -717,6 +717,8 @@ header h1 {
     animation: slideUpFromBottom 0.3s ease-out;
     position: relative;
     transform: translateY(0);
+    margin: 0;
+    padding: 0;
 }
 
 .modal-header {
