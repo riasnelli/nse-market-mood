@@ -983,7 +983,6 @@ class MarketMoodApp {
         const dataDate = document.getElementById('dataDate');
         const uploadDataBtn = document.getElementById('uploadDataBtn');
         const fileName = document.getElementById('fileName');
-        const clearUploadBtn = document.getElementById('clearUploadBtn');
 
         // Set today's date as default
         if (dataDate) {
