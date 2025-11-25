@@ -99,10 +99,35 @@ class MarketMoodApp {
 
         // Setup custom calendar for loading data from database
         this.customCalendar = document.getElementById('customCalendar');
+        this.calendarModal = document.getElementById('calendarModal');
+        this.calendarTriggerBtn = document.getElementById('calendarTriggerBtn');
+        this.closeCalendarBtn = document.getElementById('closeCalendar');
+        this.selectedDateDisplay = document.getElementById('selectedDateDisplay');
         this.availableDates = []; // Store available dates for lookup
         this.availableDatesData = new Map(); // Store date -> mood data mapping
         this.currentCalendarDate = new Date(); // Current month being displayed
         this.selectedCalendarDate = null; // Currently selected date
+        
+        if (this.calendarTriggerBtn) {
+            this.calendarTriggerBtn.addEventListener('click', () => {
+                this.openCalendarModal();
+            });
+        }
+        
+        if (this.closeCalendarBtn) {
+            this.closeCalendarBtn.addEventListener('click', () => {
+                this.closeCalendarModal();
+            });
+        }
+        
+        // Close calendar when clicking outside
+        if (this.calendarModal) {
+            this.calendarModal.addEventListener('click', (e) => {
+                if (e.target === this.calendarModal) {
+                    this.closeCalendarModal();
+                }
+            });
+        }
         
         if (this.customCalendar) {
             // Setup calendar navigation
@@ -123,7 +148,7 @@ class MarketMoodApp {
                 });
             }
             
-            // Check if uploaded data is available and show/hide calendar
+            // Check if uploaded data is available and show/hide calendar trigger
             this.checkAndShowDatePicker();
         }
 
@@ -1309,11 +1334,10 @@ class MarketMoodApp {
             const response = await fetch('/api/save-uploaded-data');
             const result = await response.json();
             
-            const datePickerWrapper = document.querySelector('.date-picker-wrapper');
-            if (datePickerWrapper) {
+            if (this.calendarTriggerBtn) {
                 if (result.success && result.data && result.data.length > 0) {
-                    // Show calendar if data exists
-                    datePickerWrapper.style.display = 'flex';
+                    // Show calendar trigger button if data exists
+                    this.calendarTriggerBtn.style.display = 'flex';
                     
                     // Store available dates and their mood data
                     this.availableDates = result.data.map(item => item.date).filter((date, index, self) => self.indexOf(date) === index).sort();
@@ -1326,24 +1350,37 @@ class MarketMoodApp {
                         }
                     });
                     
-                    // Render calendar
-                    this.renderCalendar();
+                    // Render calendar when modal opens
+                    // Don't render here, wait for modal to open
                 } else {
-                    // Hide calendar if no data
-                    datePickerWrapper.style.display = 'none';
+                    // Hide calendar trigger button if no data
+                    this.calendarTriggerBtn.style.display = 'none';
                     this.availableDates = [];
                     this.availableDatesData.clear();
                 }
             }
         } catch (error) {
             console.error('Error checking for uploaded data:', error);
-            // Hide calendar on error
-            const datePickerWrapper = document.querySelector('.date-picker-wrapper');
-            if (datePickerWrapper) {
-                datePickerWrapper.style.display = 'none';
+            // Hide calendar trigger button on error
+            if (this.calendarTriggerBtn) {
+                this.calendarTriggerBtn.style.display = 'none';
             }
             this.availableDates = [];
             this.availableDatesData.clear();
+        }
+    }
+
+    openCalendarModal() {
+        if (this.calendarModal) {
+            this.calendarModal.classList.add('show');
+            // Render calendar when modal opens
+            this.renderCalendar();
+        }
+    }
+
+    closeCalendarModal() {
+        if (this.calendarModal) {
+            this.calendarModal.classList.remove('show');
         }
     }
 
