@@ -331,14 +331,14 @@ header h1 {
 
 .all-indices-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: 1fr 1fr;
     gap: 15px;
     margin-top: 15px;
 }
 
 /* Override data-grid styles when used with all-indices-grid */
 .data-grid.all-indices-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+    grid-template-columns: 1fr 1fr !important;
     margin-bottom: 0;
     display: grid !important;
 }
@@ -346,6 +346,7 @@ header h1 {
 /* Ensure all-indices-grid always uses grid display */
 .all-indices-grid {
     display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
 }
 
 @media (max-width: 480px) {
@@ -632,11 +633,11 @@ header h1 {
 .data-card {
     background: white !important;
     padding: 15px;
-    border-radius: 15px;
-    text-align: center;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    border-radius: 12px;
+    text-align: left;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     border: none;
-    min-height: 120px;
+    min-height: 100px;
     display: flex !important;
     flex-direction: column;
     justify-content: space-between;
@@ -645,34 +646,36 @@ header h1 {
 }
 
 .data-card h3 {
-    font-size: 0.85rem;
-    color: #666;
-    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: #333;
+    margin-bottom: 10px;
     font-weight: 600;
-    line-height: 1.3;
+    line-height: 1.4;
     word-break: break-word;
 }
 
 .data-value {
-    font-size: 1.1rem;
+    font-size: 1.3rem;
     font-weight: bold;
-    color: #333;
+    color: #1f2937;
     margin-bottom: 8px;
     line-height: 1.2;
 }
 
 .data-change {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    line-height: 1.3;
+    line-height: 1.4;
 }
 
 .data-change.positive {
     color: #10b981;
+    font-weight: 600;
 }
 
 .data-change.negative {
     color: #ef4444;
+    font-weight: 600;
 }
 
 .advance-decline {
