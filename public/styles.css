@@ -338,11 +338,14 @@ header h1 {
     z-index: 2;
 }
 
+/* All Indices Grid - Card View */
 .all-indices-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
     gap: 15px;
     margin-top: 15px;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Override data-grid styles when used with all-indices-grid */
@@ -350,12 +353,8 @@ header h1 {
     grid-template-columns: 1fr 1fr !important;
     margin-bottom: 0;
     display: grid !important;
-}
-
-/* Ensure all-indices-grid always uses grid display */
-.all-indices-grid {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 @media (max-width: 480px) {
