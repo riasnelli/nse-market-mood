@@ -670,14 +670,14 @@ header h1 {
 .data-card {
     background: white !important;
     padding: 20px 15px;
-    border-radius: 12px;
+    border-radius: 20px;
     text-align: center;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     border: none;
     min-height: 120px;
     display: flex !important;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     visibility: visible !important;
     opacity: 1 !important;
@@ -701,6 +701,7 @@ header h1 {
     letter-spacing: 0.5px;
     text-align: center;
     width: 100%;
+    margin: 0 auto 12px auto;
 }
 
 .data-value {
@@ -714,6 +715,7 @@ header h1 {
     text-overflow: ellipsis;
     text-align: center;
     width: 100%;
+    margin: 0 auto 10px auto;
 }
 
 .data-change {
@@ -723,6 +725,7 @@ header h1 {
     white-space: nowrap;
     text-align: center;
     width: 100%;
+    margin: 0 auto;
 }
 
 .data-change.positive {
