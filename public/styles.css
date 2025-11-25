@@ -615,11 +615,15 @@ header h1 {
 
 .data-card {
     background: white !important;
-    padding: 20px;
+    padding: 15px;
     border-radius: 15px;
     text-align: center;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     border: none;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .data-card h3 {
