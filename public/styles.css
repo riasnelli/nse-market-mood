@@ -777,6 +777,10 @@ header h1 {
     color: #333;
 }
 
+.uploaded-files-table tbody tr {
+    cursor: help; /* Indicate tooltip is available */
+}
+
 .uploaded-files-table tbody tr:hover {
     background: #f9fafb;
 }
@@ -840,10 +844,7 @@ header h1 {
         padding: 8px 6px;
     }
     
-    .uploaded-files-table th:nth-child(4),
-    .uploaded-files-table td:nth-child(4) {
-        display: none; /* Hide file name on mobile */
-    }
+    /* File name is now in tooltip, no need to hide column on mobile */
 }
 
 .modal-footer {

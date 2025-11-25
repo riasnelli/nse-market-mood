@@ -1416,11 +1416,35 @@ class MarketMoodApp {
                 // Populate table
                 sortedData.forEach((file, index) => {
                     const row = document.createElement('tr');
+                    
+                    // Format date as DD-MM-YY
+                    let formattedDate = 'N/A';
+                    if (file.date) {
+                        try {
+                            const dateParts = file.date.split('-');
+                            if (dateParts.length === 3) {
+                                const year = dateParts[0];
+                                const month = dateParts[1];
+                                const day = dateParts[2];
+                                // Get last 2 digits of year
+                                const shortYear = year.length === 4 ? year.substring(2) : year;
+                                formattedDate = `${day}-${month}-${shortYear}`;
+                            } else {
+                                formattedDate = file.date;
+                            }
+                        } catch (e) {
+                            formattedDate = file.date;
+                        }
+                    }
+                    
+                    // Set file name as tooltip on the row
+                    const fileName = file.fileName || 'Unknown';
+                    row.setAttribute('title', fileName);
+                    
                     row.innerHTML = `
                         <td>${index + 1}</td>
-                        <td>${file.date || 'N/A'}</td>
+                        <td>${formattedDate}</td>
                         <td>${file.indicesCount || 0}</td>
-                        <td>${file.fileName || 'Unknown'}</td>
                         <td class="action-buttons">
                             <button class="btn-export" data-id="${file.id}" data-date="${file.date}" title="Export as CSV">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
