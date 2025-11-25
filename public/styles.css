@@ -352,11 +352,21 @@ header h1 {
     .all-indices-grid {
         grid-template-columns: 1fr 1fr !important;
         gap: 10px;
+        display: grid !important;
+    }
+    
+    .data-grid.all-indices-grid {
+        grid-template-columns: 1fr 1fr !important;
+        display: grid !important;
     }
     
     .data-card {
         padding: 12px;
         min-height: 100px;
+        display: flex !important;
+        background: white !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
     
     .data-card h3 {
@@ -627,9 +637,11 @@ header h1 {
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     border: none;
     min-height: 120px;
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     justify-content: space-between;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .data-card h3 {
