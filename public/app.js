@@ -1071,19 +1071,7 @@ class MarketMoodApp {
             });
         }
 
-        // Clear uploaded data
-        if (clearUploadBtn) {
-            clearUploadBtn.addEventListener('click', () => {
-                if (confirm('Are you sure you want to clear the uploaded data?')) {
-                    localStorage.removeItem('uploadedIndicesData');
-                    this.updateUploadedDataInfo();
-                    this.updateDataSourceDisplay('api');
-                    // Hide date picker after clearing data
-                    this.checkAndShowDatePicker();
-                    this.loadData();
-                }
-            });
-        }
+        // Note: Clear button removed - users can delete individual files from the table
 
         // Update uploaded data info on load
         this.updateUploadedDataInfo();
@@ -1391,20 +1379,176 @@ class MarketMoodApp {
         }
     }
 
-    updateUploadedDataInfo() {
-        const uploadedData = this.getUploadedData();
+    async updateUploadedDataInfo() {
         const uploadedDataInfo = document.getElementById('uploadedDataInfo');
-        const uploadedFileName = document.getElementById('uploadedFileName');
-        const uploadedDate = document.getElementById('uploadedDate');
-        const uploadedIndicesCount = document.getElementById('uploadedIndicesCount');
+        const tableBody = document.getElementById('uploadedFilesTableBody');
+        const loadingEl = document.getElementById('uploadedFilesLoading');
+        const emptyEl = document.getElementById('uploadedFilesEmpty');
+        const tableEl = document.getElementById('uploadedFilesTable');
 
-        if (uploadedData) {
-            if (uploadedDataInfo) uploadedDataInfo.style.display = 'block';
-            if (uploadedFileName) uploadedFileName.textContent = uploadedData.fileName || 'Unknown';
-            if (uploadedDate) uploadedDate.textContent = uploadedData.date || 'Unknown';
-            if (uploadedIndicesCount) uploadedIndicesCount.textContent = uploadedData.indices ? uploadedData.indices.length : 0;
-        } else {
-            if (uploadedDataInfo) uploadedDataInfo.style.display = 'none';
+        if (!uploadedDataInfo || !tableBody) return;
+
+        // Show loading state
+        if (loadingEl) loadingEl.style.display = 'block';
+        if (emptyEl) emptyEl.style.display = 'none';
+        if (tableEl) tableEl.style.display = 'none';
+        tableBody.innerHTML = '';
+
+        try {
+            // Fetch all uploaded files from database
+            const response = await fetch('/api/save-uploaded-data');
+            const result = await response.json();
+
+            if (loadingEl) loadingEl.style.display = 'none';
+
+            if (result.success && result.data && result.data.length > 0) {
+                // Show table and hide empty message
+                if (tableEl) tableEl.style.display = 'table';
+                if (emptyEl) emptyEl.style.display = 'none';
+                uploadedDataInfo.style.display = 'block';
+
+                // Sort by uploadedAt descending (latest first)
+                const sortedData = result.data.sort((a, b) => {
+                    const dateA = new Date(a.uploadedAt);
+                    const dateB = new Date(b.uploadedAt);
+                    return dateB - dateA;
+                });
+
+                // Populate table
+                sortedData.forEach((file, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${file.date || 'N/A'}</td>
+                        <td>${file.indicesCount || 0}</td>
+                        <td>${file.fileName || 'Unknown'}</td>
+                        <td class="action-buttons">
+                            <button class="btn-export" data-id="${file.id}" data-date="${file.date}" title="Export as CSV">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                            </button>
+                            <button class="btn-delete" data-id="${file.id}" title="Delete">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+
+                // Add event listeners for export and delete buttons
+                tableBody.querySelectorAll('.btn-export').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.getAttribute('data-id');
+                        const date = e.currentTarget.getAttribute('data-date');
+                        this.exportCSV(id, date);
+                    });
+                });
+
+                tableBody.querySelectorAll('.btn-delete').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.getAttribute('data-id');
+                        this.deleteUploadedFile(id);
+                    });
+                });
+            } else {
+                // No data found
+                if (tableEl) tableEl.style.display = 'none';
+                if (emptyEl) emptyEl.style.display = 'block';
+                uploadedDataInfo.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error fetching uploaded files:', error);
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (emptyEl) {
+                emptyEl.textContent = 'Error loading uploaded files.';
+                emptyEl.style.display = 'block';
+            }
+            if (tableEl) tableEl.style.display = 'none';
+        }
+    }
+
+    async exportCSV(fileId, date) {
+        try {
+            // Fetch full data for the file
+            const response = await fetch(`/api/save-uploaded-data?id=${fileId}&full=true`);
+            const result = await response.json();
+
+            if (result.success && result.data && result.data.length > 0) {
+                const fileData = result.data[0];
+                if (!fileData.indices || fileData.indices.length === 0) {
+                    this.showUploadStatus('No data to export', 'error');
+                    return;
+                }
+
+                // Convert to CSV format
+                const headers = ['Name', 'LTP', 'Change', 'Change(%)'];
+                const csvRows = [headers.join(',')];
+
+                fileData.indices.forEach(index => {
+                    const row = [
+                        index.symbol || '',
+                        index.lastPrice || 0,
+                        index.change || 0,
+                        index.pChange || 0
+                    ];
+                    csvRows.push(row.join(','));
+                });
+
+                const csvContent = csvRows.join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `${fileData.fileName || `export_${date}.csv`}`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                this.showUploadStatus('CSV exported successfully', 'success');
+            } else {
+                this.showUploadStatus('File not found', 'error');
+            }
+        } catch (error) {
+            console.error('Error exporting CSV:', error);
+            this.showUploadStatus('Error exporting CSV', 'error');
+        }
+    }
+
+    async deleteUploadedFile(fileId) {
+        if (!confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/save-uploaded-data?id=${fileId}`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                this.showUploadStatus('File deleted successfully', 'success');
+                // Refresh the table
+                this.updateUploadedDataInfo();
+                // Also check if we need to hide date picker
+                this.checkAndShowDatePicker();
+                // If deleted file was the current one, reload data
+                const currentData = this.getUploadedData();
+                if (currentData && currentData.source === 'database') {
+                    this.loadData();
+                }
+            } else {
+                this.showUploadStatus(result.message || 'Error deleting file', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting file:', error);
+            this.showUploadStatus('Error deleting file', 'error');
         }
     }
 

@@ -741,6 +741,111 @@ header h1 {
     padding: 15px;
 }
 
+/* Uploaded Files Table */
+.uploaded-files-table-container {
+    margin-top: 15px;
+    overflow-x: auto;
+}
+
+.uploaded-files-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.uploaded-files-table thead {
+    background: #f3f4f6;
+}
+
+.uploaded-files-table th {
+    padding: 12px 10px;
+    text-align: left;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.uploaded-files-table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #f0f0f0;
+    color: #333;
+}
+
+.uploaded-files-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.uploaded-files-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.uploaded-files-table .action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.uploaded-files-table .btn-export,
+.uploaded-files-table .btn-delete {
+    background: transparent;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: #6b7280;
+}
+
+.uploaded-files-table .btn-export:hover {
+    background: #10b981;
+    border-color: #10b981;
+    color: white;
+}
+
+.uploaded-files-table .btn-delete:hover {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: white;
+}
+
+.uploaded-files-table .btn-export svg,
+.uploaded-files-table .btn-delete svg {
+    display: block;
+}
+
+.loading-message,
+.empty-message {
+    text-align: center;
+    padding: 30px;
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 480px) {
+    .uploaded-files-table {
+        font-size: 0.8rem;
+    }
+    
+    .uploaded-files-table th,
+    .uploaded-files-table td {
+        padding: 8px 6px;
+    }
+    
+    .uploaded-files-table th:nth-child(4),
+    .uploaded-files-table td:nth-child(4) {
+        display: none; /* Hide file name on mobile */
+    }
+}
+
 .modal-footer {
     padding: 15px;
     border-top: 1px solid #e0e0e0;

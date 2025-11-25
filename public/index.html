@@ -160,12 +160,28 @@
                 </div>
                 
                 <div class="settings-section" id="uploadedDataInfo" style="display: none;">
-                    <h3>Current Uploaded Data</h3>
-                    <div class="status-info">
-                        <p>File: <strong id="uploadedFileName">-</strong></p>
-                        <p>Date: <strong id="uploadedDate">-</strong></p>
-                        <p>Indices: <strong id="uploadedIndicesCount">-</strong></p>
-                        <button id="clearUploadBtn" class="btn-secondary" style="margin-top: 10px;">Clear Uploaded Data</button>
+                    <h3>Uploaded CSV Files</h3>
+                    <div class="uploaded-files-table-container">
+                        <table class="uploaded-files-table" id="uploadedFilesTable">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Date</th>
+                                    <th>No. of Indices</th>
+                                    <th>File Name</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="uploadedFilesTableBody">
+                                <!-- Table rows will be populated here -->
+                            </tbody>
+                        </table>
+                        <div id="uploadedFilesLoading" class="loading-message" style="display: none;">
+                            Loading uploaded files...
+                        </div>
+                        <div id="uploadedFilesEmpty" class="empty-message" style="display: none;">
+                            No uploaded CSV files found.
+                        </div>
                     </div>
                 </div>
             </div>
