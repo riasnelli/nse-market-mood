@@ -99,6 +99,7 @@ class MarketMoodApp {
 
         // Setup date picker for loading data from database
         this.dataDatePicker = document.getElementById('dataDatePicker');
+        this.availableDates = []; // Store available dates for lookup
         if (this.dataDatePicker) {
             this.dataDatePicker.addEventListener('change', (e) => {
                 const selectedDate = e.target.value;
@@ -1302,16 +1303,21 @@ class MarketMoodApp {
                     // Show date picker if data exists
                     datePickerWrapper.style.display = 'flex';
                     
-                    // Optionally populate with available dates
-                    const availableDates = result.data.map(item => item.date).filter((date, index, self) => self.indexOf(date) === index);
-                    if (availableDates.length > 0 && this.dataDatePicker) {
-                        // Set min/max dates if needed
-                        this.dataDatePicker.min = availableDates.sort()[0];
-                        this.dataDatePicker.max = availableDates.sort()[availableDates.length - 1];
+                    // Store available dates for lookup
+                    this.availableDates = result.data.map(item => item.date).filter((date, index, self) => self.indexOf(date) === index).sort();
+                    
+                    if (this.availableDates.length > 0 && this.dataDatePicker) {
+                        // Set min/max dates
+                        this.dataDatePicker.min = this.availableDates[0];
+                        this.dataDatePicker.max = this.availableDates[this.availableDates.length - 1];
+                        
+                        // Add custom styling for available dates
+                        this.updateDatePickerStyles();
                     }
                 } else {
                     // Hide date picker if no data
                     datePickerWrapper.style.display = 'none';
+                    this.availableDates = [];
                 }
             }
         } catch (error) {
@@ -1321,7 +1327,33 @@ class MarketMoodApp {
             if (datePickerWrapper) {
                 datePickerWrapper.style.display = 'none';
             }
+            this.availableDates = [];
         }
+    }
+
+    updateDatePickerStyles() {
+        // Note: Native date picker doesn't support styling individual dates
+        // We'll handle this in the loadDataFromDatabaseByDate function
+        // by checking if date exists and finding previous date if not
+    }
+
+    findPreviousAvailableDate(selectedDate) {
+        // Find the most recent date that is before or equal to the selected date
+        if (!this.availableDates || this.availableDates.length === 0) {
+            return null;
+        }
+        
+        // Sort dates in descending order to find the latest available date before selected
+        const sortedDates = [...this.availableDates].sort((a, b) => new Date(b) - new Date(a));
+        
+        for (const date of sortedDates) {
+            if (date <= selectedDate) {
+                return date;
+            }
+        }
+        
+        // If no date found before selected, return the earliest available date
+        return sortedDates[sortedDates.length - 1];
     }
 
     async loadDataFromDatabaseByDate(date) {
@@ -1329,8 +1361,26 @@ class MarketMoodApp {
             console.log('Loading data from database for date:', date);
             this.setLoading(true);
 
+            // Check if date has data, if not find previous available date
+            let dateToLoad = date;
+            let isPreviousDate = false;
+            
+            if (!this.availableDates.includes(date)) {
+                // Date doesn't have data, find previous available date
+                const previousDate = this.findPreviousAvailableDate(date);
+                if (previousDate) {
+                    dateToLoad = previousDate;
+                    isPreviousDate = true;
+                    console.log(`Date ${date} has no data, loading previous available date: ${previousDate}`);
+                } else {
+                    this.showUploadStatus(`No data available for ${date} or any previous date`, 'error');
+                    this.setLoading(false);
+                    return;
+                }
+            }
+
             // Fetch data from database by date with full data
-            const response = await fetch(`/api/save-uploaded-data?date=${date}&full=true`);
+            const response = await fetch(`/api/save-uploaded-data?date=${dateToLoad}&full=true`);
             const result = await response.json();
 
             if (result.success && result.data && result.data.length > 0) {
@@ -1350,7 +1400,7 @@ class MarketMoodApp {
                         timestamp: data.uploadedAt
                     };
 
-                    console.log(`✅ Loaded ${data.indices.length} indices from database for ${date}`);
+                    console.log(`✅ Loaded ${data.indices.length} indices from database for ${dateToLoad}`);
                     
                     // Update UI with database data
                     this.updateDataSourceDisplay('database', formattedData);
@@ -1359,16 +1409,20 @@ class MarketMoodApp {
                     // Also save to localStorage for consistency
                     localStorage.setItem('uploadedIndicesData', JSON.stringify(formattedData));
                     
-                    // Show notification using showUploadStatus
-                    this.showUploadStatus(`Loaded data from ${date}`, 'success');
+                    // Show notification
+                    if (isPreviousDate) {
+                        this.showUploadStatus(`No data for ${date}, loaded previous date: ${dateToLoad}`, 'success');
+                    } else {
+                        this.showUploadStatus(`Loaded data from ${dateToLoad}`, 'success');
+                    }
                 } else {
-                    console.warn('No indices data found for date:', date);
-                    this.showUploadStatus(`No data found for ${date}`, 'error');
+                    console.warn('No indices data found for date:', dateToLoad);
+                    this.showUploadStatus(`No data found for ${dateToLoad}`, 'error');
                     this.setLoading(false);
                 }
             } else {
-                console.warn('No data found in database for date:', date);
-                this.showUploadStatus(`No uploaded data found for ${date}`, 'error');
+                console.warn('No data found in database for date:', dateToLoad);
+                this.showUploadStatus(`No uploaded data found for ${dateToLoad}`, 'error');
                 this.setLoading(false);
             }
         } catch (error) {
@@ -1559,8 +1613,8 @@ class MarketMoodApp {
                 this.showUploadStatus('File deleted successfully', 'success');
                 // Refresh the table
                 this.updateUploadedDataInfo();
-                // Also check if we need to hide date picker
-                this.checkAndShowDatePicker();
+                // Also check if we need to hide date picker (refresh available dates)
+                await this.checkAndShowDatePicker();
                 // If deleted file was the current one, reload data
                 const currentData = this.getUploadedData();
                 if (currentData && currentData.source === 'database') {
