@@ -363,25 +363,29 @@ header h1 {
     
     .data-card {
         padding: 12px;
-        min-height: 100px;
+        min-height: 90px;
         display: flex !important;
         background: white !important;
         visibility: visible !important;
         opacity: 1 !important;
+        border-radius: 10px;
+        text-align: left;
     }
     
     .data-card h3 {
-        font-size: 0.8rem;
-        margin-bottom: 6px;
+        font-size: 0.85rem;
+        margin-bottom: 8px;
+        color: #333;
     }
     
     .data-value {
-        font-size: 1rem;
+        font-size: 1.1rem;
         margin-bottom: 6px;
+        color: #1f2937;
     }
     
     .data-change {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
     }
     
     .section-header {
