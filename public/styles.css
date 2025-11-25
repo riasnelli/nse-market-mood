@@ -344,7 +344,27 @@ header h1 {
 
 @media (max-width: 480px) {
     .all-indices-grid {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 10px;
+    }
+    
+    .data-card {
+        padding: 12px;
+        min-height: 100px;
+    }
+    
+    .data-card h3 {
+        font-size: 0.8rem;
+        margin-bottom: 6px;
+    }
+    
+    .data-value {
+        font-size: 1rem;
+        margin-bottom: 6px;
+    }
+    
+    .data-change {
+        font-size: 0.8rem;
     }
     
     .section-header {
