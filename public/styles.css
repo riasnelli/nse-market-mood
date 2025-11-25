@@ -771,10 +771,14 @@ header h1 {
     border-bottom: 2px solid #e5e7eb;
 }
 
+.uploaded-files-table tbody tr {
+    color: #333; /* Default color, will be overridden by inline style */
+}
+
 .uploaded-files-table td {
     padding: 12px 10px;
     border-bottom: 1px solid #f0f0f0;
-    color: #333;
+    color: inherit; /* Inherit color from row */
 }
 
 .uploaded-files-table tbody tr {

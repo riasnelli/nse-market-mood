@@ -1491,6 +1491,30 @@ class MarketMoodApp {
                         }
                     }
                     
+                    // Get mood color based on mood score
+                    let moodColor = '#333'; // Default dark color
+                    if (file.mood && file.mood.score !== undefined) {
+                        const score = file.mood.score;
+                        if (score >= 70) {
+                            moodColor = '#10b981'; // Green
+                        } else if (score >= 60) {
+                            moodColor = '#34d399'; // Light green
+                        } else if (score >= 50) {
+                            moodColor = '#fbbf24'; // Yellow
+                        } else if (score >= 40) {
+                            moodColor = '#f97316'; // Orange
+                        } else if (score >= 30) {
+                            moodColor = '#fb923c'; // Orange-red
+                        } else if (score >= 20) {
+                            moodColor = '#ef4444'; // Red
+                        } else {
+                            moodColor = '#dc2626'; // Dark red
+                        }
+                    }
+                    
+                    // Apply mood color to the row text
+                    row.style.color = moodColor;
+                    
                     // Set file name as tooltip on the row
                     const fileName = file.fileName || 'Unknown';
                     row.setAttribute('title', fileName);
