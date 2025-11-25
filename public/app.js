@@ -1433,24 +1433,43 @@ class MarketMoodApp {
             if (this.availableDates.includes(dateStr)) {
                 dayEl.classList.add('has-data');
                 
-                // Add mood color class
+                // Add mood color class based on mood string or score
                 const moodData = this.availableDatesData.get(dateStr);
-                if (moodData && moodData.score !== undefined) {
-                    const score = moodData.score;
-                    if (score >= 70) {
-                        dayEl.classList.add('mood-very-bullish');
-                    } else if (score >= 60) {
-                        dayEl.classList.add('mood-bullish');
-                    } else if (score >= 50) {
-                        dayEl.classList.add('mood-slightly-bullish');
-                    } else if (score >= 40) {
-                        dayEl.classList.add('mood-neutral');
-                    } else if (score >= 30) {
-                        dayEl.classList.add('mood-slightly-bearish');
-                    } else if (score >= 20) {
-                        dayEl.classList.add('mood-bearish');
-                    } else {
-                        dayEl.classList.add('mood-very-bearish');
+                if (moodData) {
+                    let score = null;
+                    
+                    // Check if moodData is an object with score
+                    if (typeof moodData === 'object' && moodData !== null && moodData.score !== undefined) {
+                        score = moodData.score;
+                    } else if (typeof moodData === 'string') {
+                        // Try to extract score from mood string or use mood string to determine score
+                        // Mood strings: "Very Bullish", "Bullish", "Slightly Bullish", "Neutral", "Slightly Bearish", "Bearish", "Very Bearish"
+                        const moodLower = moodData.toLowerCase();
+                        if (moodLower.includes('very bullish')) score = 75;
+                        else if (moodLower.includes('bullish') && !moodLower.includes('slightly')) score = 65;
+                        else if (moodLower.includes('slightly bullish')) score = 55;
+                        else if (moodLower.includes('neutral')) score = 45;
+                        else if (moodLower.includes('slightly bearish')) score = 35;
+                        else if (moodLower.includes('bearish') && !moodLower.includes('slightly')) score = 25;
+                        else if (moodLower.includes('very bearish')) score = 15;
+                    }
+                    
+                    if (score !== null) {
+                        if (score >= 70) {
+                            dayEl.classList.add('mood-very-bullish');
+                        } else if (score >= 60) {
+                            dayEl.classList.add('mood-bullish');
+                        } else if (score >= 50) {
+                            dayEl.classList.add('mood-slightly-bullish');
+                        } else if (score >= 40) {
+                            dayEl.classList.add('mood-neutral');
+                        } else if (score >= 30) {
+                            dayEl.classList.add('mood-slightly-bearish');
+                        } else if (score >= 20) {
+                            dayEl.classList.add('mood-bearish');
+                        } else {
+                            dayEl.classList.add('mood-very-bearish');
+                        }
                     }
                 }
                 
