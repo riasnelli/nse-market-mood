@@ -387,9 +387,10 @@ header h1 {
         background: white !important;
         visibility: visible !important;
         opacity: 1 !important;
-        border-radius: 10px;
+        border-radius: 18px;
         text-align: center;
         align-items: center;
+        justify-content: center;
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box;
