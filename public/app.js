@@ -1345,8 +1345,9 @@ class MarketMoodApp {
                     // Store date -> mood mapping
                     this.availableDatesData.clear();
                     result.data.forEach(item => {
-                        if (item.date && item.mood) {
-                            this.availableDatesData.set(item.date, item.mood);
+                        if (item.date) {
+                            // Store mood data (could be object with score or just mood string)
+                            this.availableDatesData.set(item.date, item.mood || null);
                         }
                     });
                     
