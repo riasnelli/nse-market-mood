@@ -943,7 +943,7 @@ class MarketMoodApp {
     }
 
     updateThemeColor(color) {
-        // Update or create theme-color meta tag
+        // Update or create theme-color meta tag for PWA inset
         let themeColorMeta = document.querySelector('meta[name="theme-color"]');
         if (!themeColorMeta) {
             themeColorMeta = document.createElement('meta');
@@ -951,6 +951,21 @@ class MarketMoodApp {
             document.head.appendChild(themeColorMeta);
         }
         themeColorMeta.setAttribute('content', color);
+        
+        // Also update iOS Safari status bar style
+        let appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (!appleStatusBar) {
+            appleStatusBar = document.createElement('meta');
+            appleStatusBar.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
+            document.head.appendChild(appleStatusBar);
+        }
+        // Use black-translucent for iOS to show the theme color
+        appleStatusBar.setAttribute('content', 'black-translucent');
+        
+        // Update manifest.json theme-color dynamically (if possible)
+        // Note: This requires the manifest to be served dynamically or updated via service worker
+        // For now, the meta tag should be sufficient for most browsers
+        console.log('Updated PWA theme color to:', color);
     }
 
     setLoading(isLoading) {
