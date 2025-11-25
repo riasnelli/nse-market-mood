@@ -516,13 +516,13 @@ header h1 {
 
 @media (min-width: 768px) {
     .modal-content {
-        max-width: 400px; /* Match app container width on all screens */
-        border-radius: 20px 20px 0 0;
-        margin-bottom: 0;
+        max-width: 500px; /* Wider on desktop */
+        border-radius: 15px; /* Full border-radius on desktop */
+        margin-bottom: 20px; /* Lift slightly from bottom */
     }
     
     .modal-header::before {
-        display: block; /* Show drag handle on all screens */
+        display: none; /* Hide drag handle on desktop */
     }
 }
 
@@ -538,6 +538,17 @@ header h1 {
     .modal-content {
         max-height: 95vh;
         border-radius: 20px 20px 0 0;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+    }
+    
+    .modal {
+        padding: 0; /* Remove any padding on mobile for edge-to-edge */
+    }
+    
+    body {
+        padding: 10px; /* Less padding on mobile */
     }
 }
     
@@ -814,7 +825,7 @@ header h1 {
     background: white;
     border-radius: 20px 20px 0 0;
     width: 100%;
-    max-width: 400px; /* Match app container width */
+    max-width: 100%; /* Full width on mobile */
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
