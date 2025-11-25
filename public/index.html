@@ -43,7 +43,33 @@
                     <h3 class="section-title">All Indices</h3>
                     <div class="section-controls">
                         <div class="date-picker-wrapper">
-                            <input type="date" id="dataDatePicker" class="date-picker" title="Select date to load uploaded CSV data">
+                            <div class="custom-calendar" id="customCalendar">
+                                <div class="calendar-header">
+                                    <button class="calendar-nav-btn" id="prevMonthBtn" title="Previous month">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="15 18 9 12 15 6"></polyline>
+                                        </svg>
+                                    </button>
+                                    <div class="calendar-month-year" id="calendarMonthYear">November 2025</div>
+                                    <button class="calendar-nav-btn" id="nextMonthBtn" title="Next month">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="9 18 15 12 9 6"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="calendar-weekdays">
+                                    <div class="calendar-weekday">SUN</div>
+                                    <div class="calendar-weekday">MON</div>
+                                    <div class="calendar-weekday">TUE</div>
+                                    <div class="calendar-weekday">WED</div>
+                                    <div class="calendar-weekday">THU</div>
+                                    <div class="calendar-weekday">FRI</div>
+                                    <div class="calendar-weekday">SAT</div>
+                                </div>
+                                <div class="calendar-days" id="calendarDays">
+                                    <!-- Calendar days will be populated here -->
+                                </div>
+                            </div>
                         </div>
                         <div class="segmented-control">
                             <button class="segment-btn active" id="cardViewBtn" title="Card View">

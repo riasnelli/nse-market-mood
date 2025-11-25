@@ -97,21 +97,33 @@ class MarketMoodApp {
             this.tableViewBtn.addEventListener('click', () => this.switchView('table'));
         }
 
-        // Setup date picker for loading data from database
-        this.dataDatePicker = document.getElementById('dataDatePicker');
+        // Setup custom calendar for loading data from database
+        this.customCalendar = document.getElementById('customCalendar');
         this.availableDates = []; // Store available dates for lookup
-        if (this.dataDatePicker) {
-            this.dataDatePicker.addEventListener('change', (e) => {
-                const selectedDate = e.target.value;
-                if (selectedDate) {
-                    this.loadDataFromDatabaseByDate(selectedDate);
-                } else {
-                    // If date is cleared, reload current data
-                    this.loadData();
-                }
-            });
+        this.availableDatesData = new Map(); // Store date -> mood data mapping
+        this.currentCalendarDate = new Date(); // Current month being displayed
+        this.selectedCalendarDate = null; // Currently selected date
+        
+        if (this.customCalendar) {
+            // Setup calendar navigation
+            const prevMonthBtn = document.getElementById('prevMonthBtn');
+            const nextMonthBtn = document.getElementById('nextMonthBtn');
             
-            // Check if uploaded data is available and show/hide date picker
+            if (prevMonthBtn) {
+                prevMonthBtn.addEventListener('click', () => {
+                    this.currentCalendarDate.setMonth(this.currentCalendarDate.getMonth() - 1);
+                    this.renderCalendar();
+                });
+            }
+            
+            if (nextMonthBtn) {
+                nextMonthBtn.addEventListener('click', () => {
+                    this.currentCalendarDate.setMonth(this.currentCalendarDate.getMonth() + 1);
+                    this.renderCalendar();
+                });
+            }
+            
+            // Check if uploaded data is available and show/hide calendar
             this.checkAndShowDatePicker();
         }
 
@@ -1300,41 +1312,150 @@ class MarketMoodApp {
             const datePickerWrapper = document.querySelector('.date-picker-wrapper');
             if (datePickerWrapper) {
                 if (result.success && result.data && result.data.length > 0) {
-                    // Show date picker if data exists
+                    // Show calendar if data exists
                     datePickerWrapper.style.display = 'flex';
                     
-                    // Store available dates for lookup
+                    // Store available dates and their mood data
                     this.availableDates = result.data.map(item => item.date).filter((date, index, self) => self.indexOf(date) === index).sort();
                     
-                    if (this.availableDates.length > 0 && this.dataDatePicker) {
-                        // Set min/max dates
-                        this.dataDatePicker.min = this.availableDates[0];
-                        this.dataDatePicker.max = this.availableDates[this.availableDates.length - 1];
-                        
-                        // Add custom styling for available dates
-                        this.updateDatePickerStyles();
-                    }
+                    // Store date -> mood mapping
+                    this.availableDatesData.clear();
+                    result.data.forEach(item => {
+                        if (item.date && item.mood) {
+                            this.availableDatesData.set(item.date, item.mood);
+                        }
+                    });
+                    
+                    // Render calendar
+                    this.renderCalendar();
                 } else {
-                    // Hide date picker if no data
+                    // Hide calendar if no data
                     datePickerWrapper.style.display = 'none';
                     this.availableDates = [];
+                    this.availableDatesData.clear();
                 }
             }
         } catch (error) {
             console.error('Error checking for uploaded data:', error);
-            // Hide date picker on error
+            // Hide calendar on error
             const datePickerWrapper = document.querySelector('.date-picker-wrapper');
             if (datePickerWrapper) {
                 datePickerWrapper.style.display = 'none';
             }
             this.availableDates = [];
+            this.availableDatesData.clear();
         }
     }
 
-    updateDatePickerStyles() {
-        // Note: Native date picker doesn't support styling individual dates
-        // We'll handle this in the loadDataFromDatabaseByDate function
-        // by checking if date exists and finding previous date if not
+    renderCalendar() {
+        if (!this.customCalendar) return;
+        
+        const calendarDays = document.getElementById('calendarDays');
+        const calendarMonthYear = document.getElementById('calendarMonthYear');
+        
+        if (!calendarDays || !calendarMonthYear) return;
+        
+        // Update month/year display
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+        const year = this.currentCalendarDate.getFullYear();
+        const month = this.currentCalendarDate.getMonth();
+        calendarMonthYear.textContent = `${monthNames[month]} ${year}`;
+        
+        // Get first day of month and number of days
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
+        
+        // Get previous month's last days
+        const prevMonthLastDay = new Date(year, month, 0).getDate();
+        
+        calendarDays.innerHTML = '';
+        
+        // Previous month's days
+        for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+            const day = prevMonthLastDay - i;
+            const dayEl = document.createElement('div');
+            dayEl.className = 'calendar-day other-month';
+            dayEl.textContent = day;
+            calendarDays.appendChild(dayEl);
+        }
+        
+        // Current month's days
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayEl = document.createElement('div');
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            
+            dayEl.className = 'calendar-day';
+            dayEl.textContent = day;
+            dayEl.setAttribute('data-date', dateStr);
+            
+            // Check if date has data
+            if (this.availableDates.includes(dateStr)) {
+                dayEl.classList.add('has-data');
+                
+                // Add mood color class
+                const moodData = this.availableDatesData.get(dateStr);
+                if (moodData && moodData.score !== undefined) {
+                    const score = moodData.score;
+                    if (score >= 70) {
+                        dayEl.classList.add('mood-very-bullish');
+                    } else if (score >= 60) {
+                        dayEl.classList.add('mood-bullish');
+                    } else if (score >= 50) {
+                        dayEl.classList.add('mood-slightly-bullish');
+                    } else if (score >= 40) {
+                        dayEl.classList.add('mood-neutral');
+                    } else if (score >= 30) {
+                        dayEl.classList.add('mood-slightly-bearish');
+                    } else if (score >= 20) {
+                        dayEl.classList.add('mood-bearish');
+                    } else {
+                        dayEl.classList.add('mood-very-bearish');
+                    }
+                }
+                
+                // Add click handler
+                dayEl.addEventListener('click', () => {
+                    this.selectCalendarDate(dateStr);
+                });
+            } else {
+                dayEl.classList.add('no-data');
+                // Still allow click to load previous date
+                dayEl.addEventListener('click', () => {
+                    this.selectCalendarDate(dateStr);
+                });
+            }
+            
+            // Mark as selected if it's the selected date
+            if (this.selectedCalendarDate === dateStr) {
+                dayEl.classList.add('selected');
+            }
+            
+            calendarDays.appendChild(dayEl);
+        }
+        
+        // Next month's days to fill the grid
+        const totalCells = startingDayOfWeek + daysInMonth;
+        const remainingCells = 42 - totalCells; // 6 rows * 7 days = 42
+        for (let day = 1; day <= remainingCells && day <= 14; day++) {
+            const dayEl = document.createElement('div');
+            dayEl.className = 'calendar-day other-month';
+            dayEl.textContent = day;
+            calendarDays.appendChild(dayEl);
+        }
+    }
+
+    selectCalendarDate(dateStr) {
+        // Update selected date
+        this.selectedCalendarDate = dateStr;
+        
+        // Reload calendar to update selected state
+        this.renderCalendar();
+        
+        // Load data for this date (or previous if no data)
+        this.loadDataFromDatabaseByDate(dateStr);
     }
 
     findPreviousAvailableDate(selectedDate) {
