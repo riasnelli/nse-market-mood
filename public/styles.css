@@ -104,6 +104,15 @@ header h1 {
 
 .all-indices-section {
     margin-bottom: 20px;
+    visibility: visible !important;
+}
+
+.all-indices-section[style*="display: none"] {
+    display: none !important;
+}
+
+.all-indices-section:not([style*="display: none"]) {
+    display: block !important;
 }
 
 .section-header {
@@ -647,6 +656,8 @@ header h1 {
     justify-content: space-between;
     visibility: visible !important;
     opacity: 1 !important;
+    position: relative;
+    z-index: 1;
 }
 
 .data-card h3 {

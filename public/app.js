@@ -766,14 +766,22 @@ class MarketMoodApp {
     renderIndicesCards(indices) {
         const allIndicesGrid = document.getElementById('allIndicesGrid');
         const tableContainer = document.getElementById('tableContainer');
+        const allIndicesSection = document.getElementById('allIndicesSection');
         
         if (!allIndicesGrid) {
             console.error('allIndicesGrid element not found');
             return;
         }
         
+        // Ensure section is visible
+        if (allIndicesSection) {
+            allIndicesSection.style.display = 'block';
+        }
+        
         // Show grid, hide table
         allIndicesGrid.style.display = 'grid';
+        allIndicesGrid.style.visibility = 'visible';
+        allIndicesGrid.style.opacity = '1';
         allIndicesGrid.classList.add('all-indices-grid');
         if (tableContainer) tableContainer.style.display = 'none';
         
@@ -788,11 +796,17 @@ class MarketMoodApp {
         indices.forEach(index => {
             const card = this.createIndexCard(index);
             if (card) {
+                card.style.display = 'flex';
+                card.style.visibility = 'visible';
+                card.style.opacity = '1';
                 allIndicesGrid.appendChild(card);
             }
         });
         
         console.log(`Rendered ${indices.length} cards in grid view`);
+        console.log('Grid element:', allIndicesGrid);
+        console.log('Grid display:', allIndicesGrid.style.display);
+        console.log('Grid computed display:', window.getComputedStyle(allIndicesGrid).display);
     }
 
     renderIndicesTable(indices) {
