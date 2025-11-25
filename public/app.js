@@ -767,17 +767,32 @@ class MarketMoodApp {
         const allIndicesGrid = document.getElementById('allIndicesGrid');
         const tableContainer = document.getElementById('tableContainer');
         
-        if (!allIndicesGrid) return;
+        if (!allIndicesGrid) {
+            console.error('allIndicesGrid element not found');
+            return;
+        }
         
         // Show grid, hide table
         allIndicesGrid.style.display = 'grid';
+        allIndicesGrid.classList.add('all-indices-grid');
         if (tableContainer) tableContainer.style.display = 'none';
         
         // Clear and populate grid
         allIndicesGrid.innerHTML = '';
+        
+        if (!indices || indices.length === 0) {
+            console.warn('No indices to render in card view');
+            return;
+        }
+        
         indices.forEach(index => {
-            allIndicesGrid.appendChild(this.createIndexCard(index));
+            const card = this.createIndexCard(index);
+            if (card) {
+                allIndicesGrid.appendChild(card);
+            }
         });
+        
+        console.log(`Rendered ${indices.length} cards in grid view`);
     }
 
     renderIndicesTable(indices) {

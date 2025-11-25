@@ -340,6 +340,12 @@ header h1 {
 .data-grid.all-indices-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
     margin-bottom: 0;
+    display: grid !important;
+}
+
+/* Ensure all-indices-grid always uses grid display */
+.all-indices-grid {
+    display: grid !important;
 }
 
 @media (max-width: 480px) {
