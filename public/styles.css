@@ -929,12 +929,25 @@ header h1 {
     opacity: 0.9;
 }
 
-/* Mobile: Footer stays below content (not fixed) */
+/* Mobile: Adjust footer spacing */
 @media (max-width: 768px) {
     footer {
-        position: relative;
-        margin-top: 30px;
-        padding-bottom: 20px;
+        bottom: 15px;
+        width: calc(100% - 30px);
+    }
+    
+    .footer-menu-bar {
+        padding: 8px 10px;
+        gap: 6px;
+    }
+    
+    .footer-menu-btn {
+        padding: 10px 12px;
+    }
+    
+    /* Add padding to body to prevent content from being hidden behind footer */
+    body {
+        padding-bottom: calc(80px + env(safe-area-inset-bottom));
     }
 }
 
