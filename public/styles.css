@@ -164,21 +164,23 @@ header h1 {
     gap: 15px;
 }
 
-.section-title-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex: 1;
-}
-
 .section-title {
     color: white;
     font-size: 1.2rem;
     margin: 0;
     text-align: left;
+    flex: 1;
 }
 
-/* Calendar Icon Button - just icon after title */
+/* Icons group - calendar + view toggles on same line */
+.section-icons-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+/* Calendar Icon Button */
 .calendar-icon-btn {
     display: none; /* Hidden by default, shown when data is available */
     background: none;
@@ -201,7 +203,7 @@ header h1 {
     display: block;
 }
 
-/* View Toggle Icons - just icons on right */
+/* View Toggle Icons */
 .view-toggle-icons {
     display: flex;
     align-items: center;
@@ -511,16 +513,17 @@ header h1 {
     }
     
     .section-header {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-wrap: wrap;
         gap: 10px;
     }
 
-    .section-controls {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
+    .section-title {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .section-icons-group {
+        flex-shrink: 0;
     }
 
     .date-picker-wrapper {
