@@ -22,6 +22,14 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/get-uploaded-data.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/get-uploaded-dates.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
@@ -39,10 +47,18 @@
       "src": "/api/test-dhan",
       "dest": "/api/test-dhan.js"
     },
-            {
-              "src": "/api/save-uploaded-data",
-              "dest": "/api/save-uploaded-data.js"
-            },
+    {
+      "src": "/api/save-uploaded-data",
+      "dest": "/api/save-uploaded-data.js"
+    },
+    {
+      "src": "/api/get-uploaded-data",
+      "dest": "/api/get-uploaded-data.js"
+    },
+    {
+      "src": "/api/get-uploaded-dates",
+      "dest": "/api/get-uploaded-dates.js"
+    },
     {
       "src": "/(.*)",
       "dest": "/public/$1"
