@@ -456,7 +456,12 @@ class SettingsManager {
             return;
         }
 
+        // Clear container completely, including any existing Upload CSV Data options
         apiListContainer.innerHTML = '';
+        
+        // Remove any existing Upload CSV Data items that might have been added
+        const existingUploadItems = apiListContainer.querySelectorAll('[data-api-type="uploaded"]');
+        existingUploadItems.forEach(item => item.remove());
         
         Object.entries(this.settings.apis).forEach(([key, api]) => {
             // Skip uploaded data from main API list - it will be shown separately
