@@ -778,10 +778,14 @@ class MarketMoodApp {
             allIndicesSection.style.display = 'block';
         }
         
-        // Show grid, hide table
+        // Force grid display with inline styles
         allIndicesGrid.style.display = 'grid';
+        allIndicesGrid.style.gridTemplateColumns = '1fr 1fr';
+        allIndicesGrid.style.gap = '15px';
         allIndicesGrid.style.visibility = 'visible';
         allIndicesGrid.style.opacity = '1';
+        allIndicesGrid.style.width = '100%';
+        allIndicesGrid.style.maxWidth = '100%';
         allIndicesGrid.classList.add('all-indices-grid');
         if (tableContainer) tableContainer.style.display = 'none';
         
@@ -799,6 +803,8 @@ class MarketMoodApp {
                 card.style.display = 'flex';
                 card.style.visibility = 'visible';
                 card.style.opacity = '1';
+                card.style.width = '100%';
+                card.style.maxWidth = '100%';
                 allIndicesGrid.appendChild(card);
             }
         });
@@ -807,6 +813,7 @@ class MarketMoodApp {
         console.log('Grid element:', allIndicesGrid);
         console.log('Grid display:', allIndicesGrid.style.display);
         console.log('Grid computed display:', window.getComputedStyle(allIndicesGrid).display);
+        console.log('Grid computed columns:', window.getComputedStyle(allIndicesGrid).gridTemplateColumns);
     }
 
     renderIndicesTable(indices) {
