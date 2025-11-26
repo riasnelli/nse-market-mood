@@ -345,6 +345,7 @@ header h1 {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
     grid-template-rows: auto !important;
+    grid-auto-rows: auto !important;
     gap: 15px !important;
     margin-top: 15px;
     visibility: visible !important;
@@ -352,12 +353,14 @@ header h1 {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
+    align-items: stretch !important;
 }
 
 /* Override data-grid styles when used with all-indices-grid */
 .data-grid.all-indices-grid {
     grid-template-columns: 1fr 1fr !important;
     grid-template-rows: auto !important;
+    grid-auto-rows: auto !important;
     margin-bottom: 0 !important;
     display: grid !important;
     visibility: visible !important;
@@ -366,6 +369,7 @@ header h1 {
     max-width: 100% !important;
     gap: 15px !important;
     box-sizing: border-box !important;
+    align-items: stretch !important;
 }
 
 @media (max-width: 480px) {
@@ -392,6 +396,7 @@ header h1 {
     .data-card {
         padding: 18px 12px;
         min-height: 110px;
+        height: auto;
         display: flex !important;
         background: white !important;
         visibility: visible !important;
@@ -403,6 +408,8 @@ header h1 {
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box;
+        overflow: hidden;
+        flex-shrink: 0;
     }
     
     .data-card h3 {
@@ -685,6 +692,7 @@ header h1 {
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     border: none;
     min-height: 120px;
+    height: auto;
     display: flex !important;
     flex-direction: column;
     justify-content: center;
@@ -696,6 +704,8 @@ header h1 {
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
+    overflow: hidden;
+    flex-shrink: 0;
 }
 
 .data-card h3 {
