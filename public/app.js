@@ -847,6 +847,10 @@ class MarketMoodApp {
             allIndicesSection.style.display = 'block';
         }
         
+        // Ensure view mode is set to card and update buttons
+        this.viewMode = 'card';
+        this.updateViewToggleButtons();
+        
         // Force grid display with inline styles
         allIndicesGrid.style.display = 'grid';
         allIndicesGrid.style.gridTemplateColumns = '1fr 1fr';
