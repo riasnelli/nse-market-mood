@@ -1107,8 +1107,21 @@ class MarketMoodApp {
         this.updateThemeColor(themeColor);
         
         // Update CSS custom property for safe-area-inset background
+        // Update CSS custom properties for mood-based colors
         document.documentElement.style.setProperty('--mood-bg-color', themeColor);
         document.documentElement.style.setProperty('--mood-gradient', gradient);
+        
+        // Also update html background to extend to top safe area
+        const html = document.documentElement;
+        html.style.setProperty('background-color', themeColor);
+        html.style.setProperty('background-image', gradient);
+        
+        // Update body background
+        body.style.setProperty('background-color', themeColor);
+        body.style.setProperty('background-image', gradient);
+        
+        // Update the ::before pseudo-element (Dynamic Island area) via CSS variable
+        // The ::before element will automatically use the updated CSS variables
     }
 
     updateThemeColor(color) {

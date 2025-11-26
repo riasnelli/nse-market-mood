@@ -9,16 +9,45 @@
     --mood-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
+html {
+    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    background-color: var(--mood-bg-color, #667eea);
+    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    /* Extend background to cover safe area insets */
+    min-height: 100vh;
+    min-height: -webkit-fill-available; /* For iOS Safari */
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
     min-height: 100vh;
+    min-height: -webkit-fill-available; /* For iOS Safari */
     padding: 20px;
     padding-bottom: calc(100px + env(safe-area-inset-bottom));
+    padding-top: 20px;
     padding-top: calc(20px + env(safe-area-inset-top));
     /* Ensure background extends to safe area insets */
     background-color: var(--mood-bg-color, #667eea);
     background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    /* Extend background to top including Dynamic Island area */
+    margin: 0;
+    position: relative;
+}
+
+/* Dynamic Island / Safe Area Top Background */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    background-color: var(--mood-bg-color, #667eea);
+    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    z-index: -1;
+    pointer-events: none;
 }
 
 .container {
