@@ -16,6 +16,10 @@ html {
     /* Extend background to cover safe area insets */
     min-height: 100vh;
     min-height: -webkit-fill-available; /* For iOS Safari */
+    /* Ensure background extends to top including Dynamic Island */
+    background-attachment: fixed;
+    background-size: cover;
+    background-repeat: no-repeat;
 }
 
 body {
@@ -33,9 +37,13 @@ body {
     /* Extend background to top including Dynamic Island area */
     margin: 0;
     position: relative;
+    /* Ensure background covers entire viewport including safe areas */
+    background-attachment: fixed;
+    background-size: cover;
+    background-repeat: no-repeat;
 }
 
-/* Dynamic Island / Safe Area Top Background */
+/* Dynamic Island / Safe Area Top Background - Fixed overlay */
 body::before {
     content: '';
     position: fixed;
@@ -43,11 +51,15 @@ body::before {
     left: 0;
     right: 0;
     height: env(safe-area-inset-top, 0px);
+    min-height: env(safe-area-inset-top, 0px);
     background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
     background-color: var(--mood-bg-color, #667eea);
     background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    z-index: -1;
+    z-index: 9999;
     pointer-events: none;
+    background-attachment: fixed;
+    background-size: cover;
+    background-repeat: no-repeat;
 }
 
 .container {

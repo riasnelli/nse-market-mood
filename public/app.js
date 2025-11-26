@@ -1133,13 +1133,22 @@ class MarketMoodApp {
         const html = document.documentElement;
         html.style.setProperty('background-color', themeColor);
         html.style.setProperty('background-image', gradient);
+        html.style.setProperty('background-attachment', 'fixed');
+        html.style.setProperty('background-size', 'cover');
+        html.style.setProperty('background-repeat', 'no-repeat');
         
         // Update body background
         body.style.setProperty('background-color', themeColor);
         body.style.setProperty('background-image', gradient);
+        body.style.setProperty('background-attachment', 'fixed');
+        body.style.setProperty('background-size', 'cover');
+        body.style.setProperty('background-repeat', 'no-repeat');
         
-        // Update the ::before pseudo-element (Dynamic Island area) via CSS variable
+        // Update the ::before pseudo-element (Dynamic Island area) by updating CSS variables
         // The ::before element will automatically use the updated CSS variables
+        // Force update by accessing computed style
+        const beforeElement = window.getComputedStyle(body, '::before');
+        // CSS variables are already updated, so ::before will pick them up
     }
 
     updateThemeColor(color) {
