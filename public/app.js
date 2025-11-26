@@ -156,8 +156,12 @@ class MarketMoodApp {
         const savedView = localStorage.getItem('indicesViewMode');
         if (savedView === 'table' || savedView === 'card') {
             this.viewMode = savedView;
-            this.updateViewToggleButtons();
+        } else {
+            // Default to card view
+            this.viewMode = 'card';
+            localStorage.setItem('indicesViewMode', 'card');
         }
+        this.updateViewToggleButtons();
 
         // Setup upload functionality
         this.setupUpload();
