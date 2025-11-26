@@ -849,26 +849,6 @@ header h1 {
 }
 
 
-#logoutBtn::before,
-#logoutBtn::after {
-    content: none !important; /* Remove any pseudo-element content */
-    display: none !important;
-}
-
-#logoutBtn svg {
-    width: 18px;
-    height: 18px;
-    display: block !important;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 1;
-}
-
-/* Hide any text nodes */
-#logoutBtn * {
-    font-size: 0;
-}
-
 .data-source-info {
     text-align: center;
     color: white;
