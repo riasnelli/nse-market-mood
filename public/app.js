@@ -63,6 +63,11 @@ class MarketMoodApp {
     }
 
     init() {
+        // Immediately update theme color on init for PWA mode
+        // This ensures Dynamic Island area has correct color from start
+        const initialColor = getComputedStyle(document.documentElement).getPropertyValue('--mood-bg-color').trim() || '#667eea';
+        this.updateThemeColor(initialColor);
+        
         this.updateTimeEl = document.getElementById('updateTime');
         this.refreshBtn = document.getElementById('refreshBtn');
         this.settingsBtn = document.getElementById('settingsBtn');
