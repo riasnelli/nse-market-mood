@@ -229,40 +229,66 @@ class SettingsManager {
     async getAvailableDates() {
         const dates = [];
         
-        // Get dates from localStorage
-        const uploadedData = this.getUploadedDataList();
-        if (uploadedData && uploadedData.length > 0) {
-            uploadedData.forEach(file => {
-                if (file.dataDate) {
-                    dates.push({
-                        date: file.dataDate,
-                        count: file.indicesCount || 0,
-                        source: 'localStorage'
+        // Get dates from database first (this is where all uploaded files are stored)
+        try {
+            // Try the new endpoint first
+            const datesResponse = await fetch('/api/get-uploaded-dates');
+            if (datesResponse.ok) {
+                const dbDates = await datesResponse.json();
+                if (dbDates && Array.isArray(dbDates) && dbDates.length > 0) {
+                    dbDates.forEach(item => {
+                        dates.push({
+                            date: item.date,
+                            count: item.count || 0,
+                            source: 'database'
+                        });
                     });
                 }
-            });
-        }
-        
-        // Get dates from database
-        try {
-            const response = await fetch('/api/get-uploaded-dates');
-            if (response.ok) {
-                const dbDates = await response.json();
-                if (dbDates && Array.isArray(dbDates)) {
-                    dbDates.forEach(item => {
-                        // Avoid duplicates
-                        if (!dates.find(d => d.date === item.date)) {
-                            dates.push({
-                                date: item.date,
-                                count: item.count || 0,
-                                source: 'database'
-                            });
-                        }
-                    });
+            }
+            
+            // Fallback: also try the save-uploaded-data endpoint to get all files
+            if (dates.length === 0) {
+                const filesResponse = await fetch('/api/save-uploaded-data');
+                if (filesResponse.ok) {
+                    const result = await filesResponse.json();
+                    if (result.success && result.data && Array.isArray(result.data)) {
+                        // Group by date and count indices
+                        const dateMap = new Map();
+                        result.data.forEach(file => {
+                            if (file.date) {
+                                if (!dateMap.has(file.date)) {
+                                    dateMap.set(file.date, {
+                                        date: file.date,
+                                        count: 0,
+                                        source: 'database'
+                                    });
+                                }
+                                const dateInfo = dateMap.get(file.date);
+                                dateInfo.count += (file.indices?.length || 0);
+                            }
+                        });
+                        dates.push(...Array.from(dateMap.values()));
+                    }
                 }
             }
         } catch (error) {
             console.warn('Could not fetch dates from database:', error);
+        }
+        
+        // Get dates from localStorage as fallback (only if database has no data)
+        if (dates.length === 0) {
+            const uploadedData = this.getUploadedDataList();
+            if (uploadedData && uploadedData.length > 0) {
+                uploadedData.forEach(file => {
+                    if (file.dataDate && file.dataDate !== 'N/A') {
+                        dates.push({
+                            date: file.dataDate,
+                            count: file.indicesCount || 0,
+                            source: 'localStorage'
+                        });
+                    }
+                });
+            }
         }
         
         return dates;
