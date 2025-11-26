@@ -851,21 +851,23 @@ class MarketMoodApp {
         this.viewMode = 'card';
         this.updateViewToggleButtons();
         
-        // Hide table first, then show grid
+        // Hide table first with !important to override any CSS
         if (tableContainer) {
-            tableContainer.style.display = 'none';
-            tableContainer.style.visibility = 'hidden';
-            tableContainer.style.opacity = '0';
+            tableContainer.style.setProperty('display', 'none', 'important');
+            tableContainer.style.setProperty('visibility', 'hidden', 'important');
+            tableContainer.style.setProperty('opacity', '0', 'important');
         }
         
-        // Force grid display with inline styles
-        allIndicesGrid.style.display = 'grid';
-        allIndicesGrid.style.gridTemplateColumns = '1fr 1fr';
-        allIndicesGrid.style.gap = '15px';
-        allIndicesGrid.style.visibility = 'visible';
-        allIndicesGrid.style.opacity = '1';
-        allIndicesGrid.style.width = '100%';
-        allIndicesGrid.style.maxWidth = '100%';
+        // Force grid display with inline styles using !important
+        allIndicesGrid.style.setProperty('display', 'grid', 'important');
+        allIndicesGrid.style.setProperty('grid-template-columns', '1fr 1fr', 'important');
+        allIndicesGrid.style.setProperty('gap', '15px', 'important');
+        allIndicesGrid.style.setProperty('visibility', 'visible', 'important');
+        allIndicesGrid.style.setProperty('opacity', '1', 'important');
+        allIndicesGrid.style.setProperty('width', '100%', 'important');
+        allIndicesGrid.style.setProperty('max-width', '100%', 'important');
+        allIndicesGrid.style.setProperty('height', 'auto', 'important');
+        allIndicesGrid.style.setProperty('overflow', 'visible', 'important');
         allIndicesGrid.classList.add('all-indices-grid');
         
         // Clear and populate grid
@@ -906,15 +908,19 @@ class MarketMoodApp {
         this.viewMode = 'table';
         this.updateViewToggleButtons();
         
-        // Hide grid completely, show table
+        // Hide grid completely with !important to override any CSS
         if (allIndicesGrid) {
-            allIndicesGrid.style.display = 'none';
-            allIndicesGrid.style.visibility = 'hidden';
-            allIndicesGrid.style.opacity = '0';
+            allIndicesGrid.style.setProperty('display', 'none', 'important');
+            allIndicesGrid.style.setProperty('visibility', 'hidden', 'important');
+            allIndicesGrid.style.setProperty('opacity', '0', 'important');
+            allIndicesGrid.style.setProperty('height', '0', 'important');
+            allIndicesGrid.style.setProperty('overflow', 'hidden', 'important');
         }
-        tableContainer.style.display = 'block';
-        tableContainer.style.visibility = 'visible';
-        tableContainer.style.opacity = '1';
+        
+        // Show table
+        tableContainer.style.setProperty('display', 'block', 'important');
+        tableContainer.style.setProperty('visibility', 'visible', 'important');
+        tableContainer.style.setProperty('opacity', '1', 'important');
         
         // Sort indices: green (positive) first by highest % change, then red (negative) by highest loss %
         const sortedIndices = [...indices].sort((a, b) => {
