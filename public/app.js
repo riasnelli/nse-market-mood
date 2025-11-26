@@ -632,12 +632,16 @@ class MarketMoodApp {
         const niftyBank = findIndex(indices, ['NIFTY BANK', 'Nifty Bank', 'NiftyBank']);
         
         if (nifty50) {
-            mainGrid.appendChild(this.createIndexCard(nifty50));
+            const card = this.createIndexCard(nifty50);
+            this.applyCardStyles(card);
+            mainGrid.appendChild(card);
         } else {
             console.warn('NIFTY 50 not found in indices');
         }
         if (niftyBank) {
-            mainGrid.appendChild(this.createIndexCard(niftyBank));
+            const card = this.createIndexCard(niftyBank);
+            this.applyCardStyles(card);
+            mainGrid.appendChild(card);
         } else {
             console.warn('NIFTY BANK not found in indices');
         }
@@ -645,7 +649,9 @@ class MarketMoodApp {
         // Second row: NIFTY IT, INDIA VIX
         const niftyIT = findIndex(indices, ['NIFTY IT', 'Nifty IT', 'NIFTYIT']);
         if (niftyIT) {
-            mainGrid.appendChild(this.createIndexCard(niftyIT));
+            const card = this.createIndexCard(niftyIT);
+            this.applyCardStyles(card);
+            mainGrid.appendChild(card);
         } else {
             console.warn('NIFTY IT not found in indices');
         }
@@ -667,12 +673,14 @@ class MarketMoodApp {
         }
         
         if (vixData) {
-            mainGrid.appendChild(this.createIndexCard({
+            const card = this.createIndexCard({
                 symbol: 'INDIA VIX',
                 lastPrice: vixData.last,
                 change: vixData.change,
                 pChange: vixData.pChange
-            }));
+            });
+            this.applyCardStyles(card);
+            mainGrid.appendChild(card);
         }
 
         // Display all other indices (excluding the 4 main ones)
@@ -804,21 +812,8 @@ class MarketMoodApp {
         indices.forEach(index => {
             const card = this.createIndexCard(index);
             if (card) {
-                // Force card styles inline to prevent collapse
-                card.style.display = 'flex';
-                card.style.visibility = 'visible';
-                card.style.opacity = '1';
-                card.style.width = '100%';
-                card.style.maxWidth = '100%';
-                card.style.background = 'white';
-                card.style.borderRadius = '20px';
-                card.style.padding = '20px 15px';
-                card.style.minHeight = '120px';
-                card.style.boxSizing = 'border-box';
-                card.style.flexDirection = 'column';
-                card.style.justifyContent = 'center';
-                card.style.alignItems = 'center';
-                card.style.textAlign = 'center';
+                // Apply card styles using helper function
+                this.applyCardStyles(card);
                 allIndicesGrid.appendChild(card);
             }
         });
