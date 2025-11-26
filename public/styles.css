@@ -135,44 +135,79 @@ header h1 {
     gap: 15px;
 }
 
+.section-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
 .section-title {
     color: white;
     font-size: 1.2rem;
     margin: 0;
     text-align: left;
-    flex: 1;
 }
 
-.section-controls {
+/* Calendar Icon Button - just icon after title */
+.calendar-icon-btn {
+    display: none; /* Hidden by default, shown when data is available */
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.calendar-icon-btn:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.calendar-icon-btn svg {
+    display: block;
+}
+
+/* View Toggle Icons - just icons on right */
+.view-toggle-icons {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
-/* Calendar Trigger Button */
-.calendar-trigger-btn {
-    display: none; /* Hidden by default, shown when data is available */
-    align-items: center;
-    gap: 8px;
-    padding: 10px 15px;
+.view-toggle-btn {
+    background: rgba(255, 255, 255, 0.15);
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.15);
     color: white;
-    font-size: 0.9rem;
     cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.2s ease;
     backdrop-filter: blur(10px);
-    font-weight: 500;
+    flex-shrink: 0;
 }
 
-.calendar-trigger-btn:hover {
+.view-toggle-btn:hover {
     background: rgba(255, 255, 255, 0.25);
     border-color: rgba(255, 255, 255, 0.5);
 }
 
-.calendar-trigger-btn svg {
-    flex-shrink: 0;
+.view-toggle-btn.active {
+    background: white;
+    color: #374151;
+    border-color: white;
+}
+
+.view-toggle-btn svg {
+    display: block;
 }
 
 /* Custom Calendar Styles */
