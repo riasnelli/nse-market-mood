@@ -73,7 +73,11 @@ class MarketMoodApp {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
         }
         if (this.settingsBtn) {
-            this.settingsBtn.addEventListener('click', () => window.settingsManager?.openSettings());
+            this.settingsBtn.addEventListener('click', () => {
+                if (window.settingsManager) {
+                    window.settingsManager.openSettingsModal();
+                }
+            });
         }
         if (this.uploadBtn) {
             this.uploadBtn.addEventListener('click', () => this.openUploadModal());
@@ -196,7 +200,39 @@ class MarketMoodApp {
         // Check if uploaded data is selected as active API
         const activeApi = window.settingsManager?.settings?.activeApi;
         if (activeApi === 'uploaded') {
-            const uploadedData = this.getUploadedData();
+            // First try localStorage
+            let uploadedData = this.getUploadedData();
+            
+            // If not in localStorage, try to load from database using the selected date
+            if ((!uploadedData || !uploadedData.indices || uploadedData.indices.length === 0)) {
+                const selectedDate = window.settingsManager?.settings?.uploadedDataDate;
+                if (selectedDate) {
+                    try {
+                        console.log('Loading uploaded data from database for date:', selectedDate);
+                        const response = await fetch(`/api/get-uploaded-data?date=${encodeURIComponent(selectedDate)}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data && data.indices && data.indices.length > 0) {
+                                // Format data to match expected structure
+                                uploadedData = {
+                                    indices: data.indices,
+                                    date: data.date,
+                                    fileName: data.fileName,
+                                    mood: data.mood || this.calculateMoodFromIndices(data.indices),
+                                    vix: data.vix || null,
+                                    advanceDecline: data.advanceDecline || { advances: 0, declines: 0 },
+                                    source: 'database'
+                                };
+                                // Save to localStorage for future use
+                                localStorage.setItem('uploadedIndicesData', JSON.stringify(uploadedData));
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('Could not load from database:', error);
+                    }
+                }
+            }
+            
             if (uploadedData && uploadedData.indices && uploadedData.indices.length > 0) {
                 console.log('Using uploaded CSV data (selected as active source)');
                 this.updateDataSourceDisplay('uploaded', uploadedData);

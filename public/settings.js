@@ -670,9 +670,36 @@ class SettingsManager {
         const apiProvider = document.getElementById('apiProvider');
         const testDhanBtn = document.getElementById('testDhanBtn');
 
+        // Expose openSettingsModal method
+        this.openSettingsModal = () => {
+            const settingsModal = document.getElementById('settingsModal');
+            if (settingsModal) {
+                settingsModal.classList.add('show');
+                // Use setTimeout to ensure modal is visible before updating content
+                setTimeout(() => {
+                    // Refresh settings in modal when opened
+                    try {
+                        this.updateApiList();
+                        this.updateActiveApiDisplay();
+                        this.updateConfigForms();
+                        this.updateUploadedDataSection();
+                    } catch (error) {
+                        console.error('Error updating settings modal:', error);
+                        // Fallback: try again after a short delay
+                        setTimeout(() => {
+                            this.updateApiList();
+                            this.updateActiveApiDisplay();
+                            this.updateConfigForms();
+                            this.updateUploadedDataSection();
+                        }, 100);
+                    }
+                }, 10);
+            }
+        };
+
         if (settingsBtn && settingsModal) {
             settingsBtn.addEventListener('click', () => {
-                settingsModal.classList.add('show');
+                this.openSettingsModal();
                 // Use setTimeout to ensure modal is visible before updating content
                 setTimeout(() => {
                     // Refresh settings in modal when opened
