@@ -344,40 +344,49 @@ header h1 {
 .all-indices-grid {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 15px;
+    grid-template-rows: auto !important;
+    gap: 15px !important;
     margin-top: 15px;
     visibility: visible !important;
     opacity: 1 !important;
-    width: 100%;
-    max-width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 /* Override data-grid styles when used with all-indices-grid */
 .data-grid.all-indices-grid {
     grid-template-columns: 1fr 1fr !important;
-    margin-bottom: 0;
+    grid-template-rows: auto !important;
+    margin-bottom: 0 !important;
     display: grid !important;
     visibility: visible !important;
     opacity: 1 !important;
     width: 100% !important;
     max-width: 100% !important;
+    gap: 15px !important;
+    box-sizing: border-box !important;
 }
 
 @media (max-width: 480px) {
     .all-indices-grid {
         grid-template-columns: 1fr 1fr !important;
+        grid-template-rows: auto !important;
         gap: 12px !important;
         display: grid !important;
         width: 100% !important;
         max-width: 100% !important;
+        box-sizing: border-box !important;
     }
     
     .data-grid.all-indices-grid {
         grid-template-columns: 1fr 1fr !important;
+        grid-template-rows: auto !important;
         display: grid !important;
         width: 100% !important;
         max-width: 100% !important;
         gap: 12px !important;
+        box-sizing: border-box !important;
     }
     
     .data-card {
