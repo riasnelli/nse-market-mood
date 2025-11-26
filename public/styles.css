@@ -887,15 +887,14 @@ header h1 {
     font-size: 0;
 }
 
-.disclaimer {
+.data-source-info {
     text-align: center;
-    color: white;
+    color: #666;
     margin-top: 15px;
     font-size: 0.85rem;
-    opacity: 0.9;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    opacity: 0.8;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
 }
 
 /* Mobile: Footer stays below content (not fixed) */
