@@ -1284,35 +1284,52 @@ header h1 {
 }
 
 .btn-primary {
-    background: #667eea;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
+    padding: 14px 20px;
+    border-radius: 10px;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.3s;
+    transition: all 0.2s ease;
+    flex: 1;
+    width: 50%;
+    box-sizing: border-box;
 }
 
 .btn-primary:hover {
-    background: #5568d3;
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
 }
 
 .btn-secondary {
     background: #f0f0f0;
     color: #333;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    padding: 14px 20px;
+    border-radius: 10px;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.3s;
+    transition: all 0.2s ease;
+    flex: 1;
+    width: 50%;
+    box-sizing: border-box;
 }
 
 .btn-secondary:hover {
     background: #e0e0e0;
+    border-color: #d0d0d0;
+}
+
+.btn-secondary:active {
+    transform: translateY(1px);
 }
 
 .status-info {
