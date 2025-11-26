@@ -804,14 +804,27 @@ class MarketMoodApp {
         indices.forEach(index => {
             const card = this.createIndexCard(index);
             if (card) {
+                // Force card styles inline to prevent collapse
                 card.style.display = 'flex';
                 card.style.visibility = 'visible';
                 card.style.opacity = '1';
                 card.style.width = '100%';
                 card.style.maxWidth = '100%';
+                card.style.background = 'white';
+                card.style.borderRadius = '20px';
+                card.style.padding = '20px 15px';
+                card.style.minHeight = '120px';
+                card.style.boxSizing = 'border-box';
+                card.style.flexDirection = 'column';
+                card.style.justifyContent = 'center';
+                card.style.alignItems = 'center';
+                card.style.textAlign = 'center';
                 allIndicesGrid.appendChild(card);
             }
         });
+        
+        // Force reflow to ensure styles are applied
+        void allIndicesGrid.offsetHeight;
         
         console.log(`Rendered ${indices.length} cards in grid view`);
         console.log('Grid element:', allIndicesGrid);
