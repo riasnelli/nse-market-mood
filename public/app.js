@@ -1086,6 +1086,10 @@ class MarketMoodApp {
         
         // Update PWA theme-color meta tag for mobile browser inset
         this.updateThemeColor(themeColor);
+        
+        // Update CSS custom property for safe-area-inset background
+        document.documentElement.style.setProperty('--mood-bg-color', themeColor);
+        document.documentElement.style.setProperty('--mood-gradient', gradient);
     }
 
     updateThemeColor(color) {

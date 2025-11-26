@@ -2,6 +2,7 @@
 class SettingsManager {
     constructor() {
         this.storageKey = 'nseMarketMoodSettings';
+        this.isAddingUploadOption = false; // Flag to prevent concurrent calls
         this.defaultSettings = {
             activeApi: 'nse', // Currently active API
             apis: {
@@ -132,6 +133,12 @@ class SettingsManager {
     }
 
     async addUploadCSVDataOption(container) {
+        // Prevent concurrent calls
+        if (this.isAddingUploadOption) {
+            console.log('Already adding Upload CSV Data option, skipping duplicate call');
+            return;
+        }
+        
         // Check if Upload CSV Data option already exists to prevent duplicates
         const existingUploadOption = container.querySelector('[data-api-type="uploaded"]');
         if (existingUploadOption) {
@@ -139,9 +146,12 @@ class SettingsManager {
             return;
         }
         
-        const uploadedApiItem = document.createElement('div');
-        uploadedApiItem.className = 'api-item';
-        uploadedApiItem.setAttribute('data-api-type', 'uploaded'); // Mark to prevent duplicates
+        this.isAddingUploadOption = true;
+        
+        try {
+            const uploadedApiItem = document.createElement('div');
+            uploadedApiItem.className = 'api-item';
+            uploadedApiItem.setAttribute('data-api-type', 'uploaded'); // Mark to prevent duplicates
         
         const details = document.createElement('details');
         details.className = 'api-item-collapsible';
@@ -228,10 +238,13 @@ class SettingsManager {
             `;
         }
         
-        details.appendChild(summary);
-        details.appendChild(content);
-        uploadedApiItem.appendChild(details);
-        container.appendChild(uploadedApiItem);
+            details.appendChild(summary);
+            details.appendChild(content);
+            uploadedApiItem.appendChild(details);
+            container.appendChild(uploadedApiItem);
+        } finally {
+            this.isAddingUploadOption = false;
+        }
     }
 
     async getAvailableDates() {

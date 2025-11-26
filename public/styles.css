@@ -4,11 +4,21 @@
     box-sizing: border-box;
 }
 
+:root {
+    --mood-bg-color: #667eea;
+    --mood-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
     min-height: 100vh;
     padding: 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    padding-top: calc(20px + env(safe-area-inset-top));
+    /* Ensure background extends to safe area insets */
+    background-color: var(--mood-bg-color, #667eea);
+    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
 }
 
 .container {
