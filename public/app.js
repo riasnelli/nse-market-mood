@@ -1161,19 +1161,30 @@ class MarketMoodApp {
         }
         themeColorMeta.setAttribute('content', color);
         
-        // Also update iOS Safari status bar style
+        // Also update iOS Safari status bar style - black-translucent allows background to show
         let appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
         if (!appleStatusBar) {
             appleStatusBar = document.createElement('meta');
             appleStatusBar.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
             document.head.appendChild(appleStatusBar);
         }
-        // Use black-translucent for iOS to show the theme color
+        // Use black-translucent for iOS PWA to show the theme color through
         appleStatusBar.setAttribute('content', 'black-translucent');
         
-        // Update manifest.json theme-color dynamically (if possible)
-        // Note: This requires the manifest to be served dynamically or updated via service worker
-        // For now, the meta tag should be sufficient for most browsers
+        // Force update the html and body background immediately for PWA
+        const html = document.documentElement;
+        const body = document.body;
+        html.style.setProperty('background-color', color, 'important');
+        body.style.setProperty('background-color', color, 'important');
+        
+        // Update the ::before pseudo-element by forcing a repaint
+        // This ensures the Dynamic Island area updates in PWA mode
+        if (body) {
+            const beforeStyle = window.getComputedStyle(body, '::before');
+            // Force a repaint to update the ::before element
+            void body.offsetHeight;
+        }
+        
         console.log('Updated PWA theme color to:', color);
     }
 
