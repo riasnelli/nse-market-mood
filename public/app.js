@@ -775,6 +775,27 @@ class MarketMoodApp {
         return card;
     }
 
+    applyCardStyles(card) {
+        // Apply inline styles to ensure white oval background
+        if (card) {
+            card.style.display = 'flex';
+            card.style.visibility = 'visible';
+            card.style.opacity = '1';
+            card.style.width = '100%';
+            card.style.maxWidth = '100%';
+            card.style.background = 'white';
+            card.style.borderRadius = '20px';
+            card.style.padding = '20px 15px';
+            card.style.minHeight = '120px';
+            card.style.boxSizing = 'border-box';
+            card.style.flexDirection = 'column';
+            card.style.justifyContent = 'center';
+            card.style.alignItems = 'center';
+            card.style.textAlign = 'center';
+            card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+        }
+    }
+
     renderIndicesCards(indices) {
         const allIndicesGrid = document.getElementById('allIndicesGrid');
         const tableContainer = document.getElementById('tableContainer');
