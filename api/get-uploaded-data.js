@@ -52,6 +52,9 @@ module.exports = async (req, res) => {
       date: data.date,
       fileName: data.fileName || `Uploaded CSV - ${data.date}`,
       indices: data.indices || [],
+      mood: data.mood || null,
+      vix: data.vix || null,
+      advanceDecline: data.advanceDecline || { advances: 0, declines: 0 },
       source: 'database'
     });
   } catch (error) {
