@@ -1153,13 +1153,24 @@ class MarketMoodApp {
 
     updateThemeColor(color) {
         // Update or create theme-color meta tag for PWA inset
+        // This is CRITICAL for iOS PWA Dynamic Island/notch area
         let themeColorMeta = document.querySelector('meta[name="theme-color"]');
         if (!themeColorMeta) {
             themeColorMeta = document.createElement('meta');
             themeColorMeta.setAttribute('name', 'theme-color');
             document.head.appendChild(themeColorMeta);
         }
-        themeColorMeta.setAttribute('content', color);
+        // Remove and re-add to force update in PWA mode
+        const oldContent = themeColorMeta.getAttribute('content');
+        if (oldContent !== color) {
+            themeColorMeta.remove();
+            themeColorMeta = document.createElement('meta');
+            themeColorMeta.setAttribute('name', 'theme-color');
+            themeColorMeta.setAttribute('content', color);
+            document.head.insertBefore(themeColorMeta, document.head.firstChild);
+        } else {
+            themeColorMeta.setAttribute('content', color);
+        }
         
         // Also update iOS Safari status bar style - black-translucent allows background to show
         let appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
@@ -1177,13 +1188,29 @@ class MarketMoodApp {
         html.style.setProperty('background-color', color, 'important');
         body.style.setProperty('background-color', color, 'important');
         
-        // Update the ::before pseudo-element by forcing a repaint
-        // This ensures the Dynamic Island area updates in PWA mode
-        if (body) {
-            const beforeStyle = window.getComputedStyle(body, '::before');
-            // Force a repaint to update the ::before element
-            void body.offsetHeight;
+        // Create or update a fixed overlay div for Dynamic Island area (more reliable than ::before)
+        let safeAreaOverlay = document.getElementById('safeAreaOverlay');
+        if (!safeAreaOverlay) {
+            safeAreaOverlay = document.createElement('div');
+            safeAreaOverlay.id = 'safeAreaOverlay';
+            safeAreaOverlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: env(safe-area-inset-top, 0px);
+                min-height: env(safe-area-inset-top, 0px);
+                background-color: ${color};
+                z-index: 99999;
+                pointer-events: none;
+            `;
+            document.body.appendChild(safeAreaOverlay);
+        } else {
+            safeAreaOverlay.style.setProperty('background-color', color, 'important');
         }
+        
+        // Force a repaint to ensure updates are visible
+        void body.offsetHeight;
         
         console.log('Updated PWA theme color to:', color);
     }
