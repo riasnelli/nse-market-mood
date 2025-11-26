@@ -252,19 +252,20 @@ class SettingsManager {
                 if (filesResponse.ok) {
                     const result = await filesResponse.json();
                     if (result.success && result.data && Array.isArray(result.data)) {
-                        // Group by date and count indices
+                        // Group by date and use the most recent file's count for each date
                         const dateMap = new Map();
                         result.data.forEach(file => {
                             if (file.date) {
-                                if (!dateMap.has(file.date)) {
+                                const indicesCount = Array.isArray(file.indices) ? file.indices.length : (file.indicesCount || 0);
+                                
+                                // If date already exists, keep the one with more indices
+                                if (!dateMap.has(file.date) || indicesCount > (dateMap.get(file.date).count || 0)) {
                                     dateMap.set(file.date, {
                                         date: file.date,
-                                        count: 0,
+                                        count: indicesCount,
                                         source: 'database'
                                     });
                                 }
-                                const dateInfo = dateMap.get(file.date);
-                                dateInfo.count += (file.indices?.length || 0);
                             }
                         });
                         dates.push(...Array.from(dateMap.values()));

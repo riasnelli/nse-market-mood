@@ -25,26 +25,33 @@ module.exports = async (req, res) => {
 
     const collection = await getUploadedDataCollection();
     
-    // Get all unique dates with their indices count
-    const dates = await collection.aggregate([
-      {
-        $group: {
-          _id: '$date',
-          count: { $sum: { $size: { $ifNull: ['$indices', []] } } },
-          date: { $first: '$date' }
+    // Get all documents first to properly count indices
+    const allDocuments = await collection
+      .find({})
+      .sort({ uploadedAt: -1 })
+      .toArray();
+    
+    // Group by date and get the most recent file's count for each date
+    const dateMap = new Map();
+    
+    allDocuments.forEach(doc => {
+      if (doc.date) {
+        const indicesCount = Array.isArray(doc.indices) ? doc.indices.length : 0;
+        
+        // If date already exists, keep the one with more indices (or most recent)
+        if (!dateMap.has(doc.date) || indicesCount > (dateMap.get(doc.date).count || 0)) {
+          dateMap.set(doc.date, {
+            date: doc.date,
+            count: indicesCount
+          });
         }
-      },
-      {
-        $project: {
-          _id: 0,
-          date: '$date',
-          count: '$count'
-        }
-      },
-      {
-        $sort: { date: -1 } // Sort by date descending (newest first)
       }
-    ]).toArray();
+    });
+    
+    // Convert to array and sort by date descending
+    const dates = Array.from(dateMap.values()).sort((a, b) => {
+      return new Date(b.date) - new Date(a.date);
+    });
 
     res.status(200).json(dates);
   } catch (error) {
