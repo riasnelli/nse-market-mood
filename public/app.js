@@ -892,6 +892,10 @@ class MarketMoodApp {
         
         if (!tableContainer || !tableBody) return;
         
+        // Ensure view mode is set to table
+        this.viewMode = 'table';
+        this.updateViewToggleButtons();
+        
         // Hide grid, show table
         if (allIndicesGrid) allIndicesGrid.style.display = 'none';
         tableContainer.style.display = 'block';
@@ -1033,13 +1037,24 @@ class MarketMoodApp {
     }
 
     updateViewToggleButtons() {
+        // Always ensure both buttons exist
+        if (!this.cardViewBtn) {
+            this.cardViewBtn = document.getElementById('cardViewBtn');
+        }
+        if (!this.tableViewBtn) {
+            this.tableViewBtn = document.getElementById('tableViewBtn');
+        }
+        
         if (this.cardViewBtn && this.tableViewBtn) {
+            // Always remove active from both first to prevent both being active
+            this.cardViewBtn.classList.remove('active');
+            this.tableViewBtn.classList.remove('active');
+            
+            // Then add active to the correct one based on current view mode
             if (this.viewMode === 'card') {
                 this.cardViewBtn.classList.add('active');
-                this.tableViewBtn.classList.remove('active');
-            } else {
+            } else if (this.viewMode === 'table') {
                 this.tableViewBtn.classList.add('active');
-                this.cardViewBtn.classList.remove('active');
             }
         }
     }
