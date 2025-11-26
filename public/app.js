@@ -851,6 +851,13 @@ class MarketMoodApp {
         this.viewMode = 'card';
         this.updateViewToggleButtons();
         
+        // Hide table first, then show grid
+        if (tableContainer) {
+            tableContainer.style.display = 'none';
+            tableContainer.style.visibility = 'hidden';
+            tableContainer.style.opacity = '0';
+        }
+        
         // Force grid display with inline styles
         allIndicesGrid.style.display = 'grid';
         allIndicesGrid.style.gridTemplateColumns = '1fr 1fr';
@@ -860,7 +867,6 @@ class MarketMoodApp {
         allIndicesGrid.style.width = '100%';
         allIndicesGrid.style.maxWidth = '100%';
         allIndicesGrid.classList.add('all-indices-grid');
-        if (tableContainer) tableContainer.style.display = 'none';
         
         // Clear and populate grid
         allIndicesGrid.innerHTML = '';
@@ -900,9 +906,15 @@ class MarketMoodApp {
         this.viewMode = 'table';
         this.updateViewToggleButtons();
         
-        // Hide grid, show table
-        if (allIndicesGrid) allIndicesGrid.style.display = 'none';
+        // Hide grid completely, show table
+        if (allIndicesGrid) {
+            allIndicesGrid.style.display = 'none';
+            allIndicesGrid.style.visibility = 'hidden';
+            allIndicesGrid.style.opacity = '0';
+        }
         tableContainer.style.display = 'block';
+        tableContainer.style.visibility = 'visible';
+        tableContainer.style.opacity = '1';
         
         // Sort indices: green (positive) first by highest % change, then red (negative) by highest loss %
         const sortedIndices = [...indices].sort((a, b) => {
