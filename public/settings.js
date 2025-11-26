@@ -131,6 +131,215 @@ class SettingsManager {
         return uploadedDataList;
     }
 
+    async addUploadCSVDataOption(container) {
+        const uploadedApiItem = document.createElement('div');
+        uploadedApiItem.className = 'api-item';
+        
+        const details = document.createElement('details');
+        details.className = 'api-item-collapsible';
+        if (this.settings.activeApi === 'uploaded') {
+            details.open = true;
+        }
+        
+        // Get available dates
+        const availableDates = await this.getAvailableDates();
+        
+        const summary = document.createElement('summary');
+        summary.className = 'api-item-header';
+        summary.innerHTML = `
+            <label class="api-radio">
+                <input type="radio" name="activeApi" value="uploaded" ${this.settings.activeApi === 'uploaded' ? 'checked' : ''}>
+                <span class="api-name">Upload CSV Data</span>
+            </label>
+            <span class="api-status ${availableDates.length > 0 ? 'enabled' : 'disabled'}">
+                ${availableDates.length > 0 ? '✓ Available' : '✗ No Data'}
+            </span>
+            <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        `;
+        
+        const content = document.createElement('div');
+        content.className = 'api-item-content';
+        
+        if (availableDates.length > 0) {
+            // Sort dates in descending order (newest first)
+            const sortedDates = [...availableDates].sort((a, b) => {
+                return new Date(b.date) - new Date(a.date);
+            });
+            
+            content.innerHTML = `
+                <p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">📁 Select a date to load uploaded CSV data for market mood analysis</p>
+                <div style="margin-top: 15px;">
+                    <label style="display: block; font-weight: 600; color: #333; margin-bottom: 8px; font-size: 0.9rem;">Select Date:</label>
+                    <select id="uploadedDataDateSelect" class="form-control" style="width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; background: white; cursor: pointer;">
+                        <option value="">-- Select a date --</option>
+                        ${sortedDates.map(dateInfo => `
+                            <option value="${dateInfo.date}" ${this.settings.uploadedDataDate === dateInfo.date ? 'selected' : ''}>
+                                ${dateInfo.date} (${dateInfo.count} indices)
+                            </option>
+                        `).join('')}
+                    </select>
+                    <button type="button" id="loadUploadedDataBtn" class="btn-secondary" style="margin-top: 10px; width: 100%; padding: 10px;" disabled>
+                        Load Data
+                    </button>
+                </div>
+            `;
+            
+            // Add event listeners after a short delay to ensure DOM is ready
+            setTimeout(() => {
+                const dateSelect = document.getElementById('uploadedDataDateSelect');
+                const loadBtn = document.getElementById('loadUploadedDataBtn');
+                
+                if (dateSelect) {
+                    // Enable/disable load button based on selection
+                    dateSelect.addEventListener('change', (e) => {
+                        if (loadBtn) {
+                            loadBtn.disabled = !e.target.value;
+                        }
+                    });
+                    
+                    // If a date is already selected, enable the button
+                    if (dateSelect.value) {
+                        if (loadBtn) loadBtn.disabled = false;
+                    }
+                }
+                
+                if (loadBtn) {
+                    loadBtn.addEventListener('click', () => {
+                        const selectedDate = dateSelect?.value;
+                        if (selectedDate) {
+                            this.loadUploadedDataByDate(selectedDate);
+                        }
+                    });
+                }
+            }, 100);
+        } else {
+            content.innerHTML = `
+                <p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">📁 No uploaded CSV data available. Use the Upload button to add CSV files.</p>
+            `;
+        }
+        
+        details.appendChild(summary);
+        details.appendChild(content);
+        uploadedApiItem.appendChild(details);
+        container.appendChild(uploadedApiItem);
+    }
+
+    async getAvailableDates() {
+        const dates = [];
+        
+        // Get dates from localStorage
+        const uploadedData = this.getUploadedDataList();
+        if (uploadedData && uploadedData.length > 0) {
+            uploadedData.forEach(file => {
+                if (file.dataDate) {
+                    dates.push({
+                        date: file.dataDate,
+                        count: file.indicesCount || 0,
+                        source: 'localStorage'
+                    });
+                }
+            });
+        }
+        
+        // Get dates from database
+        try {
+            const response = await fetch('/api/get-uploaded-dates');
+            if (response.ok) {
+                const dbDates = await response.json();
+                if (dbDates && Array.isArray(dbDates)) {
+                    dbDates.forEach(item => {
+                        // Avoid duplicates
+                        if (!dates.find(d => d.date === item.date)) {
+                            dates.push({
+                                date: item.date,
+                                count: item.count || 0,
+                                source: 'database'
+                            });
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.warn('Could not fetch dates from database:', error);
+        }
+        
+        return dates;
+    }
+
+    async loadUploadedDataByDate(date) {
+        try {
+            // Try to load from database first
+            const response = await fetch(`/api/get-uploaded-data?date=${encodeURIComponent(date)}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.indices) {
+                    // Save to localStorage
+                    const processedData = {
+                        indices: data.indices,
+                        date: date,
+                        fileName: `Uploaded CSV - ${date}`,
+                        source: 'database'
+                    };
+                    localStorage.setItem('uploadedIndicesData', JSON.stringify(processedData));
+                    
+                    // Set as active API
+                    this.settings.activeApi = 'uploaded';
+                    this.settings.uploadedDataDate = date;
+                    this.saveSettings();
+                    
+                    // Show notification
+                    this.showNotification(`Loaded data for ${date}`, 'success');
+                    
+                    // Close settings modal
+                    this.closeSettings();
+                    
+                    // Reload app with uploaded data
+                    if (window.marketMoodApp) {
+                        window.marketMoodApp.loadData();
+                    }
+                    return;
+                }
+            }
+        } catch (error) {
+            console.warn('Could not load from database, trying localStorage:', error);
+        }
+        
+        // Fallback to localStorage
+        const uploadedData = this.getUploadedDataList();
+        if (uploadedData && uploadedData.length > 0) {
+            const file = uploadedData.find(f => f.dataDate === date);
+            if (file) {
+                // Load from localStorage
+                const stored = localStorage.getItem('uploadedIndicesData');
+                if (stored) {
+                    const data = JSON.parse(stored);
+                    if (data.date === date) {
+                        // Set as active API
+                        this.settings.activeApi = 'uploaded';
+                        this.settings.uploadedDataDate = date;
+                        this.saveSettings();
+                        
+                        // Show notification
+                        this.showNotification(`Loaded data for ${date}`, 'success');
+                        
+                        // Close settings modal
+                        this.closeSettings();
+                        
+                        // Reload app with uploaded data
+                        if (window.marketMoodApp) {
+                            window.marketMoodApp.loadData();
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+        
+        this.showNotification(`No data found for ${date}`, 'error');
+    }
+
     selectUploadedFile(index) {
         const uploadedDataList = this.getUploadedDataList();
         if (uploadedDataList[index]) {
@@ -313,27 +522,27 @@ class SettingsManager {
             apiListContainer.appendChild(apiItem);
         });
         
-        // Add Uploaded Data as a selectable option if data exists
-        const uploadedData = this.getUploadedDataList();
-        if (uploadedData && uploadedData.length > 0) {
-            const uploadedApiItem = document.createElement('div');
-            uploadedApiItem.className = 'api-item';
-            
-            const details = document.createElement('details');
-            details.className = 'api-item-collapsible';
-            if (this.settings.activeApi === 'uploaded') {
-                details.open = true;
-            }
-            
+        // Add Upload CSV Data as a selectable option
+        const uploadedApiItem = document.createElement('div');
+        uploadedApiItem.className = 'api-item';
+        
+        const details = document.createElement('details');
+        details.className = 'api-item-collapsible';
+        if (this.settings.activeApi === 'uploaded') {
+            details.open = true;
+        }
+        
+        // Get available dates from database and localStorage
+        this.getAvailableDates().then(availableDates => {
             const summary = document.createElement('summary');
             summary.className = 'api-item-header';
             summary.innerHTML = `
                 <label class="api-radio">
                     <input type="radio" name="activeApi" value="uploaded" ${this.settings.activeApi === 'uploaded' ? 'checked' : ''}>
-                    <span class="api-name">Uploaded Data</span>
+                    <span class="api-name">Upload CSV Data</span>
                 </label>
-                <span class="api-status ${uploadedData.length > 0 ? 'enabled' : 'disabled'}">
-                    ${uploadedData.length > 0 ? '✓ Available' : '✗ No Data'}
+                <span class="api-status ${availableDates.length > 0 ? 'enabled' : 'disabled'}">
+                    ${availableDates.length > 0 ? '✓ Available' : '✗ No Data'}
                 </span>
                 <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -342,28 +551,64 @@ class SettingsManager {
             
             const content = document.createElement('div');
             content.className = 'api-item-content';
-            content.innerHTML = `
-                <p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">📁 Use previously uploaded CSV data for market mood analysis</p>
-                <div class="uploaded-files-list" style="margin-top: 10px;">
-                    ${uploadedData.map((file, index) => `
-                        <div class="uploaded-file-item" style="padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong>${file.fileName || 'Uploaded File'}</strong><br>
-                                    <small style="color: #666;">Date: ${file.dataDate || 'N/A'} • Indices: ${file.indicesCount || 0}</small>
-                                </div>
-                                <button type="button" class="btn-secondary" style="padding: 5px 10px; font-size: 0.85rem;" data-file-index="${index}" onclick="window.settingsManager.selectUploadedFile(${index})">Select</button>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+            
+            if (availableDates.length > 0) {
+                // Sort dates in descending order (newest first)
+                const sortedDates = [...availableDates].sort((a, b) => {
+                    return new Date(b.date) - new Date(a.date);
+                });
+                
+                content.innerHTML = `
+                    <p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">📁 Select a date to load uploaded CSV data for market mood analysis</p>
+                    <div style="margin-top: 15px;">
+                        <label style="display: block; font-weight: 600; color: #333; margin-bottom: 8px; font-size: 0.9rem;">Select Date:</label>
+                        <select id="uploadedDataDateSelect" class="form-control" style="width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; background: white; cursor: pointer;">
+                            <option value="">-- Select a date --</option>
+                            ${sortedDates.map(dateInfo => `
+                                <option value="${dateInfo.date}" ${this.settings.uploadedDataDate === dateInfo.date ? 'selected' : ''}>
+                                    ${dateInfo.date} (${dateInfo.count} indices)
+                                </option>
+                            `).join('')}
+                        </select>
+                        <button type="button" id="loadUploadedDataBtn" class="btn-secondary" style="margin-top: 10px; width: 100%; padding: 10px;" disabled>
+                            Load Data
+                        </button>
+                    </div>
+                `;
+                
+                // Add event listener for date selection
+                setTimeout(() => {
+                    const dateSelect = document.getElementById('uploadedDataDateSelect');
+                    const loadBtn = document.getElementById('loadUploadedDataBtn');
+                    
+                    if (dateSelect) {
+                        dateSelect.addEventListener('change', (e) => {
+                            if (loadBtn) {
+                                loadBtn.disabled = !e.target.value;
+                            }
+                        });
+                    }
+                    
+                    if (loadBtn) {
+                        loadBtn.addEventListener('click', () => {
+                            const selectedDate = dateSelect?.value;
+                            if (selectedDate) {
+                                this.loadUploadedDataByDate(selectedDate);
+                            }
+                        });
+                    }
+                }, 100);
+            } else {
+                content.innerHTML = `
+                    <p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">📁 No uploaded CSV data available. Use the Upload button to add CSV files.</p>
+                `;
+            }
             
             details.appendChild(summary);
             details.appendChild(content);
             uploadedApiItem.appendChild(details);
             apiListContainer.appendChild(uploadedApiItem);
-        }
+        });
 
         // Add event listeners
         document.querySelectorAll('input[name="activeApi"]').forEach(radio => {
