@@ -270,12 +270,20 @@
             <div class="modal-body">
                 <!-- Uploaded Data Section (if available) -->
                 <div class="settings-section" id="uploadedDataSection" style="display: none;">
-                    <h3>Uploaded Data</h3>
-                    <div class="status-info">
-                        <p>Source: <strong id="uploadedDataSource">-</strong></p>
-                        <p>Date: <strong id="uploadedDataDate">-</strong></p>
-                        <p>Indices: <strong id="uploadedDataCount">-</strong></p>
-                        <button id="clearUploadedDataBtn" class="btn-secondary" style="margin-top: 10px;">Clear Uploaded Data</button>
+                    <div class="status-info" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px;">
+                        <div style="flex: 1;">
+                            <p>Source: <strong id="uploadedDataSource">-</strong></p>
+                            <p>Date: <strong id="uploadedDataDate">-</strong></p>
+                            <p>Indices: <strong id="uploadedDataCount">-</strong></p>
+                        </div>
+                        <button id="clearUploadedDataBtn" class="clear-data-btn" title="Clear Uploaded Data" style="background: none; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
