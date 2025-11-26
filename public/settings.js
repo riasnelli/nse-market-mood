@@ -523,17 +523,7 @@ class SettingsManager {
         });
         
         // Add Upload CSV Data as a selectable option
-        const uploadedApiItem = document.createElement('div');
-        uploadedApiItem.className = 'api-item';
-        
-        const details = document.createElement('details');
-        details.className = 'api-item-collapsible';
-        if (this.settings.activeApi === 'uploaded') {
-            details.open = true;
-        }
-        
-        // Get available dates from database and localStorage
-        this.getAvailableDates().then(availableDates => {
+        this.addUploadCSVDataOption(apiListContainer);
             const summary = document.createElement('summary');
             summary.className = 'api-item-header';
             summary.innerHTML = `
