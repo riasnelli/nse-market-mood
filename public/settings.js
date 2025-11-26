@@ -132,8 +132,16 @@ class SettingsManager {
     }
 
     async addUploadCSVDataOption(container) {
+        // Check if Upload CSV Data option already exists to prevent duplicates
+        const existingUploadOption = container.querySelector('[data-api-type="uploaded"]');
+        if (existingUploadOption) {
+            console.log('Upload CSV Data option already exists, skipping duplicate');
+            return;
+        }
+        
         const uploadedApiItem = document.createElement('div');
         uploadedApiItem.className = 'api-item';
+        uploadedApiItem.setAttribute('data-api-type', 'uploaded'); // Mark to prevent duplicates
         
         const details = document.createElement('details');
         details.className = 'api-item-collapsible';
