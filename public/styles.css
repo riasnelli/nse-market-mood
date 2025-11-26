@@ -953,17 +953,28 @@ footer {
     }
     
     .footer-menu-bar {
-        padding: 8px 10px;
-        gap: 6px;
+        padding: 10px 12px;
+        gap: 2px;
+        border-radius: 50px;
     }
     
     .footer-menu-btn {
-        padding: 10px 12px;
+        padding: 6px 8px;
+        gap: 3px;
+    }
+    
+    .footer-menu-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .footer-btn-label {
+        font-size: 0.65rem;
     }
     
     /* Add padding to body to prevent content from being hidden behind footer */
     body {
-        padding-bottom: calc(80px + env(safe-area-inset-bottom));
+        padding-bottom: calc(90px + env(safe-area-inset-bottom));
     }
 }
 
