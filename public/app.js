@@ -2010,27 +2010,12 @@ class MarketMoodApp {
                 const dataSource = document.getElementById('dataSource');
                 const updateInfo = document.getElementById('updateInfo');
 
-                if (source === 'uploaded' && data) {
-                    const date = new Date(data.date).toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric' 
-                    });
-                    if (dataSource) {
-                        dataSource.textContent = `Data from uploaded CSV (${date})`;
-                    }
-                    if (updateInfo) {
-                        updateInfo.textContent = 'Static data from file';
-                    }
-                } else {
-                    // Get API name from settings
-                    const apiName = window.settingsManager?.getActiveApiConfig()?.name || 'NSE India';
-                    if (dataSource) {
-                        dataSource.textContent = `Data from ${apiName}`;
-                    }
-                    if (updateInfo) {
-                        updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
-                    }
+                // Always show minimal message: "NSE India • Updates every 30 sec. during market hrs."
+                if (dataSource) {
+                    dataSource.textContent = 'NSE India';
+                }
+                if (updateInfo) {
+                    updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
                 }
             }
 
