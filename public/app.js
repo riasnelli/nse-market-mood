@@ -957,7 +957,10 @@ class MarketMoodApp {
                     if (mode === 'table') {
                         this.renderIndicesTable(sortedOtherIndices);
                     } else {
-                        this.renderIndicesCards(sortedOtherIndices);
+                        // Force card view rendering with a small delay to ensure DOM is ready
+                        setTimeout(() => {
+                            this.renderIndicesCards(sortedOtherIndices);
+                        }, 10);
                     }
                 }
             }

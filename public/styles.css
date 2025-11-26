@@ -686,26 +686,27 @@ header h1 {
 
 .data-card {
     background: white !important;
-    padding: 20px 15px;
-    border-radius: 20px;
+    padding: 20px 15px !important;
+    border-radius: 20px !important;
     text-align: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border: none;
-    min-height: 120px;
-    height: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    border: none !important;
+    min-height: 120px !important;
+    height: auto !important;
     display: flex !important;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
     visibility: visible !important;
     opacity: 1 !important;
     position: relative;
     z-index: 1;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
     overflow: hidden;
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
+    flex-grow: 0 !important;
 }
 
 .data-card h3 {
