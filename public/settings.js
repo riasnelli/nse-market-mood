@@ -427,7 +427,7 @@ class SettingsManager {
                 const dateEl = document.getElementById('uploadedDataDate');
                 const countEl = document.getElementById('uploadedDataCount');
                 
-                if (sourceEl) sourceEl.textContent = data.fileName || data.source || 'Uploaded CSV';
+                if (sourceEl) sourceEl.textContent = 'Uploaded Data • Static data from file';
                 if (dateEl) dateEl.textContent = data.date || data.dataDate || 'N/A';
                 if (countEl) countEl.textContent = data.indices?.length || 0;
                 

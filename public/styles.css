@@ -898,30 +898,12 @@ header h1 {
     text-overflow: ellipsis;
 }
 
-/* Mobile: Fixed footer at bottom like mobile app */
+/* Mobile: Footer stays below content (not fixed) */
 @media (max-width: 768px) {
     footer {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        width: 100%;
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        padding: 15px 20px;
-        padding-bottom: calc(15px + env(safe-area-inset-bottom));
-        margin-top: 0;
-        z-index: 100;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Add padding to body to prevent content from being hidden behind fixed footer */
-    body {
-        padding-bottom: calc(180px + env(safe-area-inset-bottom));
-    }
-    
-    .container {
-        padding-bottom: calc(180px + env(safe-area-inset-bottom));
+        position: relative;
+        margin-top: 30px;
+        padding-bottom: 20px;
     }
 }
 
