@@ -1353,6 +1353,98 @@ class MarketMoodApp {
         return data;
     }
 
+    parseDATFile(datText) {
+        // .DAT files can have various formats. Try to detect the format:
+        // 1. CSV-like format (comma or tab separated)
+        // 2. Fixed-width format
+        // 3. Other delimited formats
+        
+        const lines = datText.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length < 2) {
+            throw new Error('DAT file is empty or invalid');
+        }
+
+        // Check if it's CSV-like (contains commas or tabs)
+        const firstLine = lines[0];
+        const hasCommas = firstLine.includes(',');
+        const hasTabs = firstLine.includes('\t');
+        const hasPipes = firstLine.includes('|');
+        
+        let delimiter = ',';
+        if (hasTabs) {
+            delimiter = '\t';
+        } else if (hasPipes) {
+            delimiter = '|';
+        } else if (hasCommas) {
+            delimiter = ',';
+        } else {
+            // Try to detect delimiter by checking multiple lines
+            for (let i = 0; i < Math.min(5, lines.length); i++) {
+                if (lines[i].includes('\t')) {
+                    delimiter = '\t';
+                    break;
+                } else if (lines[i].includes('|')) {
+                    delimiter = '|';
+                    break;
+                } else if (lines[i].includes(',')) {
+                    delimiter = ',';
+                    break;
+                }
+            }
+        }
+
+        // Parse header
+        const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+        
+        // Parse data rows
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = this.parseDelimitedLine(lines[i], delimiter);
+            if (values.length === headers.length) {
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index].trim().replace(/^"|"$/g, '');
+                });
+                data.push(row);
+            }
+        }
+
+        return data;
+    }
+
+    parseDelimitedLine(line, delimiter) {
+        // Parse a line with a specific delimiter (handles quoted values)
+        const values = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+
+            if (char === '"') {
+                if (inQuotes && nextChar === '"') {
+                    // Escaped quote
+                    current += '"';
+                    i++; // Skip next quote
+                } else {
+                    // Toggle quote state
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === delimiter && !inQuotes) {
+                // End of value
+                values.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        
+        // Add last value
+        values.push(current);
+        return values;
+    }
+
     parseCSVLine(line) {
         const values = [];
         let current = '';
