@@ -1271,7 +1271,7 @@ class MarketMoodApp {
                     fileName.textContent = file.name;
                     if (uploadDataBtn) uploadDataBtn.disabled = false;
                 } else {
-                    fileName.textContent = 'Choose CSV file...';
+                    fileName.textContent = 'Choose CSV or DAT file...';
                     if (uploadDataBtn) uploadDataBtn.disabled = true;
                 }
             });
@@ -1291,8 +1291,18 @@ class MarketMoodApp {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
-                        const csvData = this.parseCSV(e.target.result);
-                        const processedData = this.processCSVData(csvData, date, file.name);
+                        // Detect file type and parse accordingly
+                        const fileExtension = file.name.split('.').pop().toLowerCase();
+                        let parsedData;
+                        
+                        if (fileExtension === 'dat') {
+                            parsedData = this.parseDATFile(e.target.result);
+                        } else {
+                            // Default to CSV parsing
+                            parsedData = this.parseCSV(e.target.result);
+                        }
+                        
+                        const processedData = this.processCSVData(parsedData, date, file.name);
                         
                         // Store in localStorage
                         localStorage.setItem('uploadedIndicesData', JSON.stringify(processedData));
@@ -1314,8 +1324,8 @@ class MarketMoodApp {
                             this.loadData();
                         }, 1500);
                     } catch (error) {
-                        console.error('Error processing CSV:', error);
-                        this.showUploadStatus('Error processing CSV: ' + error.message, 'error');
+                        console.error('Error processing file:', error);
+                        this.showUploadStatus('Error processing file: ' + error.message, 'error');
                     }
                 };
                 reader.readAsText(file);
