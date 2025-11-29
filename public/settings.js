@@ -37,6 +37,14 @@ class SettingsManager {
         this.init();
     }
 
+    lockBodyScroll() {
+        document.body.classList.add('body-scroll-lock');
+    }
+
+    unlockBodyScroll() {
+        document.body.classList.remove('body-scroll-lock');
+    }
+
     init() {
         this.loadSettings();
         // Wait for DOM to be ready before setting up event listeners
@@ -701,6 +709,7 @@ class SettingsManager {
             const settingsModal = document.getElementById('settingsModal');
             if (settingsModal) {
                 settingsModal.classList.add('show');
+                this.lockBodyScroll();
                 // Use setTimeout to ensure modal is visible before updating content
                 setTimeout(() => {
                     // Refresh settings in modal when opened
@@ -751,12 +760,14 @@ class SettingsManager {
         if (closeSettings) {
             closeSettings.addEventListener('click', () => {
                 settingsModal.classList.remove('show');
+                this.unlockBodyScroll();
             });
         }
 
         if (cancelSettings) {
             cancelSettings.addEventListener('click', () => {
                 settingsModal.classList.remove('show');
+                this.unlockBodyScroll();
             });
         }
 
@@ -765,6 +776,7 @@ class SettingsManager {
             settingsModal.addEventListener('click', (e) => {
                 if (e.target === settingsModal) {
                     settingsModal.classList.remove('show');
+                    this.unlockBodyScroll();
                 }
             });
         }
@@ -874,6 +886,7 @@ class SettingsManager {
         const settingsModal = document.getElementById('settingsModal');
         if (settingsModal) {
             settingsModal.classList.remove('show');
+            this.unlockBodyScroll();
         }
 
         // Notify app to reload with new API

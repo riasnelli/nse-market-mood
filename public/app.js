@@ -1254,12 +1254,14 @@ class MarketMoodApp {
         if (closeUpload && uploadModal) {
             closeUpload.addEventListener('click', () => {
                 uploadModal.classList.remove('show');
+                this.unlockBodyScroll();
             });
         }
 
         if (cancelUpload && uploadModal) {
             cancelUpload.addEventListener('click', () => {
                 uploadModal.classList.remove('show');
+                this.unlockBodyScroll();
             });
         }
 
@@ -1341,6 +1343,7 @@ class MarketMoodApp {
                         // Reload data to use uploaded CSV
                         setTimeout(() => {
                             if (uploadModal) uploadModal.classList.remove('show');
+                            this.unlockBodyScroll();
                             this.loadData();
                         }, 1500);
                     } catch (error) {
@@ -1726,6 +1729,7 @@ class MarketMoodApp {
     openCalendarModal() {
         if (this.calendarModal) {
             this.calendarModal.classList.add('show');
+            this.lockBodyScroll();
             // Render calendar when modal opens
             this.renderCalendar();
         }
@@ -1734,6 +1738,7 @@ class MarketMoodApp {
     closeCalendarModal() {
         if (this.calendarModal) {
             this.calendarModal.classList.remove('show');
+            this.unlockBodyScroll();
         }
     }
 
@@ -2291,8 +2296,17 @@ class MarketMoodApp {
         const uploadModal = document.getElementById('uploadModal');
         if (uploadModal) {
             uploadModal.classList.add('show');
+            this.lockBodyScroll();
             this.updateUploadedDataInfo();
         }
+    }
+
+    lockBodyScroll() {
+        document.body.classList.add('body-scroll-lock');
+    }
+
+    unlockBodyScroll() {
+        document.body.classList.remove('body-scroll-lock');
     }
 
     updateLogoutButton() {
