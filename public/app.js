@@ -126,6 +126,109 @@ class MarketMoodApp {
 
         // Show footer initially
         footer.classList.remove('hidden');
+
+        // Setup elastic scroll effect
+        this.setupElasticScroll();
+    }
+
+    setupElasticScroll() {
+        // Enable elastic scrolling on iOS (native)
+        // For other browsers, add visual feedback
+        const body = document.body;
+        const html = document.documentElement;
+        
+        let isAtTop = false;
+        let isAtBottom = false;
+        let lastScrollTop = 0;
+        
+        const checkScrollBounds = () => {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+            const windowHeight = window.innerHeight;
+            const documentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Check if at top or bottom
+            const atTop = scrollTop <= 0;
+            const atBottom = scrollTop + windowHeight >= documentHeight - 1;
+            
+            // Add elastic effect classes
+            if (atTop && !isAtTop) {
+                body.classList.add('scroll-at-top');
+                isAtTop = true;
+            } else if (!atTop && isAtTop) {
+                body.classList.remove('scroll-at-top');
+                isAtTop = false;
+            }
+            
+            if (atBottom && !isAtBottom) {
+                body.classList.add('scroll-at-bottom');
+                isAtBottom = true;
+            } else if (!atBottom && isAtBottom) {
+                body.classList.remove('scroll-at-bottom');
+                isAtBottom = false;
+            }
+            
+            lastScrollTop = scrollTop;
+        };
+        
+        // Check on scroll
+        window.addEventListener('scroll', () => {
+            checkScrollBounds();
+        }, { passive: true });
+        
+        // Check on touch events for better mobile support
+        let touchStartY = 0;
+        let touchEndY = 0;
+        
+        document.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        
+        document.addEventListener('touchmove', (e) => {
+            touchEndY = e.touches[0].clientY;
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+            const windowHeight = window.innerHeight;
+            const documentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Check if trying to scroll past boundaries
+            const scrollingUp = touchEndY > touchStartY;
+            const scrollingDown = touchEndY < touchStartY;
+            
+            if (scrollTop <= 0 && scrollingUp) {
+                // At top, trying to scroll up - add elastic effect
+                body.classList.add('elastic-top');
+            } else {
+                body.classList.remove('elastic-top');
+            }
+            
+            if (scrollTop + windowHeight >= documentHeight - 1 && scrollingDown) {
+                // At bottom, trying to scroll down - add elastic effect
+                body.classList.add('elastic-bottom');
+            } else {
+                body.classList.remove('elastic-bottom');
+            }
+        }, { passive: true });
+        
+        document.addEventListener('touchend', () => {
+            // Remove elastic classes after touch ends
+            setTimeout(() => {
+                body.classList.remove('elastic-top', 'elastic-bottom');
+            }, 200);
+        }, { passive: true });
+        
+        // Initial check
+        checkScrollBounds();
     }
 
     init() {

@@ -20,6 +20,9 @@ html {
     background-attachment: fixed;
     background-size: cover;
     background-repeat: no-repeat;
+    /* Enable elastic scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
 }
 
 body {
@@ -41,6 +44,12 @@ body {
     background-attachment: fixed;
     background-size: cover;
     background-repeat: no-repeat;
+    /* Enable elastic scrolling */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    /* Add elastic bounce effect */
+    overflow-y: auto;
+    overscroll-behavior: bounce;
 }
 
 /* Prevent body scrolling when modal is open */
@@ -49,6 +58,64 @@ body.body-scroll-lock {
     position: fixed;
     width: 100%;
     height: 100%;
+}
+
+/* Elastic scroll effect classes */
+body.elastic-top {
+    animation: elasticBounceTop 0.3s ease-out;
+}
+
+body.elastic-bottom {
+    animation: elasticBounceBottom 0.3s ease-out;
+}
+
+@keyframes elasticBounceTop {
+    0% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(10px);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+@keyframes elasticBounceBottom {
+    0% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+/* Visual feedback for scroll boundaries */
+body.scroll-at-top::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    z-index: 10000;
+    pointer-events: none;
+}
+
+body.scroll-at-bottom::after {
+    content: '';
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    z-index: 10000;
+    pointer-events: none;
 }
 
 /* Dynamic Island / Safe Area Top Background - Fixed overlay */
