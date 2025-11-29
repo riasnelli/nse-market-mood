@@ -2329,6 +2329,16 @@ class MarketMoodApp {
         }
     }
 
+    handleSignals() {
+        // Show all indices section when Signals button is clicked
+        const allIndicesSection = document.getElementById('allIndicesSection');
+        if (allIndicesSection) {
+            allIndicesSection.style.display = 'block';
+            // Scroll to the section
+            allIndicesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
     updateDataSourceDisplay(source, data = null) {
         const dataSource = document.getElementById('dataSource');
         const updateInfo = document.getElementById('updateInfo');
