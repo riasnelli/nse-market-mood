@@ -959,6 +959,28 @@ footer {
     margin: 0;
 }
 
+footer {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    pointer-events: none;
+}
+
+footer.hidden {
+    transform: translateX(-50%) translateY(calc(100% + 20px));
+    opacity: 0;
+    pointer-events: none;
+}
+
+footer:not(.hidden) {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
 .footer-menu-bar {
     display: flex;
     background: white;
@@ -969,6 +991,7 @@ footer {
     align-items: center;
     justify-content: space-around;
     backdrop-filter: blur(10px);
+    pointer-events: auto;
 }
 
 .footer-menu-btn {
