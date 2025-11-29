@@ -60,14 +60,29 @@ body::before {
     right: 0;
     height: env(safe-area-inset-top, 0px);
     min-height: env(safe-area-inset-top, 0px);
-    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    background-color: var(--mood-bg-color, #667eea);
-    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+    background-color: var(--mood-bg-color, #667eea) !important;
+    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
     z-index: 9999;
     pointer-events: none;
     background-attachment: fixed;
     background-size: cover;
     background-repeat: no-repeat;
+}
+
+/* Override dark mode for safe area */
+@media (prefers-color-scheme: dark) {
+    body::before {
+        background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+        background-color: var(--mood-bg-color, #667eea) !important;
+        background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+    }
+    
+    #safeAreaOverlay {
+        background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+        background-color: var(--mood-bg-color, #667eea) !important;
+        background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+    }
 }
 
 /* Additional overlay div for PWA mode (more reliable than ::before) */
@@ -80,6 +95,12 @@ body::before {
     min-height: env(safe-area-inset-top, 0px);
     z-index: 99999;
     pointer-events: none;
+    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+    background-color: var(--mood-bg-color, #667eea) !important;
+    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+    background-attachment: fixed;
+    background-size: cover;
+    background-repeat: no-repeat;
 }
 
 .container {
