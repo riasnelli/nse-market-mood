@@ -2116,9 +2116,9 @@ class MarketMoodApp {
                     row.innerHTML = `
                         <td>${index + 1}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
-                        <td style="color: ${dateData.indices.count > 0 ? dateColor : '#999';">${dateData.indices.count || 0}</td>
-                        <td style="color: ${dateData.bhav.count > 0 ? dateColor : '#999';">${dateData.bhav.count || 0}</td>
-                        <td style="color: ${dateData.premarket.count > 0 ? dateColor : '#999';">${dateData.premarket.count || 0}</td>
+                        <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
+                        <td style="color: ${(dateData.bhav?.count || 0) > 0 ? dateColor : '#999'};">${dateData.bhav?.count || 0}</td>
+                        <td style="color: ${(dateData.premarket?.count || 0) > 0 ? dateColor : '#999'};">${dateData.premarket?.count || 0}</td>
                         <td class="action-buttons">
                             <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2127,7 +2127,7 @@ class MarketMoodApp {
                                     <line x1="12" y1="15" x2="12" y2="3"></line>
                                 </svg>
                             </button>
-                            <button class="btn-delete" data-date="${dateData.date}" data-indices-id="${dateData.indices.id || ''}" data-bhav-id="${dateData.bhav.id || ''}" data-premarket-id="${dateData.premarket.id || ''}" title="Delete">
+                            <button class="btn-delete" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}" title="Delete">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="3 6 5 6 21 6"></polyline>
                                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
