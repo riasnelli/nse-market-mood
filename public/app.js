@@ -2172,8 +2172,16 @@ class MarketMoodApp {
                 if (emptyEl) emptyEl.style.display = 'none';
                 uploadedDataInfo.style.display = 'block';
 
-                // Populate table
+                // Populate table - ensure we only add each date once
+                const addedDates = new Set();
                 groupedData.forEach((dateData, index) => {
+                    // Skip if this date was already added
+                    if (addedDates.has(dateData.date)) {
+                        console.warn(`Skipping duplicate date: ${dateData.date}`);
+                        return;
+                    }
+                    addedDates.add(dateData.date);
+                    
                     const row = document.createElement('tr');
                     
                     // Format date as DD/MM
