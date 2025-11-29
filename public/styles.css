@@ -22,7 +22,7 @@ html {
     background-repeat: no-repeat;
     /* Enable elastic scrolling on iOS */
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    overscroll-behavior-y: auto;
 }
 
 body {
@@ -46,10 +46,9 @@ body {
     background-repeat: no-repeat;
     /* Enable elastic scrolling */
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-    /* Add elastic bounce effect */
     overflow-y: auto;
-    overscroll-behavior: bounce;
+    /* Allow elastic bounce at boundaries */
+    overscroll-behavior-y: auto;
 }
 
 /* Prevent body scrolling when modal is open */
