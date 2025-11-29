@@ -2004,7 +2004,11 @@ class MarketMoodApp {
         if (loadingEl) loadingEl.style.display = 'block';
         if (emptyEl) emptyEl.style.display = 'none';
         if (tableEl) tableEl.style.display = 'none';
+        // Clear table body completely
         tableBody.innerHTML = '';
+        
+        // Debug: Log when function is called
+        console.log('updateUploadedDataInfo called');
 
         try {
             // Fetch all uploaded files from all 3 collections
