@@ -28,10 +28,13 @@ module.exports = async (req, res) => {
     const collection = await getUploadedDataCollection(uploadType);
     
     // Get all documents first to properly count indices
+    // No limit - fetch all documents including last week's data
     const allDocuments = await collection
       .find({})
       .sort({ uploadedAt: -1 })
       .toArray();
+    
+    console.log(`Found ${allDocuments.length} documents for type: ${uploadType}`);
     
     // Group by date and get the most recent file's count for each date
     const dateMap = new Map();

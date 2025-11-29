@@ -2103,6 +2103,8 @@ class MarketMoodApp {
             const groupedData = Array.from(dateMap.values()).sort((a, b) => {
                 return new Date(b.date) - new Date(a.date);
             });
+            
+            console.log(`Grouped ${groupedData.length} unique dates from all collections:`, groupedData.map(d => d.date));
 
             if (groupedData.length > 0) {
                 // Show table and hide empty message

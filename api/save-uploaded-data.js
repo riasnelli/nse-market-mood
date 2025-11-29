@@ -118,10 +118,13 @@ module.exports = async (req, res) => {
       }
 
       // Find documents, sort by most recent first
+      // No limit - fetch all documents to show all dates including last week
       const documents = await collection
         .find(query)
         .sort({ uploadedAt: -1 })
         .toArray();
+      
+      console.log(`Found ${documents.length} documents for type: ${uploadType || 'indices'}`);
 
       // Check if full data is requested (for loading into UI)
       const { full } = req.query;
