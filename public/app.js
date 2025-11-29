@@ -2245,19 +2245,14 @@ class MarketMoodApp {
         }
     }
 
-    async deleteUploadedFile(fileId) {
-        if (!confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
-            return;
-        }
-
+    async deleteUploadedFile(fileId, type = 'indices') {
         try {
-            const response = await fetch(`/api/save-uploaded-data?id=${fileId}`, {
+            const response = await fetch(`/api/save-uploaded-data?id=${fileId}&type=${type}`, {
                 method: 'DELETE'
             });
             const result = await response.json();
 
             if (result.success) {
-                this.showUploadStatus('File deleted successfully', 'success');
                 // Refresh the table
                 this.updateUploadedDataInfo();
                 // Also check if we need to hide date picker (refresh available dates)
