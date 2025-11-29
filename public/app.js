@@ -1134,30 +1134,41 @@ class MarketMoodApp {
         this.updateThemeColor(themeColor);
         
         // Update CSS custom property for safe-area-inset background
-        // Update CSS custom properties for mood-based colors
-        document.documentElement.style.setProperty('--mood-bg-color', themeColor);
-        document.documentElement.style.setProperty('--mood-gradient', gradient);
+        // Update CSS custom properties for mood-based colors with !important
+        document.documentElement.style.setProperty('--mood-bg-color', themeColor, 'important');
+        document.documentElement.style.setProperty('--mood-gradient', gradient, 'important');
         
         // Also update html background to extend to top safe area
         const html = document.documentElement;
-        html.style.setProperty('background-color', themeColor);
-        html.style.setProperty('background-image', gradient);
-        html.style.setProperty('background-attachment', 'fixed');
-        html.style.setProperty('background-size', 'cover');
-        html.style.setProperty('background-repeat', 'no-repeat');
+        html.style.setProperty('background-color', themeColor, 'important');
+        html.style.setProperty('background-image', gradient, 'important');
+        html.style.setProperty('background-attachment', 'fixed', 'important');
+        html.style.setProperty('background-size', 'cover', 'important');
+        html.style.setProperty('background-repeat', 'no-repeat', 'important');
         
         // Update body background
-        body.style.setProperty('background-color', themeColor);
-        body.style.setProperty('background-image', gradient);
-        body.style.setProperty('background-attachment', 'fixed');
-        body.style.setProperty('background-size', 'cover');
-        body.style.setProperty('background-repeat', 'no-repeat');
+        body.style.setProperty('background-color', themeColor, 'important');
+        body.style.setProperty('background-image', gradient, 'important');
+        body.style.setProperty('background-attachment', 'fixed', 'important');
+        body.style.setProperty('background-size', 'cover', 'important');
+        body.style.setProperty('background-repeat', 'no-repeat', 'important');
         
-        // Update the ::before pseudo-element (Dynamic Island area) by updating CSS variables
-        // The ::before element will automatically use the updated CSS variables
-        // Force update by accessing computed style
-        const beforeElement = window.getComputedStyle(body, '::before');
-        // CSS variables are already updated, so ::before will pick them up
+        // Force update body::before pseudo-element via dynamic style element
+        // This ensures the safe area overlay always shows mood color, even in dark mode
+        const styleId = 'safeAreaDynamicStyle';
+        let dynamicStyle = document.getElementById(styleId);
+        if (!dynamicStyle) {
+            dynamicStyle = document.createElement('style');
+            dynamicStyle.id = styleId;
+            document.head.appendChild(dynamicStyle);
+        }
+        dynamicStyle.textContent = `
+            body::before {
+                background: ${gradient} !important;
+                background-color: ${themeColor} !important;
+                background-image: ${gradient} !important;
+            }
+        `;
     }
 
     updateThemeColor(color) {
