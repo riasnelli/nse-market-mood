@@ -59,15 +59,38 @@ async function connectToDatabase() {
 }
 
 /**
- * Get the uploaded data collection
+ * Get the uploaded data collection based on type
+ * @param {string} type - 'indices', 'bhav', or 'premarket'
  */
-async function getUploadedDataCollection() {
+async function getUploadedDataCollection(type = 'indices') {
   const { db } = await connectToDatabase();
-  return db.collection('uploadedData');
+  
+  // Map type to collection name
+  const collectionMap = {
+    'indices': 'uploadedIndices',
+    'bhav': 'uploadedBhav',
+    'premarket': 'uploadedPreMarket'
+  };
+  
+  const collectionName = collectionMap[type] || 'uploadedIndices';
+  return db.collection(collectionName);
+}
+
+/**
+ * Get all uploaded data collections (for listing all types)
+ */
+async function getAllUploadedDataCollections() {
+  const { db } = await connectToDatabase();
+  return {
+    indices: db.collection('uploadedIndices'),
+    bhav: db.collection('uploadedBhav'),
+    premarket: db.collection('uploadedPreMarket')
+  };
 }
 
 module.exports = {
   connectToDatabase,
   getUploadedDataCollection,
+  getAllUploadedDataCollections,
 };
 

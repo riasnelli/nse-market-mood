@@ -23,7 +23,9 @@ module.exports = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const collection = await getUploadedDataCollection();
+    // Get type from query parameter, default to 'indices'
+    const uploadType = req.query.type || 'indices';
+    const collection = await getUploadedDataCollection(uploadType);
     
     // Get all documents first to properly count indices
     const allDocuments = await collection
@@ -42,7 +44,8 @@ module.exports = async (req, res) => {
         if (!dateMap.has(doc.date) || indicesCount > (dateMap.get(doc.date).count || 0)) {
           dateMap.set(doc.date, {
             date: doc.date,
-            count: indicesCount
+            count: indicesCount,
+            type: uploadType
           });
         }
       }

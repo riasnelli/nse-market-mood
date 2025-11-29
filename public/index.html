@@ -160,10 +160,20 @@
             </div>
             <div class="modal-body">
                 <div class="settings-section">
-                    <h3>Upload NSE Indices Data</h3>
-                    <p class="settings-hint">Upload a CSV or DAT file with NSE indices data. The file should have columns: Name, LTP, Change(%), etc.</p>
+                    <h3>Upload NSE Data</h3>
+                    <p class="settings-hint">Upload a CSV or DAT file with NSE data. The file should have columns: Name, LTP, Change(%), etc.</p>
                     
                     <div class="upload-form">
+                        <label for="uploadType" class="form-label">
+                            <span>Data Type:</span>
+                            <select id="uploadType" class="form-control" required>
+                                <option value="">Select Type</option>
+                                <option value="indices">Indices</option>
+                                <option value="bhav">Bhav</option>
+                                <option value="premarket">Pre-market</option>
+                            </select>
+                        </label>
+                        
                         <label for="csvFile" class="file-label">
                             <input type="file" id="csvFile" accept=".csv,.dat" style="display: none;">
                             <div class="file-input-display">
@@ -172,7 +182,7 @@
                                     <polyline points="17 8 12 3 7 8"></polyline>
                                     <line x1="12" y1="3" x2="12" y2="15"></line>
                                 </svg>
-                                <span id="fileName">Choose CSV file...</span>
+                                <span id="fileName">Choose CSV or DAT file...</span>
                             </div>
                         </label>
                         

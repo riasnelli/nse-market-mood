@@ -1282,9 +1282,10 @@ class MarketMoodApp {
             uploadDataBtn.addEventListener('click', () => {
                 const file = csvFile.files[0];
                 const date = dataDate.value;
+                const uploadType = document.getElementById('uploadType')?.value;
                 
-                if (!file || !date) {
-                    this.showUploadStatus('Please select a file and date', 'error');
+                if (!file || !date || !uploadType) {
+                    this.showUploadStatus('Please select a file, date, and data type', 'error');
                     return;
                 }
 
@@ -1304,11 +1305,15 @@ class MarketMoodApp {
                         
                         const processedData = this.processCSVData(parsedData, date, file.name);
                         
-                        // Store in localStorage
-                        localStorage.setItem('uploadedIndicesData', JSON.stringify(processedData));
+                        // Add type to processed data
+                        processedData.type = uploadType;
+                        
+                        // Store in localStorage with type-specific key
+                        const storageKey = `uploaded${uploadType.charAt(0).toUpperCase() + uploadType.slice(1)}Data`;
+                        localStorage.setItem(storageKey, JSON.stringify(processedData));
                         
                         // Also save to database (optional - will work even if DB is not configured)
-                        this.saveToDatabase(processedData, file.name, date).catch(err => {
+                        this.saveToDatabase(processedData, file.name, date, uploadType).catch(err => {
                             console.warn('Failed to save to database (continuing with localStorage):', err);
                         });
                         
@@ -1336,6 +1341,21 @@ class MarketMoodApp {
 
         // Update uploaded data info on load
         this.updateUploadedDataInfo();
+    }
+
+    updateUploadButtonState() {
+        const uploadDataBtn = document.getElementById('uploadDataBtn');
+        const csvFile = document.getElementById('csvFile');
+        const dataDate = document.getElementById('dataDate');
+        const uploadType = document.getElementById('uploadType');
+        
+        if (uploadDataBtn && csvFile && dataDate && uploadType) {
+            const hasFile = csvFile.files && csvFile.files.length > 0;
+            const hasDate = dataDate.value && dataDate.value.trim() !== '';
+            const hasType = uploadType.value && uploadType.value.trim() !== '';
+            
+            uploadDataBtn.disabled = !(hasFile && hasDate && hasType);
+        }
     }
 
     parseCSV(csvText) {
@@ -1590,7 +1610,7 @@ class MarketMoodApp {
         return { score, text: 'Extremely Bearish', emoji: '🐻' };
     }
 
-    async saveToDatabase(data, fileName, dataDate) {
+    async saveToDatabase(data, fileName, dataDate, type = 'indices') {
         try {
             const response = await fetch('/api/save-uploaded-data', {
                 method: 'POST',
@@ -1600,6 +1620,7 @@ class MarketMoodApp {
                 body: JSON.stringify({
                     fileName: fileName || 'uploaded.csv',
                     date: dataDate || new Date().toISOString().split('T')[0],
+                    type: type || 'indices',
                     indices: data.indices || [],
                     mood: data.mood,
                     vix: data.vix,

@@ -44,11 +44,18 @@ module.exports = async (req, res) => {
       }
     }
 
-    const collection = await getUploadedDataCollection();
+    // For GET and DELETE, we need to check which collection to use
+    // Default to 'indices' if type not specified
+    const uploadType = req.query.type || 'indices';
+    const collection = await getUploadedDataCollection(uploadType);
 
     if (req.method === 'POST') {
       // Save uploaded data to database
-      const { fileName, date, indices, mood, vix, advanceDecline, timestamp, source } = req.body;
+      const { fileName, date, indices, mood, vix, advanceDecline, timestamp, source, type } = req.body;
+
+      // Validate type
+      const validTypes = ['indices', 'bhav', 'premarket'];
+      const uploadType = (type && validTypes.includes(type)) ? type : 'indices';
 
       if (!indices || !Array.isArray(indices)) {
         return res.status(400).json({ 
@@ -60,6 +67,7 @@ module.exports = async (req, res) => {
       const dataToSave = {
         fileName: fileName || 'uploaded.csv',
         date: date || new Date().toISOString().split('T')[0],
+        type: uploadType,
         indices,
         mood: mood || null,
         vix: vix || null,
@@ -69,6 +77,9 @@ module.exports = async (req, res) => {
         uploadedAt: new Date(),
         updatedAt: new Date()
       };
+
+      // Get the correct collection based on type
+      const collection = await getUploadedDataCollection(uploadType);
 
       // Insert into MongoDB
       const result = await collection.insertOne(dataToSave);

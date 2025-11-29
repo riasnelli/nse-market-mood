@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { date } = req.query;
+    const { date, type } = req.query;
 
     if (!date) {
       return res.status(400).json({
@@ -35,7 +35,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    const collection = await getUploadedDataCollection();
+    // Get type from query parameter, default to 'indices'
+    const uploadType = type || 'indices';
+    const collection = await getUploadedDataCollection(uploadType);
     
     // Find data for the specified date
     const data = await collection.findOne({ date: date });
@@ -51,6 +53,7 @@ module.exports = async (req, res) => {
     res.status(200).json({
       date: data.date,
       fileName: data.fileName || `Uploaded CSV - ${data.date}`,
+      type: data.type || uploadType,
       indices: data.indices || [],
       mood: data.mood || null,
       vix: data.vix || null,
