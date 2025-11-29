@@ -1978,34 +1978,123 @@ class MarketMoodApp {
         tableBody.innerHTML = '';
 
         try {
-            // Fetch all uploaded files from database
-            const response = await fetch('/api/save-uploaded-data');
-            const result = await response.json();
+            // Fetch all uploaded files from all 3 collections
+            const [indicesResponse, bhavResponse, premarketResponse] = await Promise.all([
+                fetch('/api/save-uploaded-data?type=indices'),
+                fetch('/api/save-uploaded-data?type=bhav'),
+                fetch('/api/save-uploaded-data?type=premarket')
+            ]);
+
+            const indicesResult = await indicesResponse.json();
+            const bhavResult = await bhavResponse.json();
+            const premarketResult = await premarketResponse.json();
 
             if (loadingEl) loadingEl.style.display = 'none';
 
-            if (result.success && result.data && result.data.length > 0) {
+            // Combine all data and group by date
+            const dateMap = new Map();
+
+            // Process indices data
+            if (indicesResult.success && indicesResult.data) {
+                indicesResult.data.forEach(file => {
+                    if (file.date) {
+                        if (!dateMap.has(file.date)) {
+                            dateMap.set(file.date, {
+                                date: file.date,
+                                indices: { count: 0, id: null },
+                                bhav: { count: 0, id: null },
+                                premarket: { count: 0, id: null },
+                                uploadedAt: file.uploadedAt
+                            });
+                        }
+                        const dateData = dateMap.get(file.date);
+                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        if (count > dateData.indices.count) {
+                            dateData.indices.count = count;
+                            dateData.indices.id = file.id;
+                        }
+                        // Keep the most recent uploadedAt
+                        if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
+                            dateData.uploadedAt = file.uploadedAt;
+                        }
+                    }
+                });
+            }
+
+            // Process bhav data
+            if (bhavResult.success && bhavResult.data) {
+                bhavResult.data.forEach(file => {
+                    if (file.date) {
+                        if (!dateMap.has(file.date)) {
+                            dateMap.set(file.date, {
+                                date: file.date,
+                                indices: { count: 0, id: null },
+                                bhav: { count: 0, id: null },
+                                premarket: { count: 0, id: null },
+                                uploadedAt: file.uploadedAt
+                            });
+                        }
+                        const dateData = dateMap.get(file.date);
+                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        if (count > dateData.bhav.count) {
+                            dateData.bhav.count = count;
+                            dateData.bhav.id = file.id;
+                        }
+                        // Keep the most recent uploadedAt
+                        if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
+                            dateData.uploadedAt = file.uploadedAt;
+                        }
+                    }
+                });
+            }
+
+            // Process premarket data
+            if (premarketResult.success && premarketResult.data) {
+                premarketResult.data.forEach(file => {
+                    if (file.date) {
+                        if (!dateMap.has(file.date)) {
+                            dateMap.set(file.date, {
+                                date: file.date,
+                                indices: { count: 0, id: null },
+                                bhav: { count: 0, id: null },
+                                premarket: { count: 0, id: null },
+                                uploadedAt: file.uploadedAt
+                            });
+                        }
+                        const dateData = dateMap.get(file.date);
+                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        if (count > dateData.premarket.count) {
+                            dateData.premarket.count = count;
+                            dateData.premarket.id = file.id;
+                        }
+                        // Keep the most recent uploadedAt
+                        if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
+                            dateData.uploadedAt = file.uploadedAt;
+                        }
+                    }
+                });
+            }
+
+            // Convert map to array and sort by date descending
+            const groupedData = Array.from(dateMap.values()).sort((a, b) => {
+                return new Date(b.date) - new Date(a.date);
+            });
+
+            if (groupedData.length > 0) {
                 // Show table and hide empty message
                 if (tableEl) tableEl.style.display = 'table';
                 if (emptyEl) emptyEl.style.display = 'none';
                 uploadedDataInfo.style.display = 'block';
 
-                // Sort by uploadedAt descending (latest first)
-                const sortedData = result.data.sort((a, b) => {
-                    const dateA = new Date(a.uploadedAt);
-                    const dateB = new Date(b.uploadedAt);
-                    return dateB - dateA;
-                });
-
                 // Populate table
-                sortedData.forEach((file, index) => {
+                groupedData.forEach((dateData, index) => {
                     const row = document.createElement('tr');
                     
                     // Format date as DD-MM-YY
                     let formattedDate = 'N/A';
-                    if (file.date) {
+                    if (dateData.date) {
                         try {
-                            const dateParts = file.date.split('-');
+                            const dateParts = dateData.date.split('-');
                             if (dateParts.length === 3) {
                                 const year = dateParts[0];
                                 const month = dateParts[1];
@@ -2014,54 +2103,31 @@ class MarketMoodApp {
                                 const shortYear = year.length === 4 ? year.substring(2) : year;
                                 formattedDate = `${day}-${month}-${shortYear}`;
                             } else {
-                                formattedDate = file.date;
+                                formattedDate = dateData.date;
                             }
                         } catch (e) {
-                            formattedDate = file.date;
+                            formattedDate = dateData.date;
                         }
                     }
                     
-                    // Get mood color based on mood score
-                    let moodColor = '#333'; // Default dark color
-                    if (file.mood && file.mood.score !== undefined) {
-                        const score = file.mood.score;
-                        if (score >= 70) {
-                            moodColor = '#10b981'; // Green
-                        } else if (score >= 60) {
-                            moodColor = '#34d399'; // Light green
-                        } else if (score >= 50) {
-                            moodColor = '#fbbf24'; // Yellow
-                        } else if (score >= 40) {
-                            moodColor = '#f97316'; // Orange
-                        } else if (score >= 30) {
-                            moodColor = '#fb923c'; // Orange-red
-                        } else if (score >= 20) {
-                            moodColor = '#ef4444'; // Red
-                        } else {
-                            moodColor = '#dc2626'; // Dark red
-                        }
-                    }
-                    
-                    // Apply mood color to the row text
-                    row.style.color = moodColor;
-                    
-                    // Set file name as tooltip on the row
-                    const fileName = file.fileName || 'Unknown';
-                    row.setAttribute('title', fileName);
+                    // Use orange color for date text (as shown in image)
+                    const dateColor = '#f97316'; // Orange color
                     
                     row.innerHTML = `
                         <td>${index + 1}</td>
-                        <td>${formattedDate}</td>
-                        <td>${file.indicesCount || 0}</td>
+                        <td style="color: ${dateColor};">${formattedDate}</td>
+                        <td style="color: ${dateData.indices.count > 0 ? dateColor : '#999';">${dateData.indices.count || 0}</td>
+                        <td style="color: ${dateData.bhav.count > 0 ? dateColor : '#999';">${dateData.bhav.count || 0}</td>
+                        <td style="color: ${dateData.premarket.count > 0 ? dateColor : '#999';">${dateData.premarket.count || 0}</td>
                         <td class="action-buttons">
-                            <button class="btn-export" data-id="${file.id}" data-date="${file.date}" title="Export as CSV">
+                            <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                     <polyline points="7 10 12 15 17 10"></polyline>
                                     <line x1="12" y1="15" x2="12" y2="3"></line>
                                 </svg>
                             </button>
-                            <button class="btn-delete" data-id="${file.id}" title="Delete">
+                            <button class="btn-delete" data-date="${dateData.date}" data-indices-id="${dateData.indices.id || ''}" data-bhav-id="${dateData.bhav.id || ''}" data-premarket-id="${dateData.premarket.id || ''}" title="Delete">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="3 6 5 6 21 6"></polyline>
                                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
