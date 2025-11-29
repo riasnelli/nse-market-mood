@@ -60,6 +60,72 @@ class MarketMoodApp {
                 this.startPolling();
             }
         });
+
+        // Setup scroll-based footer hide/show
+        this.setupFooterScrollBehavior();
+    }
+
+    setupFooterScrollBehavior() {
+        const footer = document.querySelector('footer');
+        if (!footer) return;
+
+        let lastScrollTop = 0;
+        let scrollTimeout = null;
+        let isScrolling = false;
+
+        const handleScroll = () => {
+            if (isScrolling) return;
+            isScrolling = true;
+
+            // Clear existing timeout
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+
+            // Get current scroll position
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+            // Determine scroll direction
+            if (scrollTop > lastScrollTop && scrollTop > 100) {
+                // Scrolling down - hide footer
+                footer.classList.add('hidden');
+            } else if (scrollTop < lastScrollTop) {
+                // Scrolling up - show footer
+                footer.classList.remove('hidden');
+            }
+
+            // Update last scroll position
+            lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+
+            // Reset scrolling flag after a short delay
+            scrollTimeout = setTimeout(() => {
+                isScrolling = false;
+            }, 150);
+        };
+
+        // Throttle scroll events for better performance
+        let ticking = false;
+        const throttledScroll = () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    handleScroll();
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        };
+
+        // Add scroll listener
+        window.addEventListener('scroll', throttledScroll, { passive: true });
+
+        // Also handle scroll on the container if it's scrollable
+        const container = document.querySelector('.container');
+        if (container) {
+            container.addEventListener('scroll', throttledScroll, { passive: true });
+        }
+
+        // Show footer initially
+        footer.classList.remove('hidden');
     }
 
     init() {
