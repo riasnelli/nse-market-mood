@@ -2141,16 +2141,43 @@ class MarketMoodApp {
                 // Add event listeners for export and delete buttons
                 tableBody.querySelectorAll('.btn-export').forEach(btn => {
                     btn.addEventListener('click', (e) => {
-                        const id = e.currentTarget.getAttribute('data-id');
                         const date = e.currentTarget.getAttribute('data-date');
-                        this.exportCSV(id, date);
+                        // Export all types for this date
+                        this.exportCSV(null, date);
                     });
                 });
 
                 tableBody.querySelectorAll('.btn-delete').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const id = e.currentTarget.getAttribute('data-id');
-                        this.deleteUploadedFile(id);
+                    btn.addEventListener('click', async (e) => {
+                        const date = e.currentTarget.getAttribute('data-date');
+                        const indicesId = e.currentTarget.getAttribute('data-indices-id');
+                        const bhavId = e.currentTarget.getAttribute('data-bhav-id');
+                        const premarketId = e.currentTarget.getAttribute('data-premarket-id');
+                        
+                        // Delete all types for this date
+                        const idsToDelete = [
+                            { id: indicesId, type: 'indices' },
+                            { id: bhavId, type: 'bhav' },
+                            { id: premarketId, type: 'premarket' }
+                        ].filter(item => item.id);
+                        
+                        if (idsToDelete.length === 0) {
+                            this.showUploadStatus('No data to delete for this date', 'error');
+                            return;
+                        }
+                        
+                        // Confirm deletion
+                        if (!confirm(`Delete all uploaded data for ${date}?`)) {
+                            return;
+                        }
+                        
+                        // Delete all types
+                        for (const item of idsToDelete) {
+                            await this.deleteUploadedFile(item.id, item.type);
+                        }
+                        
+                        // Refresh the table
+                        this.updateUploadedDataInfo();
                     });
                 });
             } else {
