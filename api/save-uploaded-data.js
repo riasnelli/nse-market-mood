@@ -44,10 +44,6 @@ module.exports = async (req, res) => {
       }
     }
 
-    // For GET and DELETE, we need to check which collection to use
-    // Default to 'indices' if type not specified
-    const uploadType = req.query.type || 'indices';
-    const collection = await getUploadedDataCollection(uploadType);
 
     if (req.method === 'POST') {
       // Save uploaded data to database
@@ -98,7 +94,13 @@ module.exports = async (req, res) => {
 
     } else if (req.method === 'GET') {
       // Retrieve uploaded data from database
-      const { id, date } = req.query;
+      const { id, date, type } = req.query;
+
+      // Get type from query parameter, default to 'indices'
+      const uploadType = type || 'indices';
+      
+      // Get the correct collection based on type
+      const collection = await getUploadedDataCollection(uploadType);
 
       let query = {};
       
@@ -124,7 +126,7 @@ module.exports = async (req, res) => {
         .sort({ uploadedAt: -1 })
         .toArray();
       
-      console.log(`Found ${documents.length} documents for type: ${uploadType || 'indices'}`);
+      console.log(`Found ${documents.length} documents for type: ${uploadType}`);
 
       // Check if full data is requested (for loading into UI)
       const { full } = req.query;
