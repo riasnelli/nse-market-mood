@@ -2282,55 +2282,46 @@ class MarketMoodApp {
                 setTimeout(() => {
                     statusEl.style.display = 'none';
                 }, 3000);
-            }
         }
     }
 
-            updateLogoutButton() {
-                const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-                if (this.logoutBtn) {
-                    this.logoutBtn.style.display = isLoggedIn ? 'flex' : 'none';
-                }
-            }
-
-            handleLogout() {
-                if (confirm('Are you sure you want to logout?')) {
-                    localStorage.removeItem('isLoggedIn');
-                    localStorage.removeItem('userEmail');
-                    localStorage.removeItem('loginMethod');
-                    window.location.href = '/login.html';
-                }
-            }
-
-            updateDataSourceDisplay(source, data = null) {
-                const dataSource = document.getElementById('dataSource');
-                const updateInfo = document.getElementById('updateInfo');
-
-                // Always show minimal message: "NSE India • Updates every 30 sec. during market hrs."
-                if (dataSource) {
-                    dataSource.textContent = 'NSE India';
-                }
-                if (updateInfo) {
-                    updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
-                }
-            }
-
-            updateLogoutButton() {
-                const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-                if (this.logoutBtn) {
-                    this.logoutBtn.style.display = isLoggedIn ? 'flex' : 'none';
-                }
-            }
-
-            handleLogout() {
-                if (confirm('Are you sure you want to logout?')) {
-                    localStorage.removeItem('isLoggedIn');
-                    localStorage.removeItem('userEmail');
-                    localStorage.removeItem('loginMethod');
-                    window.location.href = '/login.html';
-                }
-            }
+    openUploadModal() {
+        const uploadModal = document.getElementById('uploadModal');
+        if (uploadModal) {
+            uploadModal.classList.add('show');
+            this.updateUploadedDataInfo();
         }
+    }
+
+    updateLogoutButton() {
+        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+        if (this.logoutBtn) {
+            this.logoutBtn.style.display = isLoggedIn ? 'flex' : 'none';
+        }
+    }
+
+    handleLogout() {
+        if (confirm('Are you sure you want to logout?')) {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('loginMethod');
+            window.location.href = '/login.html';
+        }
+    }
+
+    updateDataSourceDisplay(source, data = null) {
+        const dataSource = document.getElementById('dataSource');
+        const updateInfo = document.getElementById('updateInfo');
+
+        // Always show minimal message: "NSE India • Updates every 30 sec. during market hrs."
+        if (dataSource) {
+            dataSource.textContent = 'NSE India';
+        }
+        if (updateInfo) {
+            updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
+        }
+    }
+}
 
         // Check authentication before initializing app
         function checkAuth() {
