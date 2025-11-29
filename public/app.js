@@ -1269,11 +1269,26 @@ class MarketMoodApp {
                 const file = e.target.files[0];
                 if (file) {
                     fileName.textContent = file.name;
-                    if (uploadDataBtn) uploadDataBtn.disabled = false;
+                    this.updateUploadButtonState();
+                    
+                    // Validate file type
+                    const fileExtension = file.name.split('.').pop().toLowerCase();
+                    if (fileExtension !== 'csv' && fileExtension !== 'dat') {
+                        this.showUploadStatus('Please select a CSV or DAT file', 'error');
+                        if (uploadDataBtn) uploadDataBtn.disabled = true;
+                    }
                 } else {
                     fileName.textContent = 'Choose CSV or DAT file...';
-                    if (uploadDataBtn) uploadDataBtn.disabled = true;
+                    this.updateUploadButtonState();
                 }
+            });
+        }
+
+        // Upload type selection
+        const uploadTypeSelect = document.getElementById('uploadType');
+        if (uploadTypeSelect) {
+            uploadTypeSelect.addEventListener('change', () => {
+                this.updateUploadButtonState();
             });
         }
 
