@@ -2086,6 +2086,11 @@ class MarketMoodApp {
                 if (emptyEl) emptyEl.style.display = 'none';
                 uploadedDataInfo.style.display = 'block';
 
+                // Calculate totals for summary
+                let totalIndices = 0;
+                let totalBhav = 0;
+                let totalPremarket = 0;
+
                 // Populate table
                 groupedData.forEach((dateData, index) => {
                     const row = document.createElement('tr');
@@ -2109,6 +2114,11 @@ class MarketMoodApp {
                             formattedDate = dateData.date;
                         }
                     }
+                    
+                    // Accumulate totals
+                    totalIndices += dateData.indices?.count || 0;
+                    totalBhav += dateData.bhav?.count || 0;
+                    totalPremarket += dateData.premarket?.count || 0;
                     
                     // Use orange color for date text (as shown in image)
                     const dateColor = '#f97316'; // Orange color
@@ -2137,6 +2147,20 @@ class MarketMoodApp {
                     `;
                     tableBody.appendChild(row);
                 });
+
+                // Add summary row
+                const summaryRow = document.createElement('tr');
+                summaryRow.className = 'summary-row';
+                const dateColor = '#f97316';
+                summaryRow.innerHTML = `
+                    <td style="font-weight: bold; border-top: 2px solid ${dateColor};">Total</td>
+                    <td style="font-weight: bold; border-top: 2px solid ${dateColor}; color: ${dateColor};">-</td>
+                    <td style="font-weight: bold; border-top: 2px solid ${dateColor}; color: ${totalIndices > 0 ? dateColor : '#999'};">${totalIndices}</td>
+                    <td style="font-weight: bold; border-top: 2px solid ${dateColor}; color: ${totalBhav > 0 ? dateColor : '#999'};">${totalBhav}</td>
+                    <td style="font-weight: bold; border-top: 2px solid ${dateColor}; color: ${totalPremarket > 0 ? dateColor : '#999'};">${totalPremarket}</td>
+                    <td style="border-top: 2px solid ${dateColor};"></td>
+                `;
+                tableBody.appendChild(summaryRow);
 
                 // Add event listeners for export and delete buttons
                 tableBody.querySelectorAll('.btn-export').forEach(btn => {
