@@ -1198,25 +1198,34 @@ class MarketMoodApp {
         body.style.setProperty('background-color', color, 'important');
         
         // Create or update a fixed overlay div for Dynamic Island area (more reliable than ::before)
+        // Get current gradient from CSS variable
+        const gradient = getComputedStyle(document.documentElement).getPropertyValue('--mood-gradient').trim() || 
+                        `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
+        
         let safeAreaOverlay = document.getElementById('safeAreaOverlay');
         if (!safeAreaOverlay) {
             safeAreaOverlay = document.createElement('div');
             safeAreaOverlay.id = 'safeAreaOverlay';
-            safeAreaOverlay.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: env(safe-area-inset-top, 0px);
-                min-height: env(safe-area-inset-top, 0px);
-                background-color: ${color};
-                z-index: 99999;
-                pointer-events: none;
-            `;
             document.body.appendChild(safeAreaOverlay);
-        } else {
-            safeAreaOverlay.style.setProperty('background-color', color, 'important');
         }
+        
+        // Force update with !important to override dark mode
+        safeAreaOverlay.style.cssText = `
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: env(safe-area-inset-top, 0px) !important;
+            min-height: env(safe-area-inset-top, 0px) !important;
+            background-color: ${color} !important;
+            background-image: ${gradient} !important;
+            background: ${gradient} !important;
+            background-attachment: fixed !important;
+            background-size: cover !important;
+            background-repeat: no-repeat !important;
+            z-index: 99999 !important;
+            pointer-events: none !important;
+        `;
         
         // Force a repaint to ensure updates are visible
         void body.offsetHeight;
