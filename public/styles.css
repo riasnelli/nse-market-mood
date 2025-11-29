@@ -1140,6 +1140,10 @@ footer:not(.hidden) {
     display: flex;
     flex-direction: column;
     gap: 15px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .file-label {
@@ -1171,6 +1175,9 @@ footer:not(.hidden) {
     display: flex;
     flex-direction: column;
     gap: 5px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .date-label span {
@@ -1232,6 +1239,7 @@ footer:not(.hidden) {
     max-width: 100%; /* Full width on mobile */
     max-height: 90vh;
     overflow: hidden; /* Changed from overflow-y: auto to overflow: hidden */
+    overflow-x: hidden; /* Prevent horizontal scrolling */
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
     animation: slideUpFromBottom 0.3s ease-out;
     position: relative;
@@ -1240,6 +1248,7 @@ footer:not(.hidden) {
     padding: 0;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
 }
 
 .modal-header {
@@ -1299,10 +1308,14 @@ footer:not(.hidden) {
 .modal-body {
     padding: 15px;
     overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
     flex: 1; /* Take remaining space */
     /* Smooth scrolling for modal body */
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* Uploaded Files Table */
@@ -1533,11 +1546,29 @@ footer:not(.hidden) {
 
 .form-control {
     width: 100%;
+    max-width: 100%;
     padding: 12px;
     border: 2px solid #e0e0e0;
     border-radius: 8px;
     font-size: 1rem;
     transition: border-color 0.3s;
+    box-sizing: border-box;
+    min-width: 0; /* Allow shrinking below content size */
+}
+
+/* Specific fix for date input to prevent overflow */
+input[type="date"].form-control {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+/* Ensure date input doesn't exceed container */
+input[type="date"] {
+    max-width: 100%;
     box-sizing: border-box;
 }
 
