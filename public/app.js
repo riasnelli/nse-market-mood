@@ -2282,6 +2282,7 @@ class MarketMoodApp {
                 setTimeout(() => {
                     statusEl.style.display = 'none';
                 }, 3000);
+            }
         }
     }
 
