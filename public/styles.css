@@ -1121,16 +1121,15 @@ footer {
     width: 100%;
     max-width: 100%; /* Full width on mobile */
     max-height: 90vh;
-    overflow-y: auto;
+    overflow: hidden; /* Changed from overflow-y: auto to overflow: hidden */
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
     animation: slideUpFromBottom 0.3s ease-out;
     position: relative;
     transform: translateY(0);
     margin: 0 auto;
     padding: 0;
-    /* Smooth scrolling for modal content */
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-header {
@@ -1139,7 +1138,11 @@ footer {
     align-items: center;
     padding: 20px 15px 15px 15px;
     border-bottom: 1px solid #e0e0e0;
-    position: relative;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 10;
+    flex-shrink: 0; /* Prevent header from shrinking */
 }
 
 /* Add drag handle indicator at top of modal */
@@ -1185,6 +1188,8 @@ footer {
 
 .modal-body {
     padding: 15px;
+    overflow-y: auto;
+    flex: 1; /* Take remaining space */
     /* Smooth scrolling for modal body */
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
@@ -1307,6 +1312,11 @@ footer {
     gap: 10px;
     width: 100%;
     box-sizing: border-box;
+    flex-shrink: 0; /* Prevent footer from shrinking */
+    position: sticky;
+    bottom: 0;
+    background: white;
+    z-index: 10;
 }
 
 .settings-section {
