@@ -2000,23 +2000,36 @@ class MarketMoodApp {
 
             if (loadingEl) loadingEl.style.display = 'none';
 
+            // Helper function to normalize date string (YYYY-MM-DD format)
+            const normalizeDate = (dateStr) => {
+                if (!dateStr) return null;
+                // Extract just the date part (YYYY-MM-DD) if it includes time
+                const dateOnly = dateStr.split('T')[0].split(' ')[0];
+                // Validate format
+                if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    return dateOnly;
+                }
+                return dateStr;
+            };
+
             // Combine all data and group by date
             const dateMap = new Map();
 
             // Process indices data
             if (indicesResult.success && indicesResult.data) {
                 indicesResult.data.forEach(file => {
-                    if (file.date) {
-                        if (!dateMap.has(file.date)) {
-                            dateMap.set(file.date, {
-                                date: file.date,
+                    const normalizedDate = normalizeDate(file.date);
+                    if (normalizedDate) {
+                        if (!dateMap.has(normalizedDate)) {
+                            dateMap.set(normalizedDate, {
+                                date: normalizedDate,
                                 indices: { count: 0, id: null },
                                 bhav: { count: 0, id: null },
                                 premarket: { count: 0, id: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
-                        const dateData = dateMap.get(file.date);
+                        const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
                         if (count > dateData.indices.count) {
                             dateData.indices.count = count;
@@ -2033,17 +2046,18 @@ class MarketMoodApp {
             // Process bhav data
             if (bhavResult.success && bhavResult.data) {
                 bhavResult.data.forEach(file => {
-                    if (file.date) {
-                        if (!dateMap.has(file.date)) {
-                            dateMap.set(file.date, {
-                                date: file.date,
+                    const normalizedDate = normalizeDate(file.date);
+                    if (normalizedDate) {
+                        if (!dateMap.has(normalizedDate)) {
+                            dateMap.set(normalizedDate, {
+                                date: normalizedDate,
                                 indices: { count: 0, id: null },
                                 bhav: { count: 0, id: null },
                                 premarket: { count: 0, id: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
-                        const dateData = dateMap.get(file.date);
+                        const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
                         if (count > dateData.bhav.count) {
                             dateData.bhav.count = count;
@@ -2060,17 +2074,18 @@ class MarketMoodApp {
             // Process premarket data
             if (premarketResult.success && premarketResult.data) {
                 premarketResult.data.forEach(file => {
-                    if (file.date) {
-                        if (!dateMap.has(file.date)) {
-                            dateMap.set(file.date, {
-                                date: file.date,
+                    const normalizedDate = normalizeDate(file.date);
+                    if (normalizedDate) {
+                        if (!dateMap.has(normalizedDate)) {
+                            dateMap.set(normalizedDate, {
+                                date: normalizedDate,
                                 indices: { count: 0, id: null },
                                 bhav: { count: 0, id: null },
                                 premarket: { count: 0, id: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
-                        const dateData = dateMap.get(file.date);
+                        const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
                         if (count > dateData.premarket.count) {
                             dateData.premarket.count = count;
