@@ -2119,12 +2119,48 @@ class MarketMoodApp {
                 });
             }
 
-            // Convert map to array and sort by date descending
-            const groupedData = Array.from(dateMap.values()).sort((a, b) => {
+            // Convert map to array and ensure no duplicates
+            const groupedDataArray = Array.from(dateMap.values());
+            
+            // Final deduplication by date (in case normalization missed something)
+            const finalDateMap = new Map();
+            groupedDataArray.forEach(item => {
+                const dateKey = item.date ? item.date.toString().trim() : null;
+                if (dateKey) {
+                    // If date already exists, merge the data (keep max counts and all IDs)
+                    if (finalDateMap.has(dateKey)) {
+                        const existing = finalDateMap.get(dateKey);
+                        // Keep the maximum count for each type
+                        if (item.indices.count > existing.indices.count) {
+                            existing.indices.count = item.indices.count;
+                            existing.indices.id = item.indices.id;
+                        }
+                        if (item.bhav.count > existing.bhav.count) {
+                            existing.bhav.count = item.bhav.count;
+                            existing.bhav.id = item.bhav.id;
+                        }
+                        if (item.premarket.count > existing.premarket.count) {
+                            existing.premarket.count = item.premarket.count;
+                            existing.premarket.id = item.premarket.id;
+                        }
+                        // Keep the most recent uploadedAt
+                        if (new Date(item.uploadedAt) > new Date(existing.uploadedAt)) {
+                            existing.uploadedAt = item.uploadedAt;
+                        }
+                    } else {
+                        finalDateMap.set(dateKey, { ...item });
+                    }
+                }
+            });
+            
+            // Convert to array and sort by date descending
+            const groupedData = Array.from(finalDateMap.values()).sort((a, b) => {
                 return new Date(b.date) - new Date(a.date);
             });
             
             console.log(`Grouped ${groupedData.length} unique dates from all collections:`, groupedData.map(d => d.date));
+            console.log('Date map keys:', Array.from(dateMap.keys()));
+            console.log('Final date map keys:', Array.from(finalDateMap.keys()));
 
             if (groupedData.length > 0) {
                 // Show table and hide empty message
