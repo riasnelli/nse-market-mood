@@ -1128,6 +1128,9 @@ footer {
     transform: translateY(0);
     margin: 0 auto;
     padding: 0;
+    /* Smooth scrolling for modal content */
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .modal-header {
