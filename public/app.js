@@ -71,6 +71,7 @@ class MarketMoodApp {
         this.updateTimeEl = document.getElementById('updateTime');
         this.refreshBtn = document.getElementById('refreshBtn');
         this.settingsBtn = document.getElementById('settingsBtn');
+        this.signalsBtn = document.getElementById('signalsBtn');
         this.uploadBtn = document.getElementById('uploadBtn');
         this.logoutBtn = document.getElementById('logoutBtn');
 
@@ -83,6 +84,9 @@ class MarketMoodApp {
                     window.settingsManager.openSettingsModal();
                 }
             });
+        }
+        if (this.signalsBtn) {
+            this.signalsBtn.addEventListener('click', () => this.handleSignals());
         }
         if (this.uploadBtn) {
             this.uploadBtn.addEventListener('click', () => this.openUploadModal());
