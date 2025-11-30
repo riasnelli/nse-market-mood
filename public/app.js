@@ -2456,7 +2456,7 @@ class MarketMoodApp {
                     const hasPremarket = (dateData.premarket?.count || 0) > 0;
                     
                     row.innerHTML = `
-                        <td>${index + 1}</td>
+                        <td>${rowNumber}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
                         <td style="color: ${hasBhav ? dateColor : '#999'}; text-align: center;">${hasBhav ? '✓' : ''}</td>
