@@ -242,7 +242,11 @@ class MarketMoodApp {
         this.settingsBtn = document.getElementById('settingsBtn');
         this.signalsBtn = document.getElementById('signalsBtn');
         this.uploadBtn = document.getElementById('uploadBtn');
-        this.logoutBtn = document.getElementById('logoutBtn');
+        this.menuBtn = document.getElementById('menuBtn');
+        this.menuModal = document.getElementById('menuModal');
+        this.aiConnectBtn = document.getElementById('aiConnectBtn');
+        this.logoutMenuBtn = document.getElementById('logoutMenuBtn');
+        this.aiConnectModal = document.getElementById('aiConnectModal');
 
         if (this.refreshBtn) {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
@@ -260,9 +264,21 @@ class MarketMoodApp {
         if (this.uploadBtn) {
             this.uploadBtn.addEventListener('click', () => this.openUploadModal());
         }
-        if (this.logoutBtn) {
-            this.logoutBtn.addEventListener('click', () => this.handleLogout());
+        if (this.menuBtn) {
+            this.menuBtn.addEventListener('click', () => this.openMenuModal());
         }
+        if (this.aiConnectBtn) {
+            this.aiConnectBtn.addEventListener('click', () => this.openAiConnectModal());
+        }
+        if (this.logoutMenuBtn) {
+            this.logoutMenuBtn.addEventListener('click', () => this.handleLogout());
+        }
+
+        // Setup menu modal close handlers
+        this.setupMenuModal();
+        
+        // Setup AI Connect modal handlers
+        this.setupAiConnectModal();
 
         // Show/hide logout button based on login status
         this.updateLogoutButton();

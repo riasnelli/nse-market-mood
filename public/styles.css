@@ -1102,6 +1102,65 @@ footer:not(.hidden) {
     letter-spacing: 0.3px;
 }
 
+/* Menu Modal Styles */
+.menu-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.menu-option-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    text-align: left;
+    color: #333;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.menu-option-btn:last-child {
+    border-bottom: none;
+}
+
+.menu-option-btn:hover {
+    background: #f3f4f6;
+}
+
+.menu-option-btn:active {
+    background: #e5e7eb;
+}
+
+.menu-option-btn svg:first-child {
+    flex-shrink: 0;
+    color: #667eea;
+}
+
+.menu-option-btn span {
+    flex: 1;
+}
+
+.menu-option-btn svg:last-child {
+    flex-shrink: 0;
+    color: #9ca3af;
+}
+
+.form-hint a {
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.form-hint a:hover {
+    text-decoration: underline;
+}
+
 /* Mobile: Adjust footer spacing */
 @media (max-width: 768px) {
     footer {
