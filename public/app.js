@@ -2312,33 +2312,62 @@ class MarketMoodApp {
             const groupedDataArray = Array.from(dateMap.values());
             
             // Final deduplication by date (in case normalization missed something)
+            // Use a more robust normalization for the final pass
+            const normalizeDateForKey = (dateStr) => {
+                if (!dateStr) return null;
+                // Extract just the date part (YYYY-MM-DD) if it includes time
+                const dateOnly = dateStr.toString().split('T')[0].split(' ')[0].trim();
+                // Validate and normalize format
+                if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    return dateOnly;
+                }
+                // Try to parse and reformat if needed
+                try {
+                    const dateObj = new Date(dateOnly);
+                    if (!isNaN(dateObj.getTime())) {
+                        const year = dateObj.getFullYear();
+                        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                        const day = String(dateObj.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                    }
+                } catch (e) {
+                    // Ignore parse errors
+                }
+                return dateOnly;
+            };
+            
             const finalDateMap = new Map();
             groupedDataArray.forEach(item => {
-                const dateKey = item.date ? item.date.toString().trim() : null;
-                if (dateKey) {
-                    // If date already exists, merge the data (keep max counts and all IDs)
-                    if (finalDateMap.has(dateKey)) {
-                        const existing = finalDateMap.get(dateKey);
-                        // Keep the maximum count for each type
-                        if (item.indices.count > existing.indices.count) {
-                            existing.indices.count = item.indices.count;
-                            existing.indices.id = item.indices.id;
-                        }
-                        if (item.bhav.count > existing.bhav.count) {
-                            existing.bhav.count = item.bhav.count;
-                            existing.bhav.id = item.bhav.id;
-                        }
-                        if (item.premarket.count > existing.premarket.count) {
-                            existing.premarket.count = item.premarket.count;
-                            existing.premarket.id = item.premarket.id;
-                        }
-                        // Keep the most recent uploadedAt
-                        if (new Date(item.uploadedAt) > new Date(existing.uploadedAt)) {
-                            existing.uploadedAt = item.uploadedAt;
-                        }
-                    } else {
-                        finalDateMap.set(dateKey, { ...item });
+                if (!item.date) return;
+                
+                // Normalize the date key
+                const dateKey = normalizeDateForKey(item.date);
+                if (!dateKey) return;
+                
+                // If date already exists, merge the data (keep max counts and all IDs)
+                if (finalDateMap.has(dateKey)) {
+                    const existing = finalDateMap.get(dateKey);
+                    // Keep the maximum count for each type
+                    if (item.indices.count > existing.indices.count) {
+                        existing.indices.count = item.indices.count;
+                        existing.indices.id = item.indices.id;
                     }
+                    if (item.bhav.count > existing.bhav.count) {
+                        existing.bhav.count = item.bhav.count;
+                        existing.bhav.id = item.bhav.id;
+                    }
+                    if (item.premarket.count > existing.premarket.count) {
+                        existing.premarket.count = item.premarket.count;
+                        existing.premarket.id = item.premarket.id;
+                    }
+                    // Keep the most recent uploadedAt
+                    if (new Date(item.uploadedAt) > new Date(existing.uploadedAt)) {
+                        existing.uploadedAt = item.uploadedAt;
+                    }
+                } else {
+                    // Normalize the date in the item as well
+                    item.date = dateKey;
+                    finalDateMap.set(dateKey, { ...item });
                 }
             });
             
@@ -2350,22 +2379,45 @@ class MarketMoodApp {
             console.log(`Grouped ${groupedData.length} unique dates from all collections:`, groupedData.map(d => d.date));
             console.log('Date map keys:', Array.from(dateMap.keys()));
             console.log('Final date map keys:', Array.from(finalDateMap.keys()));
+            
+            // Additional check: ensure no duplicates in final array
+            const uniqueDates = new Set();
+            const deduplicatedData = [];
+            groupedData.forEach(item => {
+                const dateKey = normalizeDateForKey(item.date);
+                if (dateKey && !uniqueDates.has(dateKey)) {
+                    uniqueDates.add(dateKey);
+                    deduplicatedData.push(item);
+                } else if (dateKey && uniqueDates.has(dateKey)) {
+                    console.warn(`Duplicate date found in final array: ${dateKey}, skipping`);
+                }
+            });
+            
+            // Use deduplicated data
+            const finalGroupedData = deduplicatedData.length > 0 ? deduplicatedData : groupedData;
 
-            if (groupedData.length > 0) {
+            if (finalGroupedData.length > 0) {
                 // Show table and hide empty message
                 if (tableEl) tableEl.style.display = 'table';
                 if (emptyEl) emptyEl.style.display = 'none';
                 uploadedDataInfo.style.display = 'block';
 
-                // Populate table - ensure we only add each date once
+                // Populate table - ensure we only add each date once (triple check)
                 const addedDates = new Set();
-                groupedData.forEach((dateData, index) => {
+                finalGroupedData.forEach((dateData, index) => {
+                    // Normalize date one more time before checking
+                    const normalizedDate = normalizeDateForKey(dateData.date);
+                    if (!normalizedDate) return;
+                    
                     // Skip if this date was already added
-                    if (addedDates.has(dateData.date)) {
-                        console.warn(`Skipping duplicate date: ${dateData.date}`);
+                    if (addedDates.has(normalizedDate)) {
+                        console.warn(`Skipping duplicate date: ${normalizedDate} (original: ${dateData.date})`);
                         return;
                     }
-                    addedDates.add(dateData.date);
+                    addedDates.add(normalizedDate);
+                    
+                    // Update dateData.date to normalized version
+                    dateData.date = normalizedDate;
                     
                     const row = document.createElement('tr');
                     
