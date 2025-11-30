@@ -2404,20 +2404,30 @@ class MarketMoodApp {
 
                 // Populate table - ensure we only add each date once (triple check)
                 const addedDates = new Set();
+                let rowNumber = 0; // Track row number separately
+                
                 finalGroupedData.forEach((dateData, index) => {
                     // Normalize date one more time before checking
                     const normalizedDate = normalizeDateForKey(dateData.date);
-                    if (!normalizedDate) return;
+                    if (!normalizedDate) {
+                        console.warn(`Skipping item with invalid date: ${dateData.date}`);
+                        return;
+                    }
                     
                     // Skip if this date was already added
                     if (addedDates.has(normalizedDate)) {
                         console.warn(`Skipping duplicate date: ${normalizedDate} (original: ${dateData.date})`);
                         return;
                     }
+                    
+                    // Mark this date as added
                     addedDates.add(normalizedDate);
                     
                     // Update dateData.date to normalized version
                     dateData.date = normalizedDate;
+                    
+                    // Increment row number only for valid, unique dates
+                    rowNumber++;
                     
                     const row = document.createElement('tr');
                     
