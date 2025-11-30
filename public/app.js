@@ -2705,8 +2705,9 @@ class MarketMoodApp {
             this.aiConnectModal.classList.add('show');
             this.lockBodyScroll();
             
-            // Load saved API key
+            // Load saved API key and update status
             this.loadOpenRouterKey();
+            this.updateAiConnectStatus();
         }
     }
 
@@ -2714,6 +2715,7 @@ class MarketMoodApp {
         const closeAiConnect = document.getElementById('closeAiConnect');
         const cancelAiConnect = document.getElementById('cancelAiConnect');
         const saveAiConnect = document.getElementById('saveAiConnect');
+        const deleteAiConnectBtn = document.getElementById('deleteAiConnectBtn');
         
         if (closeAiConnect && this.aiConnectModal) {
             closeAiConnect.addEventListener('click', () => {
@@ -2731,6 +2733,10 @@ class MarketMoodApp {
 
         if (saveAiConnect) {
             saveAiConnect.addEventListener('click', () => this.saveOpenRouterKey());
+        }
+
+        if (deleteAiConnectBtn) {
+            deleteAiConnectBtn.addEventListener('click', () => this.deleteOpenRouterKey());
         }
 
         // Close on backdrop click
@@ -2797,6 +2803,12 @@ class MarketMoodApp {
         localStorage.setItem('openRouterApiKey', apiKey);
 
         this.showAiConnectStatus('API key saved successfully!', 'success');
+        
+        // Update status display
+        this.updateAiConnectStatus();
+        
+        // Update menu status
+        this.updateMenuAiConnectStatus();
 
         // Close modal after 1.5 seconds
         setTimeout(() => {
@@ -2805,6 +2817,128 @@ class MarketMoodApp {
                 this.unlockBodyScroll();
             }
         }, 1500);
+    }
+
+    deleteOpenRouterKey() {
+        if (!confirm('Are you sure you want to delete the OpenRouter API key? This will disconnect AI features.')) {
+            return;
+        }
+
+        // Remove from settings
+        if (window.settingsManager) {
+            if (window.settingsManager.settings) {
+                window.settingsManager.settings.openRouterKey = '';
+                window.settingsManager.saveSettings();
+            }
+        }
+
+        // Remove from localStorage
+        localStorage.removeItem('openRouterApiKey');
+
+        // Clear input field
+        const openRouterKeyInput = document.getElementById('openRouterKey');
+        if (openRouterKeyInput) {
+            openRouterKeyInput.value = '';
+        }
+
+        // Update status display
+        this.updateAiConnectStatus();
+        
+        // Update menu status
+        this.updateMenuAiConnectStatus();
+
+        this.showAiConnectStatus('API key deleted successfully', 'success');
+    }
+
+    updateAiConnectStatus() {
+        const statusInfo = document.getElementById('aiConnectStatusInfo');
+        const statusBadge = document.getElementById('aiConnectStatusBadge');
+        const keyPreview = document.getElementById('aiConnectKeyPreview');
+        
+        // Get saved API key
+        let savedKey = '';
+        if (window.settingsManager) {
+            const settings = window.settingsManager.settings;
+            if (settings && settings.openRouterKey) {
+                savedKey = settings.openRouterKey;
+            }
+        }
+        
+        // Fallback to localStorage
+        if (!savedKey) {
+            savedKey = localStorage.getItem('openRouterApiKey') || '';
+        }
+
+        if (savedKey && savedKey.trim()) {
+            // Show connected status
+            if (statusInfo) {
+                statusInfo.style.display = 'block';
+            }
+            if (statusBadge) {
+                statusBadge.style.display = 'flex';
+            }
+            
+            // Show masked key preview
+            if (keyPreview) {
+                const maskedKey = savedKey.length > 8 
+                    ? savedKey.substring(0, 8) + '•'.repeat(Math.min(savedKey.length - 8, 12))
+                    : '•'.repeat(12);
+                keyPreview.textContent = `Key: ${maskedKey}`;
+            }
+        } else {
+            // Hide connected status
+            if (statusInfo) {
+                statusInfo.style.display = 'none';
+            }
+            if (statusBadge) {
+                statusBadge.style.display = 'none';
+            }
+        }
+    }
+
+    updateMenuAiConnectStatus() {
+        const aiConnectBtn = document.getElementById('aiConnectBtn');
+        if (!aiConnectBtn) return;
+
+        // Get saved API key
+        let savedKey = '';
+        if (window.settingsManager) {
+            const settings = window.settingsManager.settings;
+            if (settings && settings.openRouterKey) {
+                savedKey = settings.openRouterKey;
+            }
+        }
+        
+        // Fallback to localStorage
+        if (!savedKey) {
+            savedKey = localStorage.getItem('openRouterApiKey') || '';
+        }
+
+        // Find the span element in the button
+        const spanElement = aiConnectBtn.querySelector('span');
+        if (spanElement) {
+            if (savedKey && savedKey.trim()) {
+                // Add status indicator
+                if (!aiConnectBtn.querySelector('.ai-connect-status-indicator')) {
+                    const statusIndicator = document.createElement('span');
+                    statusIndicator.className = 'ai-connect-status-indicator';
+                    statusIndicator.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: 0.75rem; color: #10b981; font-weight: 500;';
+                    statusIndicator.innerHTML = `
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Connected
+                    `;
+                    spanElement.parentNode.insertBefore(statusIndicator, spanElement.nextSibling);
+                }
+            } else {
+                // Remove status indicator
+                const statusIndicator = aiConnectBtn.querySelector('.ai-connect-status-indicator');
+                if (statusIndicator) {
+                    statusIndicator.remove();
+                }
+            }
+        }
     }
 
     showAiConnectStatus(message, type) {
