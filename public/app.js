@@ -2585,8 +2585,8 @@ class MarketMoodApp {
 
     updateLogoutButton() {
         const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-        if (this.logoutBtn) {
-            this.logoutBtn.style.display = isLoggedIn ? 'flex' : 'none';
+        if (this.logoutMenuBtn) {
+            this.logoutMenuBtn.style.display = isLoggedIn ? 'flex' : 'none';
         }
     }
 
@@ -2595,7 +2595,167 @@ class MarketMoodApp {
             localStorage.removeItem('isLoggedIn');
             localStorage.removeItem('userEmail');
             localStorage.removeItem('loginMethod');
+            // Close menu modal
+            if (this.menuModal) {
+                this.menuModal.classList.remove('show');
+                this.unlockBodyScroll();
+            }
             window.location.href = '/login.html';
+        }
+    }
+
+    openMenuModal() {
+        if (this.menuModal) {
+            this.menuModal.classList.add('show');
+            this.lockBodyScroll();
+        }
+    }
+
+    setupMenuModal() {
+        const closeMenu = document.getElementById('closeMenu');
+        
+        if (closeMenu && this.menuModal) {
+            closeMenu.addEventListener('click', () => {
+                this.menuModal.classList.remove('show');
+                this.unlockBodyScroll();
+            });
+        }
+
+        // Close on backdrop click
+        if (this.menuModal) {
+            this.menuModal.addEventListener('click', (e) => {
+                if (e.target === this.menuModal) {
+                    this.menuModal.classList.remove('show');
+                    this.unlockBodyScroll();
+                }
+            });
+        }
+    }
+
+    openAiConnectModal() {
+        // Close menu modal first
+        if (this.menuModal) {
+            this.menuModal.classList.remove('show');
+        }
+        
+        // Open AI Connect modal
+        if (this.aiConnectModal) {
+            this.aiConnectModal.classList.add('show');
+            this.lockBodyScroll();
+            
+            // Load saved API key
+            this.loadOpenRouterKey();
+        }
+    }
+
+    setupAiConnectModal() {
+        const closeAiConnect = document.getElementById('closeAiConnect');
+        const cancelAiConnect = document.getElementById('cancelAiConnect');
+        const saveAiConnect = document.getElementById('saveAiConnect');
+        
+        if (closeAiConnect && this.aiConnectModal) {
+            closeAiConnect.addEventListener('click', () => {
+                this.aiConnectModal.classList.remove('show');
+                this.unlockBodyScroll();
+            });
+        }
+
+        if (cancelAiConnect && this.aiConnectModal) {
+            cancelAiConnect.addEventListener('click', () => {
+                this.aiConnectModal.classList.remove('show');
+                this.unlockBodyScroll();
+            });
+        }
+
+        if (saveAiConnect) {
+            saveAiConnect.addEventListener('click', () => this.saveOpenRouterKey());
+        }
+
+        // Close on backdrop click
+        if (this.aiConnectModal) {
+            this.aiConnectModal.addEventListener('click', (e) => {
+                if (e.target === this.aiConnectModal) {
+                    this.aiConnectModal.classList.remove('show');
+                    this.unlockBodyScroll();
+                }
+            });
+        }
+    }
+
+    loadOpenRouterKey() {
+        const openRouterKeyInput = document.getElementById('openRouterKey');
+        if (openRouterKeyInput) {
+            // Load from settings or localStorage
+            let savedKey = '';
+            if (window.settingsManager) {
+                const settings = window.settingsManager.settings;
+                if (settings && settings.openRouterKey) {
+                    savedKey = settings.openRouterKey;
+                }
+            }
+            
+            // Fallback to localStorage
+            if (!savedKey) {
+                savedKey = localStorage.getItem('openRouterApiKey') || '';
+            }
+            
+            openRouterKeyInput.value = savedKey;
+        }
+    }
+
+    saveOpenRouterKey() {
+        const openRouterKeyInput = document.getElementById('openRouterKey');
+        const statusEl = document.getElementById('aiConnectStatus');
+        
+        if (!openRouterKeyInput) return;
+
+        const apiKey = openRouterKeyInput.value.trim();
+
+        if (!apiKey) {
+            this.showAiConnectStatus('Please enter an API key', 'error');
+            return;
+        }
+
+        // Validate API key format (basic check - OpenRouter keys typically start with 'sk-or-')
+        if (!apiKey.startsWith('sk-or-') && apiKey.length < 20) {
+            this.showAiConnectStatus('Invalid API key format. OpenRouter keys typically start with "sk-or-"', 'error');
+            return;
+        }
+
+        // Save to settings
+        if (window.settingsManager) {
+            if (!window.settingsManager.settings) {
+                window.settingsManager.settings = {};
+            }
+            window.settingsManager.settings.openRouterKey = apiKey;
+            window.settingsManager.saveSettings();
+        }
+
+        // Also save to localStorage as backup
+        localStorage.setItem('openRouterApiKey', apiKey);
+
+        this.showAiConnectStatus('API key saved successfully!', 'success');
+
+        // Close modal after 1.5 seconds
+        setTimeout(() => {
+            if (this.aiConnectModal) {
+                this.aiConnectModal.classList.remove('show');
+                this.unlockBodyScroll();
+            }
+        }, 1500);
+    }
+
+    showAiConnectStatus(message, type) {
+        const statusEl = document.getElementById('aiConnectStatus');
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = `upload-status ${type}`;
+            statusEl.style.display = 'block';
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 5000);
         }
     }
 
