@@ -342,6 +342,88 @@
         </div>
     </div>
 
+    <!-- Menu Modal -->
+    <div id="menuModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Menu</h2>
+                <button class="modal-close" id="closeMenu">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="menu-options">
+                    <button class="menu-option-btn" id="aiConnectBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                            <path d="M2 17l10 5 10-5"></path>
+                            <path d="M2 12l10 5 10-5"></path>
+                        </svg>
+                        <span>AI Connect</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto;">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                    <button class="menu-option-btn" id="logoutMenuBtn" style="display: none;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>Logout</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Connect Modal -->
+    <div id="aiConnectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                        <path d="M2 17l10 5 10-5"></path>
+                        <path d="M2 12l10 5 10-5"></path>
+                    </svg>
+                    AI Connect
+                </h2>
+                <button class="modal-close" id="closeAiConnect">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>OpenRouter AI Configuration</h3>
+                    <p class="settings-hint">Connect to OpenRouter.ai to enable AI-powered features. Enter your API key below.</p>
+                    
+                    <div class="form-group">
+                        <label for="openRouterKey" class="form-label">
+                            <span>OpenRouter API Key:</span>
+                            <input type="password" id="openRouterKey" class="form-control" placeholder="Enter your OpenRouter API key">
+                        </label>
+                        <p class="form-hint" style="font-size: 0.8rem; color: #666; margin-top: 5px;">
+                            Get your API key from <a href="https://openrouter.ai/keys" target="_blank" style="color: #667eea;">openrouter.ai/keys</a>
+                        </p>
+                    </div>
+
+                    <div id="aiConnectStatus" class="upload-status" style="display: none;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="saveAiConnect" class="btn-primary">Save API Key</button>
+                <button id="cancelAiConnect" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script src="settings.js"></script>
     <script src="app.js"></script>
 </body>
