@@ -5,6 +5,7 @@ class SettingsManager {
         this.isAddingUploadOption = false; // Flag to prevent concurrent calls
         this.defaultSettings = {
             activeApi: 'nse', // Currently active API
+            openRouterKey: '', // OpenRouter AI API key
             apis: {
                 nse: {
                     name: 'NSE India',
