@@ -282,6 +282,9 @@ class MarketMoodApp {
 
         // Show/hide logout button based on login status
         this.updateLogoutButton();
+        
+        // Update AI Connect status on init
+        this.updateMenuAiConnectStatus();
 
         // Setup view toggle buttons
         this.cardViewBtn = document.getElementById('cardViewBtn');
