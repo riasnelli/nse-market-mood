@@ -4,10 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>NSE Market Mood</title>
+    <link rel="icon" type="image/png" href="/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
     <link rel="stylesheet" href="styles.css">
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#667eea" id="themeColorMeta"/>
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
@@ -21,24 +24,26 @@
         </header>
 
         <main>
-            <div class="mood-card" id="moodCard">
-                <div class="mood-indicator">
-                    <div class="mood-emoji" id="moodEmoji">😐</div>
-                    <div class="mood-text" id="moodText">Loading...</div>
-                </div>
-                <div class="mood-score">
-                    <div class="score-bar">
-                        <div class="score-fill" id="scoreFill"></div>
+            <!-- Mood Page View -->
+            <div class="page-view" id="moodPageView">
+                <div class="mood-card" id="moodCard">
+                    <div class="mood-indicator">
+                        <div class="mood-emoji" id="moodEmoji">😐</div>
+                        <div class="mood-text" id="moodText">Loading...</div>
                     </div>
-                    <div class="score-text" id="scoreText">-/-</div>
+                    <div class="mood-score">
+                        <div class="score-bar">
+                            <div class="score-fill" id="scoreFill"></div>
+                        </div>
+                        <div class="score-text" id="scoreText">-/-</div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="data-grid" id="mainIndicesGrid">
-                <!-- Main indices (NIFTY 50, BANK NIFTY, VIX) will be populated here -->
-            </div>
-            
-            <div class="all-indices-section" id="allIndicesSection" style="display: none;">
+                <div class="data-grid" id="mainIndicesGrid">
+                    <!-- Main indices (NIFTY 50, BANK NIFTY, VIX) will be populated here -->
+                </div>
+                
+                <div class="all-indices-section" id="allIndicesSection" style="display: none;">
                 <div class="section-header">
                     <h3 class="section-title">All Indices</h3>
                     <div class="section-icons-group">
@@ -89,22 +94,89 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
 
-            <div class="advance-decline">
-                <h3>Market Breadth</h3>
-                <div class="breadth-container">
-                    <div class="breadth-item advance">
-                        <span>Advances</span>
-                        <strong id="advances">-</strong>
-                    </div>
-                    <div class="breadth-item decline">
-                        <span>Declines</span>
-                        <strong id="declines">-</strong>
+                <div class="advance-decline">
+                    <h3>Market Breadth</h3>
+                    <div class="breadth-container">
+                        <div class="breadth-item advance">
+                            <span>Advances</span>
+                            <strong id="advances">-</strong>
+                        </div>
+                        <div class="breadth-item decline">
+                            <span>Declines</span>
+                            <strong id="declines">-</strong>
+                        </div>
                     </div>
                 </div>
+                <p class="data-source-info"><span id="dataSource">NSE India</span> • <span id="updateInfo">Updates every 30 sec. during market hrs.</span></p>
             </div>
-            <p class="data-source-info"><span id="dataSource">NSE India</span> • <span id="updateInfo">Updates every 30 sec. during market hrs.</span></p>
+
+            <!-- Signals Page View -->
+            <div class="page-view" id="signalsPageView" style="display: none;">
+                <div class="mood-card" id="signalsMoodCard">
+                    <div class="mood-indicator">
+                        <div class="mood-emoji" id="signalsMoodEmoji">😐</div>
+                        <div class="mood-text" id="signalsMoodText">Loading...</div>
+                    </div>
+                    <div class="mood-score">
+                        <div class="score-bar">
+                            <div class="score-fill" id="signalsScoreFill"></div>
+                        </div>
+                        <div class="score-text" id="signalsScoreText">-/-</div>
+                    </div>
+                </div>
+
+                <!-- Data Availability Section -->
+                <div class="data-availability-section" id="dataAvailabilitySection" style="display: none;">
+                    <div class="section-header">
+                        <h3 class="section-title">Data Availability</h3>
+                        <button id="refreshDataAvailabilityBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" title="Refresh">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="dataAvailabilityContent" class="data-availability-content">
+                        <!-- Data availability info will be populated here -->
+                    </div>
+                    <div id="dataAvailabilityLoading" class="loading-message" style="display: none; text-align: center; padding: 20px;">
+                        Loading data availability...
+                    </div>
+                    <div id="dataAvailabilityError" class="error-message" style="display: none; text-align: center; padding: 20px; color: #ef4444;">
+                        <!-- Error message will be shown here -->
+                    </div>
+                </div>
+
+                <!-- Signals Section -->
+                <div class="signals-section" id="signalsSection">
+                    <div class="section-header">
+                    <h3 class="section-title">Intraday Signals</h3>
+                    <button id="generateSignalsBtn" class="btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">Generate Signals</button>
+                </div>
+                <div id="signalsLoading" class="loading-message" style="display: none; text-align: center; padding: 20px;">
+                    Loading signals...
+                </div>
+                <div id="signalsError" class="error-message" style="display: none; text-align: center; padding: 20px; color: #ef4444;">
+                    <!-- Error message will be shown here -->
+                </div>
+                <div id="signalsContainer" class="signals-container">
+                    <!-- Signals will be populated here -->
+                </div>
+                <div id="signalsEmpty" class="empty-message" style="display: none; text-align: center; padding: 40px 20px; color: #666;">
+                    <div style="font-size: 3rem; margin-bottom: 15px;">📊</div>
+                    <div style="font-size: 1.2rem; font-weight: 600; color: #333; margin-bottom: 10px;">No Potential Signals</div>
+                    <div style="font-size: 0.95rem; color: #666; margin-bottom: 20px;">
+                        No trading signals were found for the selected date.<br>
+                        This could mean the market conditions don't meet the signal criteria.
+                    </div>
+                    <button id="generateSignalsBtnEmpty" class="btn-primary" style="padding: 10px 20px; font-size: 0.95rem; margin-top: 10px;">
+                        Generate Signals
+                    </button>
+                </div>
+                </div>
+            </div>
         </main>
 
         <footer>
@@ -125,11 +197,11 @@
                     </svg>
                     <span class="footer-btn-label">Settings</span>
                 </button>
-                <button id="signalsBtn" class="footer-menu-btn">
+                <button id="signalsBtn" class="footer-menu-btn" type="button" style="cursor: pointer;">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                     </svg>
-                    <span class="footer-btn-label">Signals</span>
+                    <span class="footer-btn-label" id="signalsBtnLabel">Signals</span>
                 </button>
                 <button id="uploadBtn" class="footer-menu-btn">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -456,7 +528,244 @@
         </div>
     </div>
 
+    <script>
+        // Global error handler to suppress browser extension errors
+        // This must be loaded BEFORE other scripts to catch errors early
+        
+        // Suppress console errors from browser extensions
+        const originalConsoleError = console.error;
+        console.error = function(...args) {
+            const message = args.join(' ');
+            if (
+                message.includes('Could not establish connection') ||
+                message.includes('Receiving end does not exist') ||
+                message.includes('Extension context invalidated') ||
+                message.includes('message port closed') ||
+                message.includes('chrome-extension://') ||
+                message.includes('moz-extension://')
+            ) {
+                // Suppress extension errors silently
+                return;
+            }
+            // Log real errors
+            originalConsoleError.apply(console, args);
+        };
+
+        // Suppress global error events from extensions
+        window.addEventListener('error', (event) => {
+            if (event.message && (
+                event.message.includes('Could not establish connection') ||
+                event.message.includes('Receiving end does not exist') ||
+                event.message.includes('Extension context invalidated') ||
+                event.message.includes('message port closed') ||
+                event.message.includes('chrome-extension://') ||
+                event.message.includes('moz-extension://')
+            )) {
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+        }, true); // Use capture phase
+
+        // Suppress unhandled promise rejections from extensions
+        window.addEventListener('unhandledrejection', (event) => {
+            const reason = event.reason;
+            let message = '';
+            let errorString = '';
+            
+            // Handle different error formats
+            if (reason) {
+                if (reason instanceof Error) {
+                    message = reason.message || '';
+                    errorString = reason.toString();
+                } else if (typeof reason === 'string') {
+                    message = reason;
+                    errorString = reason;
+                } else if (typeof reason === 'object') {
+                    message = reason.message || reason.error || JSON.stringify(reason) || '';
+                    errorString = String(reason);
+                } else {
+                    message = String(reason);
+                    errorString = String(reason);
+                }
+            }
+            
+            // Check all possible error message formats
+            const allMessages = [message, errorString, String(reason || ''), String(event.reason || '')].join(' ').toLowerCase();
+            
+            if (
+                allMessages.includes('could not establish connection') ||
+                allMessages.includes('receiving end does not exist') ||
+                allMessages.includes('extension context invalidated') ||
+                allMessages.includes('message port closed') ||
+                allMessages.includes('chrome-extension://') ||
+                allMessages.includes('moz-extension://') ||
+                allMessages.includes('extension context') ||
+                allMessages.includes('receiving end')
+            ) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                return false;
+            }
+        }, true); // Use capture phase
+        
+        // Also suppress specific extension-related console messages
+        const originalConsoleWarn = console.warn;
+        console.warn = function(...args) {
+            const message = args.join(' ');
+            if (
+                message.includes('rtcinjector') ||
+                message.includes('chext') ||
+                message.includes('subtitle.js') ||
+                message.includes('chrome-extension://') ||
+                message.includes('moz-extension://')
+            ) {
+                return; // Suppress extension warnings
+            }
+            originalConsoleWarn.apply(console, args);
+        };
+    </script>
     <script src="settings.js"></script>
+    <script>
+        // IMMEDIATE check for signalsPageView element - runs before app.js
+        (function() {
+            console.log('═══════════════════════════════════════');
+            console.log('🔍 PRE-INIT CHECK: Looking for signalsPageView element...');
+            console.log('═══════════════════════════════════════');
+            
+            function checkSignalsPageView() {
+                const el = document.getElementById('signalsPageView');
+                console.log('signalsPageView element:', el);
+                if (!el) {
+                    console.error('❌❌❌ signalsPageView NOT FOUND in DOM! ❌❌❌');
+                    console.log('Document ready state:', document.readyState);
+                    const main = document.querySelector('main');
+                    console.log('Main element:', main);
+                    if (main) {
+                        console.log('Main innerHTML length:', main.innerHTML ? main.innerHTML.length : 0);
+                        console.log('Main children count:', main.children.length);
+                    }
+                    const allPageViews = document.querySelectorAll('.page-view');
+                    console.log('All page-view elements:', allPageViews.length);
+                    allPageViews.forEach((pv, idx) => {
+                        console.log(`  Page view ${idx}: id="${pv.id}", class="${pv.className}"`);
+                    });
+                } else {
+                    console.log('✅✅✅ signalsPageView FOUND! ✅✅✅');
+                    console.log('Element display:', getComputedStyle(el).display);
+                    console.log('Element parent:', el.parentElement);
+                    console.log('Element offsetHeight:', el.offsetHeight);
+                    console.log('Element offsetWidth:', el.offsetWidth);
+                }
+            }
+            
+            // Check immediately
+            checkSignalsPageView();
+            
+            // Check when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    console.log('DOMContentLoaded fired, checking again...');
+                    checkSignalsPageView();
+                });
+            } else {
+                setTimeout(() => {
+                    console.log('DOM already ready, checking again after delay...');
+                    checkSignalsPageView();
+                }, 100);
+            }
+            
+            // Check after a longer delay
+            setTimeout(() => {
+                console.log('Final check after 1 second...');
+                checkSignalsPageView();
+            }, 1000);
+        })();
+    </script>
     <script src="app.js"></script>
+    <script>
+        // IMMEDIATE test - runs as soon as script loads
+        console.log('🔍 SIGNALS BUTTON TEST SCRIPT LOADED');
+        
+        // Test function that can be called manually
+        window.testSignalsButton = function() {
+            console.log('═══════════════════════════════════════');
+            console.log('🧪 TESTING SIGNALS BUTTON');
+            console.log('═══════════════════════════════════════');
+            
+            const signalsBtn = document.getElementById('signalsBtn');
+            const signalsBtnLabel = document.getElementById('signalsBtnLabel');
+            const moodPageView = document.getElementById('moodPageView');
+            const signalsPageView = document.getElementById('signalsPageView');
+            
+            console.log('1. Signals button found:', !!signalsBtn);
+            console.log('2. Signals button label found:', !!signalsBtnLabel);
+            console.log('3. Mood page view found:', !!moodPageView);
+            console.log('4. Signals page view found:', !!signalsPageView);
+            
+            if (signalsBtn) {
+                const styles = getComputedStyle(signalsBtn);
+                console.log('5. Button styles:', {
+                    display: styles.display,
+                    visibility: styles.visibility,
+                    pointerEvents: styles.pointerEvents,
+                    zIndex: styles.zIndex,
+                    position: styles.position
+                });
+                
+                // Attach direct click handler
+                signalsBtn.onclick = function(e) {
+                    console.log('🔥🔥🔥 SIGNALS BUTTON CLICKED! 🔥🔥🔥');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    if (window.marketMoodApp) {
+                        console.log('App instance found, calling toggleView()');
+                        if (typeof window.marketMoodApp.toggleView === 'function') {
+                            window.marketMoodApp.toggleView();
+                        } else {
+                            console.error('toggleView is not a function!');
+                        }
+                    } else {
+                        console.error('marketMoodApp not found!');
+                    }
+                };
+                
+                console.log('✓ Click handler attached');
+            } else {
+                console.error('✗ Signals button NOT FOUND!');
+            }
+            
+            if (window.marketMoodApp) {
+                console.log('6. App instance exists:', !!window.marketMoodApp);
+                console.log('7. Current view:', window.marketMoodApp.currentView);
+                console.log('8. toggleView function:', typeof window.marketMoodApp.toggleView);
+            } else {
+                console.error('✗ App instance NOT FOUND!');
+            }
+            
+            console.log('═══════════════════════════════════════');
+        };
+        
+        // Auto-run test after page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(() => window.testSignalsButton(), 500);
+            });
+        } else {
+            setTimeout(() => window.testSignalsButton(), 500);
+        }
+        
+        // Also run on window load as backup
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('🔄 Running backup test on window.load');
+                window.testSignalsButton();
+            }, 1000);
+        });
+        
+        console.log('💡 Type testSignalsButton() in console to test manually');
+    </script>
 </body>
 </html>

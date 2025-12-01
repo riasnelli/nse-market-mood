@@ -84,10 +84,32 @@ class MarketMoodApp {
 
             // Get current scroll position
             const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+            
+            // Calculate if we're at the bottom
+            const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+            const documentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Check if we're near the bottom (within 50px)
+            const isAtBottom = scrollTop + windowHeight >= documentHeight - 50;
+            
+            // Check if we're at the top
+            const isAtTop = scrollTop <= 10;
 
-            // Determine scroll direction
-            if (scrollTop > lastScrollTop && scrollTop > 100) {
-                // Scrolling down - hide footer
+            // Determine scroll direction and handle footer visibility
+            if (isAtBottom) {
+                // At bottom - always show footer
+                footer.classList.remove('hidden');
+            } else if (isAtTop) {
+                // At top - always show footer
+                footer.classList.remove('hidden');
+            } else if (scrollTop > lastScrollTop && scrollTop > 100) {
+                // Scrolling down (and not at top/bottom) - hide footer
                 footer.classList.add('hidden');
             } else if (scrollTop < lastScrollTop) {
                 // Scrolling up - show footer
@@ -115,7 +137,7 @@ class MarketMoodApp {
             }
         };
 
-        // Add scroll listener
+        // Add scroll listener to window - always active
         window.addEventListener('scroll', throttledScroll, { passive: true });
 
         // Also handle scroll on the container if it's scrollable
@@ -123,6 +145,15 @@ class MarketMoodApp {
         if (container) {
             container.addEventListener('scroll', throttledScroll, { passive: true });
         }
+
+        // Also handle scroll on main element if it's scrollable
+        const main = document.querySelector('main');
+        if (main) {
+            main.addEventListener('scroll', throttledScroll, { passive: true });
+        }
+
+        // Also handle scroll on body if it's scrollable
+        document.body.addEventListener('scroll', throttledScroll, { passive: true });
 
         // Show footer initially
         footer.classList.remove('hidden');
@@ -232,6 +263,19 @@ class MarketMoodApp {
     }
 
     init() {
+        console.log('🚀 MarketMoodApp.init() called - Initializing app...');
+        console.log('Document ready state:', document.readyState);
+        console.log('Window location:', window.location.pathname);
+        
+        // Immediate check for signalsPageView element
+        const testSignalsPage = document.getElementById('signalsPageView');
+        console.log('🔍 Immediate signalsPageView check:', !!testSignalsPage, testSignalsPage);
+        if (!testSignalsPage) {
+            console.error('⚠️ CRITICAL: signalsPageView element not found in DOM!');
+            console.error('Checking all page-view elements:', document.querySelectorAll('.page-view'));
+            console.error('Checking main element:', document.querySelector('main'));
+        }
+        
         // Immediately update theme color on init for PWA mode
         // This ensures Dynamic Island area has correct color from start
         const initialColor = getComputedStyle(document.documentElement).getPropertyValue('--mood-bg-color').trim() || '#667eea';
@@ -241,7 +285,73 @@ class MarketMoodApp {
         this.refreshBtn = document.getElementById('refreshBtn');
         this.settingsBtn = document.getElementById('settingsBtn');
         this.signalsBtn = document.getElementById('signalsBtn');
+        this.signalsBtnLabel = document.getElementById('signalsBtnLabel');
+        this.generateSignalsBtn = document.getElementById('generateSignalsBtn');
+        this.refreshDataAvailabilityBtn = document.getElementById('refreshDataAvailabilityBtn');
+        this.dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
         this.uploadBtn = document.getElementById('uploadBtn');
+        this.moodPageView = document.getElementById('moodPageView');
+        this.signalsPageView = document.getElementById('signalsPageView');
+        this.currentView = 'mood'; // 'mood' or 'signals'
+        
+        console.log('🔍 Element check:', {
+            signalsBtn: !!this.signalsBtn,
+            signalsBtnLabel: !!this.signalsBtnLabel,
+            moodPageView: !!this.moodPageView,
+            signalsPageView: !!this.signalsPageView
+        });
+        
+        // If signalsPageView not found, try multiple methods to find it
+        if (!this.signalsPageView) {
+            console.warn('⚠️ signalsPageView not found, trying alternative methods...');
+            this.signalsPageView = document.querySelector('#signalsPageView');
+            if (!this.signalsPageView) {
+                const main = document.querySelector('main');
+                if (main) {
+                    this.signalsPageView = main.querySelector('#signalsPageView');
+                }
+            }
+            if (!this.signalsPageView) {
+                const allPageViews = document.querySelectorAll('.page-view');
+                for (const el of allPageViews) {
+                    if (el.id === 'signalsPageView') {
+                        this.signalsPageView = el;
+                        break;
+                    }
+                }
+            }
+            if (this.signalsPageView) {
+                console.log('✓ Found signalsPageView using fallback method');
+            } else {
+                console.error('✗ signalsPageView still not found after all attempts!');
+                console.error('Document ready state:', document.readyState);
+                console.error('Main element:', document.querySelector('main'));
+                console.error('All page-view elements:', document.querySelectorAll('.page-view'));
+            }
+        }
+        
+        // Ensure mood page is visible initially
+        if (this.moodPageView) {
+            this.moodPageView.style.setProperty('display', 'block', 'important');
+            console.log('✓ Mood page initialized and visible');
+        } else {
+            console.error('✗ Mood page view not found during init!');
+        }
+        if (this.signalsPageView) {
+            this.signalsPageView.style.setProperty('display', 'none', 'important');
+            console.log('✓ Signals page initialized and hidden');
+        } else {
+            console.error('✗ Signals page view not found during init!');
+            console.error('This will prevent the signals page from working. Please check the HTML structure.');
+        }
+        
+        // Debug: Log all page view elements
+        console.log('=== Page View Elements Check ===');
+        console.log('moodPageView:', this.moodPageView);
+        console.log('signalsPageView:', this.signalsPageView);
+        console.log('signalsBtn:', this.signalsBtn);
+        console.log('signalsBtnLabel:', this.signalsBtnLabel);
+        
         this.menuBtn = document.getElementById('menuBtn');
         this.menuModal = document.getElementById('menuModal');
         this.aiConnectBtn = document.getElementById('aiConnectBtn');
@@ -259,7 +369,123 @@ class MarketMoodApp {
             });
         }
         if (this.signalsBtn) {
-            this.signalsBtn.addEventListener('click', () => this.handleSignals());
+            console.log('✓ Signals button found, attaching event listener');
+            console.log('Initial state - moodPageView:', this.moodPageView, 'signalsPageView:', this.signalsPageView);
+            
+            // Test if button is visible and clickable
+            const btnRect = this.signalsBtn.getBoundingClientRect();
+            const btnDisplay = getComputedStyle(this.signalsBtn).display;
+            const btnVisibility = getComputedStyle(this.signalsBtn).visibility;
+            console.log('Signals button state:', {
+                display: btnDisplay,
+                visibility: btnVisibility,
+                rect: btnRect,
+                pointerEvents: getComputedStyle(this.signalsBtn).pointerEvents
+            });
+            
+            // Add click event listener
+            this.signalsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                // Prevent any hash navigation or anchor behavior
+                if (e.target && e.target.closest('a')) {
+                    e.preventDefault();
+                }
+                
+                // Prevent form submission if button is in a form
+                if (this.signalsBtn.form) {
+                    e.preventDefault();
+                }
+                
+                console.log('🔔 === Signals/Mood button clicked! ===');
+                console.log('Current view:', this.currentView);
+                console.log('Mood page view exists:', !!this.moodPageView);
+                console.log('Signals page view exists:', !!this.signalsPageView);
+                if (this.moodPageView) {
+                    console.log('Mood page display:', getComputedStyle(this.moodPageView).display);
+                }
+                if (this.signalsPageView) {
+                    console.log('Signals page display:', getComputedStyle(this.signalsPageView).display);
+                }
+                
+                // Visual feedback
+                const originalBg = this.signalsBtn.style.backgroundColor;
+                this.signalsBtn.style.backgroundColor = '#667eea';
+                setTimeout(() => {
+                    this.signalsBtn.style.backgroundColor = originalBg;
+                }, 200);
+                
+                // Store current scroll position to prevent unwanted scrolling
+                const scrollY = window.scrollY;
+                
+                // Call toggleView and wait for it to complete
+                try {
+                    this.toggleView();
+                    
+                    // Verify the view actually switched after a short delay
+                    setTimeout(() => {
+                        const expectedView = this.currentView === 'mood' ? 'signals' : 'mood';
+                        const actualView = this.currentView;
+                        console.log('View switch verification:', {
+                            expected: expectedView,
+                            actual: actualView,
+                            signalsPageDisplay: this.signalsPageView ? getComputedStyle(this.signalsPageView).display : 'N/A',
+                            moodPageDisplay: this.moodPageView ? getComputedStyle(this.moodPageView).display : 'N/A'
+                        });
+                        
+                        // If view didn't change properly, try again
+                        if (actualView !== expectedView) {
+                            console.warn('View switch may have failed, retrying...');
+                            this.toggleView();
+                        }
+                    }, 200);
+                } catch (error) {
+                    console.error('Error in toggleView:', error);
+                    alert('Error switching views. Please refresh the page.');
+                }
+                
+                // If view didn't change, restore scroll position
+                setTimeout(() => {
+                    if (this.currentView === 'mood' && window.scrollY !== scrollY) {
+                        window.scrollTo({ top: scrollY, behavior: 'instant' });
+                    }
+                }, 50);
+            }, true); // Use capture phase
+            
+            // Also add mousedown/touchstart as backup
+            this.signalsBtn.addEventListener('mousedown', (e) => {
+                console.log('Signals button mousedown detected');
+            });
+            this.signalsBtn.addEventListener('touchstart', (e) => {
+                console.log('Signals button touchstart detected');
+            });
+        } else {
+            console.error('✗ Signals button not found in DOM!');
+            // Try to find it again
+            setTimeout(() => {
+                const retryBtn = document.getElementById('signalsBtn');
+                if (retryBtn) {
+                    console.log('Found signals button on retry, attaching listener...');
+                    this.signalsBtn = retryBtn;
+                    retryBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        console.log('Signals button clicked (retry listener)');
+                        this.toggleView();
+                    }, true);
+                } else {
+                    console.error('Still not found on retry');
+                }
+            }, 500);
+        }
+        if (this.generateSignalsBtn) {
+            this.generateSignalsBtn.addEventListener('click', () => this.generateSignals());
+        }
+        if (this.refreshDataAvailabilityBtn) {
+            this.refreshDataAvailabilityBtn.addEventListener('click', () => this.loadDataAvailability());
         }
         if (this.uploadBtn) {
             this.uploadBtn.addEventListener('click', () => this.openUploadModal());
@@ -792,6 +1018,9 @@ class MarketMoodApp {
         if (data.mood) {
             if (moodEmoji) moodEmoji.textContent = data.mood.emoji || '😐';
             if (moodText) moodText.textContent = data.mood.text || '';
+            
+            // Also update signals page mood card if it exists
+            this.syncMoodToSignalsPage();
             if (scoreFill && typeof data.mood.score === 'number') {
                 const pct = Math.max(0, Math.min(100, data.mood.score));
                 scoreFill.style.width = pct + '%';
@@ -2180,23 +2409,40 @@ class MarketMoodApp {
     }
 
     async updateUploadedDataInfo() {
+        // Prevent concurrent calls
+        if (this._updatingUploadedDataInfo) {
+            console.log('updateUploadedDataInfo already in progress, skipping...');
+            return;
+        }
+        
+        this._updatingUploadedDataInfo = true;
+        
         const uploadedDataInfo = document.getElementById('uploadedDataInfo');
         const tableBody = document.getElementById('uploadedFilesTableBody');
         const loadingEl = document.getElementById('uploadedFilesLoading');
         const emptyEl = document.getElementById('uploadedFilesEmpty');
         const tableEl = document.getElementById('uploadedFilesTable');
 
-        if (!uploadedDataInfo || !tableBody) return;
+        if (!uploadedDataInfo || !tableBody) {
+            this._updatingUploadedDataInfo = false;
+            return;
+        }
 
         // Show loading state
         if (loadingEl) loadingEl.style.display = 'block';
         if (emptyEl) emptyEl.style.display = 'none';
         if (tableEl) tableEl.style.display = 'none';
-        // Clear table body completely
+        
+        // Clear table body completely - this is critical to prevent duplicates
+        // Remove all child nodes to ensure complete cleanup
+        while (tableBody.firstChild) {
+            tableBody.removeChild(tableBody.firstChild);
+        }
         tableBody.innerHTML = '';
         
         // Debug: Log when function is called
         console.log('updateUploadedDataInfo called');
+        console.log('Table body cleared, child count:', tableBody.children.length);
 
         try {
             // Fetch all uploaded files from all 3 collections
@@ -2298,6 +2544,7 @@ class MarketMoodApp {
                             });
                         }
                         const dateData = dateMap.get(normalizedDate);
+                        // For premarket, use indicesCount or count the premarket data array
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
                         if (count > dateData.premarket.count) {
                             dateData.premarket.count = count;
@@ -2310,16 +2557,23 @@ class MarketMoodApp {
                     }
                 });
             }
-
-            // Convert map to array and ensure no duplicates
-            const groupedDataArray = Array.from(dateMap.values());
             
-            // Final deduplication by date (in case normalization missed something)
-            // Use a more robust normalization for the final pass
+            // Debug: Log what we have before final processing
+            console.log('Date map after processing all types:', Array.from(dateMap.keys()));
+            console.log('Date map entries:', Array.from(dateMap.entries()).map(([date, data]) => ({
+                date,
+                indices: data.indices.count,
+                bhav: data.bhav.count,
+                premarket: data.premarket.count
+            })));
+
+            // Use a more robust normalization function
             const normalizeDateForKey = (dateStr) => {
                 if (!dateStr) return null;
                 // Extract just the date part (YYYY-MM-DD) if it includes time
-                const dateOnly = dateStr.toString().split('T')[0].split(' ')[0].trim();
+                let dateOnly = dateStr.toString().split('T')[0].split(' ')[0].trim();
+                // Remove any trailing characters
+                dateOnly = dateOnly.replace(/[^\d-]/g, '');
                 // Validate and normalize format
                 if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
                     return dateOnly;
@@ -2339,13 +2593,18 @@ class MarketMoodApp {
                 return dateOnly;
             };
             
+            // Final deduplication - normalize all dates in the map and merge duplicates
             const finalDateMap = new Map();
-            groupedDataArray.forEach(item => {
+            
+            dateMap.forEach((item, originalDate) => {
                 if (!item.date) return;
                 
                 // Normalize the date key
                 const dateKey = normalizeDateForKey(item.date);
-                if (!dateKey) return;
+                if (!dateKey) {
+                    console.warn(`Skipping item with invalid date: ${item.date}`);
+                    return;
+                }
                 
                 // If date already exists, merge the data (keep max counts and all IDs)
                 if (finalDateMap.has(dateKey)) {
@@ -2383,21 +2642,30 @@ class MarketMoodApp {
             console.log('Date map keys:', Array.from(dateMap.keys()));
             console.log('Final date map keys:', Array.from(finalDateMap.keys()));
             
-            // Additional check: ensure no duplicates in final array
+            // Final check: ensure absolutely no duplicates (triple check)
             const uniqueDates = new Set();
             const deduplicatedData = [];
             groupedData.forEach(item => {
                 const dateKey = normalizeDateForKey(item.date);
-                if (dateKey && !uniqueDates.has(dateKey)) {
+                if (!dateKey) {
+                    console.warn(`Skipping item with invalid date: ${item.date}`);
+                    return;
+                }
+                if (!uniqueDates.has(dateKey)) {
                     uniqueDates.add(dateKey);
+                    // Ensure date is normalized in the item
+                    item.date = dateKey;
                     deduplicatedData.push(item);
-                } else if (dateKey && uniqueDates.has(dateKey)) {
-                    console.warn(`Duplicate date found in final array: ${dateKey}, skipping`);
+                } else {
+                    console.warn(`⚠️ Duplicate date found in final array: ${dateKey}, skipping duplicate`);
                 }
             });
             
-            // Use deduplicated data
-            const finalGroupedData = deduplicatedData.length > 0 ? deduplicatedData : groupedData;
+            // Use deduplicated data - this should be the final, unique list
+            const finalGroupedData = deduplicatedData;
+            
+            console.log(`Final unique dates count: ${finalGroupedData.length}`);
+            console.log('Final dates:', finalGroupedData.map(d => d.date));
 
             if (finalGroupedData.length > 0) {
                 // Show table and hide empty message
@@ -2405,11 +2673,18 @@ class MarketMoodApp {
                 if (emptyEl) emptyEl.style.display = 'none';
                 uploadedDataInfo.style.display = 'block';
 
-                // Populate table - ensure we only add each date once (triple check)
+                // Populate table - final check to ensure no duplicates
                 const addedDates = new Set();
                 let rowNumber = 0; // Track row number separately
                 
-                finalGroupedData.forEach((dateData, index) => {
+                // Sort by date descending one more time to ensure consistency
+                const sortedData = [...finalGroupedData].sort((a, b) => {
+                    const dateA = normalizeDateForKey(a.date) || '';
+                    const dateB = normalizeDateForKey(b.date) || '';
+                    return dateB.localeCompare(dateA);
+                });
+                
+                sortedData.forEach((dateData, index) => {
                     // Normalize date one more time before checking
                     const normalizedDate = normalizeDateForKey(dateData.date);
                     if (!normalizedDate) {
@@ -2417,13 +2692,15 @@ class MarketMoodApp {
                         return;
                     }
                     
-                    // Skip if this date was already added
+                    // Skip if this date was already added (should not happen, but safety check)
                     if (addedDates.has(normalizedDate)) {
-                        console.warn(`Skipping duplicate date: ${normalizedDate} (original: ${dateData.date})`);
+                        console.error(`❌ ERROR: Duplicate date found during table rendering: ${normalizedDate}`);
+                        console.error('This should not happen. Date data:', dateData);
+                        console.error('Already added dates:', Array.from(addedDates));
                         return;
                     }
                     
-                    // Mark this date as added
+                    // Mark this date as added BEFORE creating the row
                     addedDates.add(normalizedDate);
                     
                     // Update dateData.date to normalized version
@@ -2458,12 +2735,16 @@ class MarketMoodApp {
                     const hasBhav = (dateData.bhav?.count || 0) > 0;
                     const hasPremarket = (dateData.premarket?.count || 0) > 0;
                     
+                    // Use green checkmark for better visibility
+                    const checkmarkColor = '#10b981'; // Green color
+                    const checkmark = '✓';
+                    
                     row.innerHTML = `
                         <td>${rowNumber}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
-                        <td style="color: ${hasBhav ? dateColor : '#999'}; text-align: center;">${hasBhav ? '✓' : ''}</td>
-                        <td style="color: ${hasPremarket ? dateColor : '#999'}; text-align: center;">${hasPremarket ? '✓' : ''}</td>
+                        <td style="color: ${hasBhav ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasBhav ? 'bold' : 'normal'}; font-size: ${hasBhav ? '1.2em' : '1em'};">${hasBhav ? checkmark : ''}</td>
+                        <td style="color: ${hasPremarket ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasPremarket ? 'bold' : 'normal'}; font-size: ${hasPremarket ? '1.2em' : '1em'};">${hasPremarket ? checkmark : ''}</td>
                         <td class="action-buttons">
                             <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2480,8 +2761,53 @@ class MarketMoodApp {
                             </button>
                         </td>
                     `;
+                    
+                    // Final check before appending - ensure this date hasn't been added
+                    const existingRows = Array.from(tableBody.querySelectorAll('tr'));
+                    const dateAlreadyInTable = existingRows.some(tr => {
+                        const dateCell = tr.querySelector('td:nth-child(2)');
+                        if (dateCell) {
+                            const cellText = dateCell.textContent.trim();
+                            // Extract date from formatted text (DD/MM format)
+                            const cellDateParts = cellText.split('/');
+                            if (cellDateParts.length === 2) {
+                                const [day, month] = cellDateParts;
+                                const cellDateKey = `${dateData.date.split('-')[0]}-${month}-${day}`;
+                                return cellDateKey === normalizedDate || 
+                                       cellText === formattedDate ||
+                                       dateCell.textContent.includes(formattedDate);
+                            }
+                        }
+                        return false;
+                    });
+                    
+                    if (dateAlreadyInTable) {
+                        console.error(`❌ CRITICAL: Attempted to add duplicate row for date ${normalizedDate}`);
+                        console.error('Existing rows:', existingRows.length);
+                        return; // Skip adding this row
+                    }
+                    
                     tableBody.appendChild(row);
+                    console.log(`Added row ${rowNumber} for date: ${normalizedDate}`);
                 });
+                
+                // Final verification - check for any duplicates in the rendered table
+                const finalRows = Array.from(tableBody.querySelectorAll('tr'));
+                const finalDates = new Set();
+                finalRows.forEach((row, idx) => {
+                    const dateCell = row.querySelector('td:nth-child(2)');
+                    if (dateCell) {
+                        const dateText = dateCell.textContent.trim();
+                        if (finalDates.has(dateText)) {
+                            console.error(`❌ DUPLICATE ROW DETECTED at index ${idx}: ${dateText}`);
+                            row.remove(); // Remove the duplicate
+                        } else {
+                            finalDates.add(dateText);
+                        }
+                    }
+                });
+                
+                console.log(`Final table has ${tableBody.children.length} unique rows`);
 
                 // Add event listeners for export and delete buttons
                 tableBody.querySelectorAll('.btn-export').forEach(btn => {
@@ -2539,6 +2865,9 @@ class MarketMoodApp {
                 emptyEl.style.display = 'block';
             }
             if (tableEl) tableEl.style.display = 'none';
+        } finally {
+            // Always clear the flag when done
+            this._updatingUploadedDataInfo = false;
         }
     }
 
@@ -2670,6 +2999,8 @@ class MarketMoodApp {
     }
 
     openMenuModal() {
+        // Update AI Connect status when menu opens
+        this.updateMenuAiConnectStatus();
         if (this.menuModal) {
             this.menuModal.classList.add('show');
             this.lockBodyScroll();
@@ -2917,28 +3248,35 @@ class MarketMoodApp {
             savedKey = localStorage.getItem('openRouterApiKey') || '';
         }
 
-        // Find the span element in the button
+        // Remove existing status indicator first
+        const existingIndicator = aiConnectBtn.querySelector('.ai-connect-status-indicator');
+        if (existingIndicator) {
+            existingIndicator.remove();
+        }
+
+        // Find the span element and arrow SVG in the button
         const spanElement = aiConnectBtn.querySelector('span');
+        const arrowSvg = aiConnectBtn.querySelector('svg:last-child');
+        
         if (spanElement) {
             if (savedKey && savedKey.trim()) {
-                // Add status indicator
-                if (!aiConnectBtn.querySelector('.ai-connect-status-indicator')) {
-                    const statusIndicator = document.createElement('span');
-                    statusIndicator.className = 'ai-connect-status-indicator';
-                    statusIndicator.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: 0.75rem; color: #10b981; font-weight: 500;';
-                    statusIndicator.innerHTML = `
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                        Connected
-                    `;
+                // Add status indicator between span and arrow
+                const statusIndicator = document.createElement('span');
+                statusIndicator.className = 'ai-connect-status-indicator';
+                statusIndicator.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span class="ai-connect-status-text">Connected</span>
+                `;
+                
+                // Insert before the arrow SVG, or after span if no arrow
+                if (arrowSvg && arrowSvg !== spanElement.nextElementSibling) {
+                    // Arrow is the last child, insert before it
+                    aiConnectBtn.insertBefore(statusIndicator, arrowSvg);
+                } else {
+                    // Insert after span
                     spanElement.parentNode.insertBefore(statusIndicator, spanElement.nextSibling);
-                }
-            } else {
-                // Remove status indicator
-                const statusIndicator = aiConnectBtn.querySelector('.ai-connect-status-indicator');
-                if (statusIndicator) {
-                    statusIndicator.remove();
                 }
             }
         }
@@ -2958,14 +3296,692 @@ class MarketMoodApp {
         }
     }
 
-    handleSignals() {
-        // Show all indices section when Signals button is clicked
-        const allIndicesSection = document.getElementById('allIndicesSection');
-        if (allIndicesSection) {
-            allIndicesSection.style.display = 'block';
-            // Scroll to the section
-            allIndicesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toggleView() {
+        // Prevent any default scrolling behavior
+        if (document.activeElement) {
+            document.activeElement.blur();
         }
+        
+        if (this.currentView === 'mood') {
+            // Switch to Signals view
+            this.showSignalsView();
+        } else {
+            // Switch to Mood view
+            this.showMoodView();
+        }
+    }
+
+    showMoodView() {
+        console.log('Switching to Mood view');
+        this.currentView = 'mood';
+        
+        // Hide signals page, show mood page
+        if (this.signalsPageView) {
+            this.signalsPageView.style.setProperty('display', 'none', 'important');
+        }
+        if (this.moodPageView) {
+            this.moodPageView.style.setProperty('display', 'block', 'important');
+        }
+        
+        // Update button label and icon
+        if (this.signalsBtnLabel) {
+            this.signalsBtnLabel.textContent = 'Signals';
+        }
+        if (this.signalsBtn) {
+            const icon = this.signalsBtn.querySelector('svg:first-child');
+            if (icon) {
+                icon.innerHTML = '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>';
+            }
+        }
+        
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    showSignalsView() {
+        console.log('=== Switching to Signals view ===');
+        console.log('Mood page view element:', this.moodPageView);
+        console.log('Signals page view element:', this.signalsPageView);
+        
+        // Re-query elements if they're not found (in case DOM changed)
+        if (!this.moodPageView) {
+            this.moodPageView = document.getElementById('moodPageView');
+            console.log('Re-queried moodPageView:', this.moodPageView);
+        }
+        if (!this.signalsPageView) {
+            this.signalsPageView = document.getElementById('signalsPageView');
+            console.log('Re-queried signalsPageView:', this.signalsPageView);
+        }
+        
+        // If still not found, try querySelector as fallback
+        if (!this.signalsPageView) {
+            this.signalsPageView = document.querySelector('#signalsPageView');
+            console.log('Tried querySelector for signalsPageView:', this.signalsPageView);
+        }
+        
+        // If still not found, check if main element exists and search within it
+        if (!this.signalsPageView) {
+            const main = document.querySelector('main');
+            if (main) {
+                this.signalsPageView = main.querySelector('#signalsPageView');
+                console.log('Searched within main element:', this.signalsPageView);
+            }
+        }
+        
+        // Last resort: check all page-view elements
+        if (!this.signalsPageView) {
+            const allPageViews = document.querySelectorAll('.page-view');
+            console.log('All page-view elements found:', allPageViews.length);
+            allPageViews.forEach((el, idx) => {
+                console.log(`Page view ${idx}: id="${el.id}", display="${getComputedStyle(el).display}"`);
+                if (el.id === 'signalsPageView') {
+                    this.signalsPageView = el;
+                    console.log('Found signalsPageView in page-view list!');
+                }
+            });
+        }
+        
+        if (!this.moodPageView || !this.signalsPageView) {
+            console.error('Page view elements not found! Cannot switch views.');
+            console.error('moodPageView:', this.moodPageView);
+            console.error('signalsPageView:', this.signalsPageView);
+            console.error('Document body:', document.body);
+            console.error('Main element:', document.querySelector('main'));
+            console.error('All elements with id signalsPageView:', document.querySelectorAll('#signalsPageView'));
+            alert('Error: Signals page elements not found. Please refresh the page.');
+            return;
+        }
+        
+        this.currentView = 'signals';
+        
+        // Hide mood page first - use setProperty for better compatibility
+        this.moodPageView.style.setProperty('display', 'none', 'important');
+        console.log('Mood page hidden, computed display:', getComputedStyle(this.moodPageView).display);
+        
+        // Show signals page - use multiple methods to ensure it displays
+        // Method 1: Remove inline style completely
+        this.signalsPageView.removeAttribute('style');
+        
+        // Method 2: Set display using cssText to override everything
+        this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important;';
+        
+        // Method 3: Also set individual properties
+        this.signalsPageView.style.setProperty('display', 'block', 'important');
+        this.signalsPageView.style.setProperty('visibility', 'visible', 'important');
+        this.signalsPageView.style.setProperty('opacity', '1', 'important');
+        this.signalsPageView.style.setProperty('position', 'relative', 'important');
+        
+        // Method 4: Remove any hidden class
+        this.signalsPageView.classList.remove('hidden');
+        
+        console.log('Signals page style set to block');
+        
+        // Force multiple reflows to ensure display change takes effect
+        void this.signalsPageView.offsetHeight;
+        void this.signalsPageView.offsetWidth;
+        void this.signalsPageView.getBoundingClientRect();
+        
+        // Verify it's visible
+        const computedDisplay = getComputedStyle(this.signalsPageView).display;
+        const computedVisibility = getComputedStyle(this.signalsPageView).visibility;
+        const rect = this.signalsPageView.getBoundingClientRect();
+        console.log('Signals page computed styles - display:', computedDisplay, 'visibility:', computedVisibility);
+        console.log('Signals page bounding rect:', rect);
+        
+        if (computedDisplay === 'none') {
+            console.error('Signals page still hidden! Trying alternative method...');
+            // Try using classList manipulation
+            this.signalsPageView.classList.remove('hidden');
+            this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important;';
+            void this.signalsPageView.offsetHeight;
+        }
+        
+        // Double-check visibility
+        const finalDisplay = getComputedStyle(this.signalsPageView).display;
+        if (finalDisplay === 'none') {
+            console.error('CRITICAL: Signals page still not visible after all attempts!');
+            console.error('Element:', this.signalsPageView);
+            console.error('Parent:', this.signalsPageView.parentElement);
+            console.error('All computed styles:', window.getComputedStyle(this.signalsPageView));
+        } else {
+            console.log('✓ Signals page is now visible');
+        }
+        
+        // Update button label and icon
+        if (this.signalsBtnLabel) {
+            this.signalsBtnLabel.textContent = 'Mood';
+            console.log('Button label updated to Mood');
+        }
+        
+        if (this.signalsBtn) {
+            const icon = this.signalsBtn.querySelector('svg:first-child');
+            if (icon) {
+                icon.setAttribute('viewBox', '0 0 24 24');
+                icon.innerHTML = '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>';
+                console.log('Button icon updated to home icon');
+            }
+        }
+        
+        // Copy mood data to signals page mood card
+        this.syncMoodToSignalsPage();
+        
+        // Immediately scroll to top to prevent any unwanted scrolling
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        
+        // Ensure signals section is visible
+        const signalsSection = document.getElementById('signalsSection');
+        if (signalsSection) {
+            signalsSection.style.display = 'block';
+            signalsSection.style.visibility = 'visible';
+        }
+        
+        // Wait a bit to ensure the view is actually visible before doing anything else
+        setTimeout(() => {
+            // Verify signals page is visible
+            const finalCheck = getComputedStyle(this.signalsPageView).display;
+            const signalsPageRect = this.signalsPageView.getBoundingClientRect();
+            console.log('Signals page visibility check:', {
+                display: finalCheck,
+                rect: signalsPageRect,
+                width: signalsPageRect.width,
+                height: signalsPageRect.height
+            });
+            
+            if (finalCheck !== 'none' && signalsPageRect.height > 0) {
+                // Ensure we're at the top
+                window.scrollTo({ top: 0, behavior: 'instant' });
+                console.log('✓ Signals page is visible and has content, staying at top');
+            } else {
+                console.error('Signals page not visible after switch! Attempting aggressive fix...');
+                
+                // Aggressive fix - try everything
+                this.signalsPageView.classList.remove('hidden');
+                this.signalsPageView.removeAttribute('style');
+                this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; width: 100% !important;';
+                
+                // Force multiple reflows
+                void this.signalsPageView.offsetHeight;
+                void this.signalsPageView.offsetWidth;
+                void this.signalsPageView.getBoundingClientRect();
+                
+                // Also check parent
+                const parent = this.signalsPageView.parentElement;
+                if (parent) {
+                    parent.style.setProperty('display', 'block', 'important');
+                }
+                
+                window.scrollTo({ top: 0, behavior: 'instant' });
+                
+                // Wait a bit and check again
+                setTimeout(() => {
+                    const retryCheck = getComputedStyle(this.signalsPageView).display;
+                    const retryRect = this.signalsPageView.getBoundingClientRect();
+                    console.log('After aggressive fix attempt:', {
+                        display: retryCheck,
+                        rect: retryRect,
+                        visible: retryCheck !== 'none' && retryRect.height > 0
+                    });
+                    
+                    if (retryCheck === 'none' || retryRect.height === 0) {
+                        console.error('CRITICAL: Signals page still not visible!');
+                        // Last resort - alert user
+                        alert('Signals page failed to load. Please refresh the page.');
+                    }
+                }, 100);
+            }
+            
+            // Load data availability and signals
+            console.log('Loading data availability...');
+            this.loadDataAvailability();
+            
+            console.log('Loading signals...');
+            this.loadSignals();
+        }, 100);
+        
+        console.log('=== Signals view switch complete ===');
+    }
+
+
+    async loadSignals(date = null) {
+        console.log('Loading signals, date:', date);
+        
+        // Wait a bit to ensure page view is visible
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        const signalsSection = document.getElementById('signalsSection');
+        const signalsContainer = document.getElementById('signalsContainer');
+        const signalsLoading = document.getElementById('signalsLoading');
+        const signalsError = document.getElementById('signalsError');
+        const signalsEmpty = document.getElementById('signalsEmpty');
+
+        console.log('Looking for signals elements:', {
+            signalsSection: !!signalsSection,
+            signalsContainer: !!signalsContainer,
+            signalsLoading: !!signalsLoading,
+            signalsError: !!signalsError,
+            signalsEmpty: !!signalsEmpty,
+            signalsPageViewVisible: this.signalsPageView ? getComputedStyle(this.signalsPageView).display : 'N/A'
+        });
+
+        if (!signalsSection || !signalsContainer) {
+            console.error('Signals section or container not found!', { 
+                signalsSection, 
+                signalsContainer,
+                signalsPageView: this.signalsPageView,
+                signalsPageViewDisplay: this.signalsPageView ? getComputedStyle(this.signalsPageView).display : 'N/A'
+            });
+            
+            // Try to find elements again after a delay
+            setTimeout(() => {
+                const retrySection = document.getElementById('signalsSection');
+                const retryContainer = document.getElementById('signalsContainer');
+                if (retrySection && retryContainer) {
+                    console.log('Found elements on retry, loading signals...');
+                    this.loadSignals(date);
+                } else {
+                    console.error('Still not found on retry');
+                }
+            }, 200);
+            return;
+        }
+        
+        console.log('Signals elements found, proceeding with load');
+
+        // Show loading
+        signalsLoading.style.display = 'block';
+        signalsError.style.display = 'none';
+        signalsEmpty.style.display = 'none';
+        signalsContainer.style.display = 'none';
+        signalsContainer.innerHTML = '';
+
+        try {
+            console.log('Loading signals, date:', date);
+            // First try to get existing signals
+            let url = '/api/get-signals';
+            if (date) {
+                url = `/api/get-signals?date=${date}`;
+            }
+
+            console.log('Fetching from:', url);
+            let response = await fetch(url);
+            let data = await response.json();
+            console.log('Get signals response:', data);
+
+            // If no signals found, generate new ones
+            if (!data.signals || data.signals.length === 0) {
+                console.log('No existing signals found, generating new ones...');
+                // Try to generate signals
+                let generateUrl = '/api/test-generate-signals';
+                if (date) {
+                    generateUrl = `/api/generate-signals?date=${date}`;
+                }
+                
+                console.log('Generating signals from:', generateUrl);
+                response = await fetch(generateUrl);
+                data = await response.json();
+                console.log('Generate signals response:', data);
+            }
+
+            signalsLoading.style.display = 'none';
+
+            if (!response.ok) {
+                throw new Error(data.message || data.error || 'Failed to load signals');
+            }
+
+            if (data.signal_count === 0 || !data.signals || data.signals.length === 0) {
+                signalsEmpty.style.display = 'block';
+                signalsContainer.style.display = 'none';
+                
+                // Update the message in the empty state div (keep the HTML structure)
+                const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
+                const emptyMessage = signalsEmpty.querySelector('div[style*="font-size: 0.95rem"]');
+                
+                if (emptyTitle) {
+                    emptyTitle.textContent = 'No Potential Signals';
+                }
+                if (emptyMessage) {
+                    if (data.message) {
+                        emptyMessage.innerHTML = data.message;
+                    } else {
+                        emptyMessage.innerHTML = 'No trading signals were found for the selected date.<br>This could mean the market conditions don\'t meet the signal criteria.';
+                    }
+                }
+                
+                // Setup generate button in empty state
+                const generateBtnEmpty = document.getElementById('generateSignalsBtnEmpty');
+                if (generateBtnEmpty) {
+                    generateBtnEmpty.onclick = () => {
+                        this.generateSignals();
+                    };
+                }
+                
+                console.log('No signals found, showing empty message');
+                return;
+            }
+            
+            // Hide empty message if we have signals
+            signalsEmpty.style.display = 'none';
+            signalsContainer.style.display = 'block';
+
+            // Display signals
+            console.log('Rendering signals:', data.signals.length);
+            signalsContainer.style.display = 'block';
+            this.renderSignals(data.signals, data.run_id, data.date);
+        } catch (error) {
+            console.error('Error loading signals:', error);
+            signalsLoading.style.display = 'none';
+            signalsError.style.display = 'block';
+            signalsContainer.style.display = 'none';
+            signalsEmpty.style.display = 'none';
+            
+            let errorMessage = error.message || 'Failed to load signals. Please try again.';
+            if (error.message && error.message.includes('fetch')) {
+                errorMessage = 'Network error: Could not connect to the server. Please check your connection and try again.';
+            }
+            signalsError.textContent = errorMessage;
+            console.error('Full error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
+        }
+    }
+
+    async generateSignals() {
+        console.log('Generate Signals button clicked');
+        
+        const signalsSection = document.getElementById('signalsSection');
+        const signalsContainer = document.getElementById('signalsContainer');
+        const signalsLoading = document.getElementById('signalsLoading');
+        const signalsError = document.getElementById('signalsError');
+        const signalsEmpty = document.getElementById('signalsEmpty');
+
+        if (!signalsSection || !signalsContainer) {
+            console.error('Signals section or container not found!');
+            return;
+        }
+
+        // Show loading
+        signalsLoading.style.display = 'block';
+        signalsError.style.display = 'none';
+        signalsEmpty.style.display = 'none';
+        signalsContainer.style.display = 'none';
+        signalsContainer.innerHTML = '';
+
+        try {
+            // Generate signals for the latest date
+            console.log('Generating signals for latest date...');
+            const response = await fetch('/api/test-generate-signals');
+            const data = await response.json();
+            console.log('Generate signals response:', data);
+
+            signalsLoading.style.display = 'none';
+
+            if (!response.ok) {
+                throw new Error(data.message || data.error || 'Failed to generate signals');
+            }
+
+            if (data.signal_count === 0 || !data.signals || data.signals.length === 0) {
+                signalsEmpty.style.display = 'block';
+                signalsContainer.style.display = 'none';
+                
+                // Update the message
+                const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
+                const emptyMessage = signalsEmpty.querySelector('div[style*="font-size: 0.95rem"]');
+                
+                if (emptyTitle) {
+                    emptyTitle.textContent = 'No Potential Signals';
+                }
+                if (emptyMessage) {
+                    emptyMessage.innerHTML = 'No trading signals were generated for this date.<br>This could mean the market conditions don\'t meet the signal criteria.';
+                }
+                
+                console.log('No signals generated, showing empty message');
+                return;
+            }
+
+            // Display signals
+            console.log('Rendering generated signals:', data.signals.length);
+            signalsContainer.style.display = 'block';
+            this.renderSignals(data.signals, data.run_id, data.date);
+        } catch (error) {
+            console.error('Error generating signals:', error);
+            signalsLoading.style.display = 'none';
+            signalsError.style.display = 'block';
+            signalsContainer.style.display = 'none';
+            signalsEmpty.style.display = 'none';
+            
+            let errorMessage = error.message || 'Failed to generate signals. Please try again.';
+            if (error.message && error.message.includes('fetch')) {
+                errorMessage = 'Network error: Could not connect to the server. Please check your connection and try again.';
+            }
+            signalsError.textContent = errorMessage;
+        }
+    }
+
+    renderSignals(signals, runId, date) {
+        const signalsContainer = document.getElementById('signalsContainer');
+        if (!signalsContainer) return;
+
+        signalsContainer.innerHTML = '';
+
+        // Create header info
+        const headerInfo = document.createElement('div');
+        headerInfo.style.cssText = 'padding: 15px; background: #f3f4f6; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem;';
+        headerInfo.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <strong>Run ID:</strong> <span style="font-family: monospace; font-size: 0.85rem;">${runId}</span>
+                </div>
+                <div>
+                    <strong>Date:</strong> ${date}
+                </div>
+                <div>
+                    <strong>Signals:</strong> ${signals.length}
+                </div>
+            </div>
+        `;
+        signalsContainer.appendChild(headerInfo);
+
+        // Create signals grid
+        const signalsGrid = document.createElement('div');
+        signalsGrid.className = 'signals-grid';
+        signalsGrid.style.cssText = 'display: grid; grid-template-columns: 1fr; gap: 15px;';
+
+        signals.forEach((signal, index) => {
+            const signalCard = document.createElement('div');
+            signalCard.className = 'signal-card';
+            signalCard.style.cssText = `
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            `;
+
+            const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
+            const changeColor = isPositive ? '#10b981' : '#ef4444';
+
+            signalCard.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                    <div>
+                        <h4 style="margin: 0; font-size: 1.1rem; color: #333;">${index + 1}. ${signal.symbol}</h4>
+                        <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                            Score: <strong style="color: #667eea;">${signal.score}/100</strong>
+                            ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
+                        </div>
+                    </div>
+                    <div style="background: ${isPositive ? '#d1fae5' : '#fee2e2'}; color: ${changeColor}; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">
+                        ${signal.side || 'BUY'}
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Entry</div>
+                        <div style="font-weight: 600; color: #333;">₹${signal.entry_price?.toFixed(2) || '-'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Stop Loss</div>
+                        <div style="font-weight: 600; color: #ef4444;">₹${signal.stop_loss?.toFixed(2) || '-'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Target</div>
+                        <div style="font-weight: 600; color: #10b981;">₹${signal.target_price?.toFixed(2) || '-'}</div>
+                    </div>
+                </div>
+                ${signal.feature_fields ? `
+                    <div style="padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 0.85rem;">
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; color: #666;">
+                            <div>Gap: <strong>${signal.feature_fields.gap_percent?.toFixed(2) || '-'}%</strong></div>
+                            <div>RS20: <strong>${signal.feature_fields.rs20?.toFixed(2) || '-'}</strong></div>
+                            <div>Vol Surge: <strong>${signal.feature_fields.vol_surge?.toFixed(2) || '-'}x</strong></div>
+                            <div>Near High: <strong>${signal.feature_fields.near_high_flag ? 'Yes' : 'No'}</strong></div>
+                        </div>
+                    </div>
+                ` : ''}
+                ${signal.ai_explanation ? `
+                    <div style="margin-top: 15px; padding: 12px; background: #f9fafb; border-radius: 8px; font-size: 0.85rem; color: #4b5563; border-left: 3px solid #667eea;">
+                        ${signal.ai_explanation}
+                    </div>
+                ` : ''}
+            `;
+
+            signalsGrid.appendChild(signalCard);
+        });
+
+        signalsContainer.appendChild(signalsGrid);
+    }
+
+    async loadDataAvailability(date = null) {
+        const dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
+        const dataAvailabilityContent = document.getElementById('dataAvailabilityContent');
+        const dataAvailabilityLoading = document.getElementById('dataAvailabilityLoading');
+        const dataAvailabilityError = document.getElementById('dataAvailabilityError');
+
+        if (!dataAvailabilitySection || !dataAvailabilityContent) {
+            console.error('Data availability elements not found');
+            return;
+        }
+
+        // Show section and loading
+        dataAvailabilitySection.style.display = 'block';
+        dataAvailabilityLoading.style.display = 'block';
+        dataAvailabilityError.style.display = 'none';
+        dataAvailabilityContent.innerHTML = '';
+
+        try {
+            // Get latest date if not provided
+            if (!date) {
+                const latestDateResponse = await fetch('/api/get-latest-signal-date');
+                const latestDateData = await latestDateResponse.json();
+                if (latestDateData.latest_complete_date) {
+                    date = latestDateData.latest_complete_date;
+                } else if (latestDateData.dates) {
+                    // Use the latest available date
+                    const dates = [latestDateData.dates.bhavcopy, latestDateData.dates.indices]
+                        .filter(Boolean)
+                        .sort()
+                        .reverse();
+                    date = dates[0] || '2025-11-28';
+                } else {
+                    date = '2025-11-28';
+                }
+            }
+
+            // Fetch data availability
+            const response = await fetch(`/api/check-date-data?date=${date}`);
+            const data = await response.json();
+
+            dataAvailabilityLoading.style.display = 'none';
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || data.message || 'Failed to load data availability');
+            }
+
+            // Render data availability
+            this.renderDataAvailability(data);
+        } catch (error) {
+            console.error('Error loading data availability:', error);
+            dataAvailabilityLoading.style.display = 'none';
+            dataAvailabilityError.style.display = 'block';
+            dataAvailabilityError.textContent = error.message || 'Failed to load data availability';
+        }
+    }
+
+    renderDataAvailability(data) {
+        const dataAvailabilityContent = document.getElementById('dataAvailabilityContent');
+        if (!dataAvailabilityContent) return;
+
+        const { data: dataInfo, date, canGenerateSignals } = data;
+
+        dataAvailabilityContent.innerHTML = `
+            <div style="background: rgba(255, 255, 255, 0.95); border-radius: 12px; padding: 20px; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div>
+                        <div style="font-size: 0.85rem; color: #666; margin-bottom: 5px;">Date</div>
+                        <div style="font-size: 1.1rem; font-weight: 600; color: #333;">${date}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 0.85rem; color: #666; margin-bottom: 5px;">Can Generate Signals</div>
+                        <div style="font-size: 1.1rem; font-weight: 600; color: ${canGenerateSignals ? '#10b981' : '#ef4444'};">
+                            ${canGenerateSignals ? '✅ Yes' : '❌ No'}
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 15px;">
+                    <div style="padding: 12px; background: ${dataInfo.bhavcopy.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-size: 1.2rem;">${dataInfo.bhavcopy.available ? '✅' : '❌'}</span>
+                            <span style="font-weight: 600; color: #333;">Bhavcopy</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #666;">
+                            ${dataInfo.bhavcopy.count} stocks
+                        </div>
+                    </div>
+
+                    <div style="padding: 12px; background: ${dataInfo.indices.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-size: 1.2rem;">${dataInfo.indices.available ? '✅' : '❌'}</span>
+                            <span style="font-weight: 600; color: #333;">Indices</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #666;">
+                            ${dataInfo.indices.count} indices
+                        </div>
+                    </div>
+
+                    <div style="padding: 12px; background: ${dataInfo.premarket.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-size: 1.2rem;">${dataInfo.premarket.available ? '✅' : '❌'}</span>
+                            <span style="font-weight: 600; color: #333;">Pre-market</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #666;">
+                            ${dataInfo.premarket.count} items
+                        </div>
+                    </div>
+
+                    <div style="padding: 12px; background: ${dataInfo.signals.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-size: 1.2rem;">${dataInfo.signals.available ? '✅' : '❌'}</span>
+                            <span style="font-weight: 600; color: #333;">Signals</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #666;">
+                            ${dataInfo.signals.count} signals
+                        </div>
+                    </div>
+                </div>
+
+                ${dataInfo.signalRuns.count > 0 ? `
+                    <div style="padding: 12px; background: #f3f4f6; border-radius: 8px; margin-top: 10px;">
+                        <div style="font-weight: 600; color: #333; margin-bottom: 8px;">Signal Runs (${dataInfo.signalRuns.count})</div>
+                        ${dataInfo.signalRuns.runs.map((run, idx) => `
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: ${idx < dataInfo.signalRuns.runs.length - 1 ? '5px' : '0'};">
+                                Run ${idx + 1}: ${run.run_id} • ${run.regime_code || 'N/A'} • ${run.strategies_used?.join(', ') || 'N/A'}
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
     }
 
     updateDataSourceDisplay(source, data = null) {
@@ -3003,13 +4019,40 @@ class MarketMoodApp {
         }
 
         // Initialize app when DOM is ready
-        document.addEventListener('DOMContentLoaded', () => {
-            // Only initialize if auth check passes (or if on login page)
-            if (window.location.pathname.includes('login.html')) {
-                return; // Login page handles its own logic
+        function initializeApp() {
+            try {
+                console.log('🚀 Initializing MarketMoodApp...');
+                // Only initialize if auth check passes (or if on login page)
+                if (window.location.pathname.includes('login.html')) {
+                    console.log('On login page, skipping app initialization');
+                    return; // Login page handles its own logic
+                }
+                
+                if (checkAuth()) {
+                    console.log('Auth check passed, creating app instance...');
+                    window.marketMoodApp = new MarketMoodApp();
+                    console.log('✅ MarketMoodApp initialized successfully');
+                } else {
+                    console.log('Auth check failed, app not initialized');
+                }
+            } catch (error) {
+                console.error('❌ Error initializing MarketMoodApp:', error);
+                console.error('Error stack:', error.stack);
             }
-            
-            if (checkAuth()) {
-                window.marketMoodApp = new MarketMoodApp();
+        }
+
+        // Try to initialize immediately if DOM is already ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            // DOM is already ready, initialize immediately
+            initializeApp();
+        }
+        
+        // Also try on window load as backup
+        window.addEventListener('load', () => {
+            if (!window.marketMoodApp) {
+                console.log('Window loaded but app not initialized, trying again...');
+                initializeApp();
             }
         });
