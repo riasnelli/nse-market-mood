@@ -1,16 +1,94 @@
 const fetch = require('node-fetch');
 
-// Function to check if market is actually open based on API response
-async function checkMarketStatus() {
+// Get NSE API base URL from query parameter, environment variable, or use default
+function getNSEBaseUrl(req) {
+  // First check query parameter (from client settings)
+  if (req && req.query && req.query.baseUrl) {
+    return req.query.baseUrl;
+  }
+  // Then check environment variable
+  if (process.env.NSE_API_BASE_URL) {
+    return process.env.NSE_API_BASE_URL;
+  }
+  // Default fallback
+  return 'https://www.nseindia.com/api';
+}
+
+// Helper function to get NSE API headers with proper session handling
+function getNSEHeaders(baseUrl) {
+  return {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Referer': baseUrl.replace('/api', '') || 'https://www.nseindia.com/',
+    'Origin': baseUrl.replace('/api', '') || 'https://www.nseindia.com',
+    'Connection': 'keep-alive',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin'
+  };
+}
+
+// Function to establish NSE session by visiting main page first
+async function establishNSESession(baseUrl) {
   try {
+    // First, visit the main NSE page to get session cookies
+    const mainPageUrl = baseUrl.replace('/api', '') || 'https://www.nseindia.com';
+    const sessionResponse = await fetch(mainPageUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      },
+      redirect: 'follow'
+    });
+    
+    // Extract cookies from response headers
+    // node-fetch returns set-cookie as an array or string
+    const setCookieHeader = sessionResponse.headers.get('set-cookie');
+    let cookies = '';
+    
+    if (setCookieHeader) {
+      if (Array.isArray(setCookieHeader)) {
+        // If it's an array, join them
+        cookies = setCookieHeader.map(cookie => {
+          // Extract just the cookie name=value part (before semicolon)
+          return cookie.split(';')[0];
+        }).join('; ');
+      } else {
+        // If it's a string, extract the first cookie value
+        const cookieParts = setCookieHeader.split(',');
+        cookies = cookieParts.map(cookie => cookie.split(';')[0].trim()).join('; ');
+      }
+    }
+    
+    return cookies;
+  } catch (error) {
+    console.warn('Could not establish NSE session, continuing without cookies:', error.message);
+    return '';
+  }
+}
+
+// Function to check if market is actually open based on API response
+async function checkMarketStatus(req) {
+  try {
+    const baseUrl = getNSEBaseUrl(req);
+    
+    // Establish session first
+    const cookies = await establishNSESession(baseUrl);
+    const headers = getNSEHeaders(baseUrl);
+    if (cookies) {
+      headers['Cookie'] = cookies;
+    }
+    
     // Try to fetch NSE data to check if market is responding with live data
     // Use Promise.race for timeout
-    const fetchPromise = fetch('https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9'
-      }
+    const fetchPromise = fetch(`${baseUrl}/equity-stockIndices?index=NIFTY%2050`, {
+      headers: headers
     });
     
     const timeoutPromise = new Promise((_, reject) => 
@@ -120,8 +198,23 @@ module.exports = async (req, res) => {
   try {
     console.log('Fetching NSE data...');
     
+    // Get base URL from request
+    const baseUrl = getNSEBaseUrl(req);
+    console.log('Using NSE API base URL:', baseUrl);
+    
+    // Establish NSE session first (get cookies)
+    console.log('Establishing NSE session...');
+    const cookies = await establishNSESession(baseUrl);
+    const headers = getNSEHeaders(baseUrl);
+    if (cookies) {
+      headers['Cookie'] = cookies;
+      console.log('NSE session established with cookies');
+    } else {
+      console.log('Continuing without session cookies');
+    }
+    
     // First, check if market is actually open
-    const marketStatus = await checkMarketStatus();
+    const marketStatus = await checkMarketStatus(req);
     console.log('Market status:', marketStatus);
     
     // List of indices to fetch
@@ -143,46 +236,68 @@ module.exports = async (req, res) => {
       'NIFTY INFRA'
     ];
     
+    // baseUrl already set above, reuse it
+    
     // Fetch all indices in parallel
     const fetchPromises = indices.map(index => {
       const encodedIndex = encodeURIComponent(index);
-      return fetch(`https://www.nseindia.com/api/equity-stockIndices?index=${encodedIndex}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9'
+      return fetch(`${baseUrl}/equity-stockIndices?index=${encodedIndex}`, {
+        headers: headers
+      }).then(res => {
+        if (!res.ok) {
+          console.warn(`Failed to fetch ${index}: ${res.status} ${res.statusText}`);
+          return null;
         }
-      }).then(res => res.ok ? res.json() : null).catch(() => null);
+        return res.json();
+      }).catch(error => {
+        console.warn(`Error fetching ${index}:`, error.message);
+        return null;
+      });
     });
     
     // Also fetch VIX
-    const vixPromise = fetch('https://www.nseindia.com/api/equity-stockIndices?index=INDIA%20VIX', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9'
+    const vixPromise = fetch(`${baseUrl}/equity-stockIndices?index=INDIA%20VIX`, {
+      headers: headers
+    }).then(res => {
+      if (!res.ok) {
+        console.warn(`Failed to fetch VIX: ${res.status} ${res.statusText}`);
+        return null;
       }
-    }).then(res => res.ok ? res.json() : null).catch(() => null);
+      return res.json();
+    }).catch(error => {
+      console.warn('Error fetching VIX:', error.message);
+      return null;
+    });
     
     // Fetch market breadth data (advances/declines) from market statistics
     // Try multiple endpoints to get advances/declines
     const marketBreadthPromise = Promise.all([
       // Try market statistics endpoint
-      fetch('https://www.nseindia.com/api/marketStatus', {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9'
+      fetch(`${baseUrl}/marketStatus`, {
+        headers: headers
+      }).then(res => {
+        if (!res.ok) {
+          console.warn(`Failed to fetch marketStatus: ${res.status} ${res.statusText}`);
+          return null;
         }
-      }).then(res => res.ok ? res.json() : null).catch(() => null),
+        return res.json();
+      }).catch(error => {
+        console.warn('Error fetching marketStatus:', error.message);
+        return null;
+      }),
       // Also try the NIFTY 50 endpoint which might have this data
-      fetch('https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050', {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9'
+      fetch(`${baseUrl}/equity-stockIndices?index=NIFTY%2050`, {
+        headers: headers
+      }).then(res => {
+        if (!res.ok) {
+          console.warn(`Failed to fetch NIFTY 50 for market breadth: ${res.status} ${res.statusText}`);
+          return null;
         }
-      }).then(res => res.ok ? res.json() : null).catch(() => null)
+        return res.json();
+      }).catch(error => {
+        console.warn('Error fetching NIFTY 50 for market breadth:', error.message);
+        return null;
+      })
     ]).then(([marketStatus, niftyData]) => {
       // Try to extract advances/declines from either response
       let advances = 0, declines = 0;
@@ -281,9 +396,14 @@ module.exports = async (req, res) => {
     
   } catch (error) {
     console.error('Error fetching NSE data:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     
     // Check market status even on error
-    const marketStatus = await checkMarketStatus().catch(() => checkMarketStatusByTime());
+    const marketStatus = await checkMarketStatus(req).catch(() => checkMarketStatusByTime());
     
     // Return mock data as fallback
     const mockData = {
