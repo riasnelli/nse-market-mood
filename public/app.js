@@ -290,7 +290,8 @@ class MarketMoodApp {
         
         this.updateTimeEl = document.getElementById('updateTime');
         this.refreshBtn = document.getElementById('refreshBtn');
-        this.settingsBtn = document.getElementById('settingsBtn');
+        this.moodBtn = document.getElementById('moodBtn');
+        this.moodBtnLabel = document.getElementById('moodBtnLabel');
         this.signalsBtn = document.getElementById('signalsBtn');
         this.signalsBtnLabel = document.getElementById('signalsBtnLabel');
         this.generateSignalsBtn = document.getElementById('generateSignalsBtn');
@@ -362,131 +363,39 @@ class MarketMoodApp {
         this.menuBtn = document.getElementById('menuBtn');
         this.menuModal = document.getElementById('menuModal');
         this.aiConnectBtn = document.getElementById('aiConnectBtn');
+        this.settingsMenuBtn = document.getElementById('settingsMenuBtn');
         this.logoutMenuBtn = document.getElementById('logoutMenuBtn');
         this.aiConnectModal = document.getElementById('aiConnectModal');
 
         if (this.refreshBtn) {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
         }
-        if (this.settingsBtn) {
-            this.settingsBtn.addEventListener('click', () => {
+        if (this.moodBtn) {
+            this.moodBtn.addEventListener('click', () => {
+                if (this.currentView !== 'mood') {
+                    this.showMoodView();
+                }
+            });
+        }
+        if (this.settingsMenuBtn) {
+            this.settingsMenuBtn.addEventListener('click', () => {
+                // Close menu modal first
+                if (this.menuModal) {
+                    this.menuModal.classList.remove('show');
+                    this.unlockBodyScroll();
+                }
+                // Open settings modal
                 if (window.settingsManager) {
                     window.settingsManager.openSettingsModal();
                 }
             });
         }
         if (this.signalsBtn) {
-            console.log('✓ Signals button found, attaching event listener');
-            console.log('Initial state - moodPageView:', this.moodPageView, 'signalsPageView:', this.signalsPageView);
-            
-            // Test if button is visible and clickable
-            const btnRect = this.signalsBtn.getBoundingClientRect();
-            const btnDisplay = getComputedStyle(this.signalsBtn).display;
-            const btnVisibility = getComputedStyle(this.signalsBtn).visibility;
-            console.log('Signals button state:', {
-                display: btnDisplay,
-                visibility: btnVisibility,
-                rect: btnRect,
-                pointerEvents: getComputedStyle(this.signalsBtn).pointerEvents
+            this.signalsBtn.addEventListener('click', () => {
+                if (this.currentView !== 'signals') {
+                    this.showSignalsView();
+                }
             });
-            
-            // Add click event listener
-            this.signalsBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                
-                // Prevent any hash navigation or anchor behavior
-                if (e.target && e.target.closest('a')) {
-                    e.preventDefault();
-                }
-                
-                // Prevent form submission if button is in a form
-                if (this.signalsBtn.form) {
-                    e.preventDefault();
-                }
-                
-                console.log('🔔 === Signals/Mood button clicked! ===');
-                console.log('Current view:', this.currentView);
-                console.log('Mood page view exists:', !!this.moodPageView);
-                console.log('Signals page view exists:', !!this.signalsPageView);
-                if (this.moodPageView) {
-                    console.log('Mood page display:', getComputedStyle(this.moodPageView).display);
-                }
-                if (this.signalsPageView) {
-                    console.log('Signals page display:', getComputedStyle(this.signalsPageView).display);
-                }
-                
-                // Visual feedback
-                const originalBg = this.signalsBtn.style.backgroundColor;
-                this.signalsBtn.style.backgroundColor = '#667eea';
-                setTimeout(() => {
-                    this.signalsBtn.style.backgroundColor = originalBg;
-                }, 200);
-                
-                // Store current scroll position to prevent unwanted scrolling
-                const scrollY = window.scrollY;
-                
-                // Call toggleView and wait for it to complete
-                try {
-                this.toggleView();
-                    
-                    // Verify the view actually switched after a short delay
-                    setTimeout(() => {
-                        const expectedView = this.currentView === 'mood' ? 'signals' : 'mood';
-                        const actualView = this.currentView;
-                        console.log('View switch verification:', {
-                            expected: expectedView,
-                            actual: actualView,
-                            signalsPageDisplay: this.signalsPageView ? getComputedStyle(this.signalsPageView).display : 'N/A',
-                            moodPageDisplay: this.moodPageView ? getComputedStyle(this.moodPageView).display : 'N/A'
-                        });
-                        
-                        // If view didn't change properly, try again
-                        if (actualView !== expectedView) {
-                            console.warn('View switch may have failed, retrying...');
-                            this.toggleView();
-                        }
-                    }, 200);
-                } catch (error) {
-                    console.error('Error in toggleView:', error);
-                    alert('Error switching views. Please refresh the page.');
-                }
-                
-                // If view didn't change, restore scroll position
-                setTimeout(() => {
-                    if (this.currentView === 'mood' && window.scrollY !== scrollY) {
-                        window.scrollTo({ top: scrollY, behavior: 'instant' });
-                    }
-                }, 50);
-            }, true); // Use capture phase
-            
-            // Also add mousedown/touchstart as backup
-            this.signalsBtn.addEventListener('mousedown', (e) => {
-                console.log('Signals button mousedown detected');
-            });
-            this.signalsBtn.addEventListener('touchstart', (e) => {
-                console.log('Signals button touchstart detected');
-            });
-        } else {
-            console.error('✗ Signals button not found in DOM!');
-            // Try to find it again
-            setTimeout(() => {
-                const retryBtn = document.getElementById('signalsBtn');
-                if (retryBtn) {
-                    console.log('Found signals button on retry, attaching listener...');
-                    this.signalsBtn = retryBtn;
-                    retryBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        e.stopImmediatePropagation();
-                        console.log('Signals button clicked (retry listener)');
-                        this.toggleView();
-                    }, true);
-                } else {
-                    console.error('Still not found on retry');
-                }
-            }, 500);
         }
         if (this.generateSignalsBtn) {
             this.generateSignalsBtn.addEventListener('click', () => this.generateSignals());
@@ -3439,17 +3348,6 @@ class MarketMoodApp {
             this.moodPageView.style.setProperty('display', 'block', 'important');
         }
         
-        // Update button label and icon
-        if (this.signalsBtnLabel) {
-            this.signalsBtnLabel.textContent = 'Signals';
-        }
-        if (this.signalsBtn) {
-            const icon = this.signalsBtn.querySelector('svg:first-child');
-            if (icon) {
-                icon.innerHTML = '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>';
-            }
-        }
-        
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -3566,21 +3464,6 @@ class MarketMoodApp {
             console.error('All computed styles:', window.getComputedStyle(this.signalsPageView));
         } else {
             console.log('✓ Signals page is now visible');
-        }
-        
-        // Update button label and icon
-        if (this.signalsBtnLabel) {
-            this.signalsBtnLabel.textContent = 'Mood';
-            console.log('Button label updated to Mood');
-        }
-        
-        if (this.signalsBtn) {
-            const icon = this.signalsBtn.querySelector('svg:first-child');
-            if (icon) {
-                icon.setAttribute('viewBox', '0 0 24 24');
-                icon.innerHTML = '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>';
-                console.log('Button icon updated to home icon');
-            }
         }
         
         // Copy mood data to signals page mood card
