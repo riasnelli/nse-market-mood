@@ -3745,10 +3745,29 @@ class MarketMoodApp {
             let response = await fetch(url);
             
             if (!response.ok) {
-                // If 404, the API endpoint might not be deployed yet
+                // If 404, try to generate signals instead
                 if (response.status === 404) {
-                    console.warn('Signals API endpoint not found (404). This might not be deployed yet.');
-                    throw new Error('Signals API endpoint not available. Please check deployment.');
+                    console.warn('Signals API endpoint not found (404). Attempting to generate signals...');
+                    // Try generating signals instead
+                    try {
+                        const generateResponse = await fetch('/api/test-generate-signals');
+                        if (generateResponse.ok) {
+                            const generateData = await generateResponse.json();
+                            console.log('Generated signals successfully:', generateData);
+                            // Render the generated signals
+                            if (generateData.signals && generateData.signals.length > 0) {
+                                this.renderSignals(generateData.signals, generateData.run_id, generateData.date || generateData.premarket_date);
+                                return;
+                            } else {
+                                throw new Error('No signals generated');
+                            }
+                        } else {
+                            throw new Error('Failed to generate signals');
+                        }
+                    } catch (genError) {
+                        console.error('Error generating signals:', genError);
+                        throw new Error('Signals API not available and generation failed. Please check deployment.');
+                    }
                 }
                 // Try to get error message from response
                 let errorText = '';
