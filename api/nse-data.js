@@ -35,7 +35,13 @@ async function establishNSESession(baseUrl) {
   try {
     // First, visit the main NSE page to get session cookies
     const mainPageUrl = baseUrl.replace('/api', '') || 'https://www.nseindia.com';
-    const sessionResponse = await fetch(mainPageUrl, {
+    
+    // Use a timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Session establishment timeout')), 3000)
+    );
+    
+    const fetchPromise = fetch(mainPageUrl, {
       method: 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -44,8 +50,11 @@ async function establishNSESession(baseUrl) {
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1'
       },
-      redirect: 'follow'
+      redirect: 'follow',
+      timeout: 3000
     });
+    
+    const sessionResponse = await Promise.race([fetchPromise, timeoutPromise]);
     
     // Extract cookies from response headers
     // node-fetch returns set-cookie as an array or string
@@ -66,8 +75,13 @@ async function establishNSESession(baseUrl) {
       }
     }
     
+    if (cookies) {
+      console.log('NSE session cookies obtained');
+    }
+    
     return cookies;
   } catch (error) {
+    // Silently fail - we'll continue without cookies
     console.warn('Could not establish NSE session, continuing without cookies:', error.message);
     return '';
   }

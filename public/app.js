@@ -14,7 +14,14 @@ class MarketMoodApp {
         // Get API provider from settings
         if (window.settingsManager) {
             const provider = window.settingsManager.getApiProvider();
-            this.apiUrl = provider === 'dhan' ? '/api/dhan-data' : '/api/nse-data';
+            if (provider === 'dhan') {
+                this.apiUrl = '/api/dhan-data';
+            } else {
+                // For NSE, get the base URL from settings and pass it as query param
+                const nseApi = window.settingsManager.settings?.apis?.nse;
+                const baseUrl = nseApi?.config?.baseUrl || 'https://www.nseindia.com/api';
+                this.apiUrl = `/api/nse-data?baseUrl=${encodeURIComponent(baseUrl)}`;
+            }
         } else {
             this.apiUrl = '/api/nse-data';
         }
@@ -84,7 +91,7 @@ class MarketMoodApp {
 
             // Get current scroll position
             const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-            
+
             // Calculate if we're at the bottom
             const windowHeight = window.innerHeight || document.documentElement.clientHeight;
             const documentHeight = Math.max(
@@ -422,7 +429,7 @@ class MarketMoodApp {
                 
                 // Call toggleView and wait for it to complete
                 try {
-                    this.toggleView();
+                this.toggleView();
                     
                     // Verify the view actually switched after a short delay
                     setTimeout(() => {
@@ -1020,7 +1027,7 @@ class MarketMoodApp {
             if (moodText) moodText.textContent = data.mood.text || '';
             
             // Also update signals page mood card if it exists
-            this.syncMoodToSignalsPage();
+            this.syncMoodToSignalsPage(data.mood);
             if (scoreFill && typeof data.mood.score === 'number') {
                 const pct = Math.max(0, Math.min(100, data.mood.score));
                 scoreFill.style.width = pct + '%';
@@ -1039,6 +1046,25 @@ class MarketMoodApp {
         const dec = document.getElementById('declines');
         if (adv) adv.textContent = (data.advanceDecline && data.advanceDecline.advances != null) ? data.advanceDecline.advances : '-';
         if (dec) dec.textContent = (data.advanceDecline && data.advanceDecline.declines != null) ? data.advanceDecline.declines : '-';
+    }
+
+    syncMoodToSignalsPage(mood) {
+        // Sync mood data to signals page mood card
+        if (!mood) return;
+        
+        const signalsMoodEmoji = document.getElementById('signalsMoodEmoji');
+        const signalsMoodText = document.getElementById('signalsMoodText');
+        const signalsScoreFill = document.getElementById('signalsScoreFill');
+        const signalsScoreText = document.getElementById('signalsScoreText');
+        
+        if (signalsMoodEmoji) signalsMoodEmoji.textContent = mood.emoji || '😐';
+        if (signalsMoodText) signalsMoodText.textContent = mood.text || '';
+        
+        if (signalsScoreFill && typeof mood.score === 'number') {
+            const pct = Math.max(0, Math.min(100, mood.score));
+            signalsScoreFill.style.width = pct + '%';
+        }
+        if (signalsScoreText) signalsScoreText.textContent = (mood.score != null) ? `${mood.score}/100` : '-/-';
     }
 
     updateIndices(indices, vix) {
@@ -2456,6 +2482,25 @@ class MarketMoodApp {
             const bhavResult = await bhavResponse.json();
             const premarketResult = await premarketResponse.json();
 
+            // Debug: Log API responses
+            console.log('📥 API Responses:', {
+                indices: {
+                    success: indicesResult.success,
+                    count: indicesResult.data?.length || 0,
+                    todayFiles: indicesResult.data?.filter(f => f.date === '2025-12-01') || []
+                },
+                bhav: {
+                    success: bhavResult.success,
+                    count: bhavResult.data?.length || 0,
+                    todayFiles: bhavResult.data?.filter(f => f.date === '2025-12-01') || []
+                },
+                premarket: {
+                    success: premarketResult.success,
+                    count: premarketResult.data?.length || 0,
+                    todayFiles: premarketResult.data?.filter(f => f.date === '2025-12-01') || []
+                }
+            });
+
             if (loadingEl) loadingEl.style.display = 'none';
 
             // Helper function to normalize date string (YYYY-MM-DD format)
@@ -2517,13 +2562,26 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        if (count > dateData.bhav.count) {
+                        // Always update if count is higher OR if no ID is set yet (file exists)
+                        if (count > dateData.bhav.count || !dateData.bhav.id) {
                             dateData.bhav.count = count;
                             dateData.bhav.id = file.id;
                         }
                         // Keep the most recent uploadedAt
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
                             dateData.uploadedAt = file.uploadedAt;
+                        }
+                        
+                        // Debug log for bhav data
+                        if (normalizedDate === '2025-12-01') {
+                            console.log('🔍 Bhav data for 2025-12-01:', {
+                                fileId: file.id,
+                                fileName: file.fileName,
+                                indicesCount: file.indicesCount,
+                                count: count,
+                                dateDataBhavCount: dateData.bhav.count,
+                                dateDataBhavId: dateData.bhav.id
+                            });
                         }
                     }
                 });
@@ -2544,9 +2602,31 @@ class MarketMoodApp {
                             });
                         }
                         const dateData = dateMap.get(normalizedDate);
-                        // For premarket, use indicesCount or count the premarket data array
-                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        if (count > dateData.premarket.count) {
+                        // For premarket, check multiple possible fields for count
+                        // The API might return indicesCount, or the data might be in indices array
+                        let count = 0;
+                        if (file.indicesCount !== undefined && file.indicesCount !== null) {
+                            count = file.indicesCount;
+                        } else if (Array.isArray(file.indices) && file.indices.length > 0) {
+                            count = file.indices.length;
+                        } else if (file.count !== undefined && file.count !== null) {
+                            count = file.count;
+                        }
+                        
+                        // Debug log for premarket data
+                        if (normalizedDate === '2025-12-01') {
+                            console.log('🔍 Premarket data for 2025-12-01:', {
+                                fileId: file.id,
+                                fileName: file.fileName,
+                                indicesCount: file.indicesCount,
+                                indicesArray: Array.isArray(file.indices) ? file.indices.length : 'not array',
+                                count: count,
+                                dateDataPremarketCount: dateData.premarket.count
+                            });
+                        }
+                        
+                        // Always update if count is higher OR if no ID is set yet (file exists)
+                        if (count > dateData.premarket.count || !dateData.premarket.id) {
                             dateData.premarket.count = count;
                             dateData.premarket.id = file.id;
                         }
@@ -2557,15 +2637,27 @@ class MarketMoodApp {
                     }
                 });
             }
-            
+
             // Debug: Log what we have before final processing
             console.log('Date map after processing all types:', Array.from(dateMap.keys()));
             console.log('Date map entries:', Array.from(dateMap.entries()).map(([date, data]) => ({
                 date,
                 indices: data.indices.count,
                 bhav: data.bhav.count,
-                premarket: data.premarket.count
+                premarket: data.premarket.count,
+                premarketId: data.premarket.id
             })));
+            
+            // Special debug for today's date
+            const todayData = dateMap.get('2025-12-01');
+            if (todayData) {
+                console.log('📊 Today (2025-12-01) data summary:', {
+                    indices: todayData.indices.count,
+                    bhav: todayData.bhav.count,
+                    premarket: todayData.premarket.count,
+                    premarketId: todayData.premarket.id
+                });
+            }
 
             // Use a more robust normalization function
             const normalizeDateForKey = (dateStr) => {
@@ -2732,8 +2824,32 @@ class MarketMoodApp {
                     const dateColor = '#f97316'; // Orange color
                     
                     // Check if Bhav and Pre-market have data
-                    const hasBhav = (dateData.bhav?.count || 0) > 0;
-                    const hasPremarket = (dateData.premarket?.count || 0) > 0;
+                    // Show checkmark if count > 0 OR if a file was uploaded (has an ID that is not null/undefined/empty)
+                    const hasBhav = (dateData.bhav?.count || 0) > 0 || (dateData.bhav?.id && dateData.bhav.id !== null && dateData.bhav.id !== undefined && dateData.bhav.id !== '');
+                    const hasPremarket = (dateData.premarket?.count || 0) > 0 || (dateData.premarket?.id && dateData.premarket.id !== null && dateData.premarket.id !== undefined && dateData.premarket.id !== '');
+                    
+                    // Debug log for today's date
+                    if (normalizedDate === '2025-12-01') {
+                        console.log('🎯 Rendering row for 2025-12-01:', {
+                            dateData: {
+                                indices: { count: dateData.indices?.count, id: dateData.indices?.id },
+                                bhav: { count: dateData.bhav?.count, id: dateData.bhav?.id },
+                                premarket: { count: dateData.premarket?.count, id: dateData.premarket?.id }
+                            },
+                            hasBhav,
+                            hasPremarket,
+                            bhavCheck: {
+                                countCheck: (dateData.bhav?.count || 0) > 0,
+                                idCheck: dateData.bhav?.id && dateData.bhav.id !== null && dateData.bhav.id !== undefined && dateData.bhav.id !== '',
+                                idValue: dateData.bhav?.id
+                            },
+                            premarketCheck: {
+                                countCheck: (dateData.premarket?.count || 0) > 0,
+                                idCheck: dateData.premarket?.id && dateData.premarket.id !== null && dateData.premarket.id !== undefined && dateData.premarket.id !== '',
+                                idValue: dateData.premarket?.id
+                            }
+                        });
+                    }
                     
                     // Use green checkmark for better visibility
                     const checkmarkColor = '#10b981'; // Green color
@@ -3463,7 +3579,18 @@ class MarketMoodApp {
         }
         
         // Copy mood data to signals page mood card
-        this.syncMoodToSignalsPage();
+        // Get current mood data from the main page
+        const moodEmoji = document.getElementById('moodEmoji');
+        const moodText = document.getElementById('moodText');
+        const scoreText = document.getElementById('scoreText');
+        if (moodEmoji && moodText && scoreText) {
+            const mood = {
+                emoji: moodEmoji.textContent || '😐',
+                text: moodText.textContent || '',
+                score: scoreText.textContent ? parseInt(scoreText.textContent.split('/')[0]) : null
+            };
+            this.syncMoodToSignalsPage(mood);
+        }
         
         // Immediately scroll to top to prevent any unwanted scrolling
         window.scrollTo({ top: 0, behavior: 'instant' });
@@ -4022,15 +4149,15 @@ class MarketMoodApp {
         function initializeApp() {
             try {
                 console.log('🚀 Initializing MarketMoodApp...');
-                // Only initialize if auth check passes (or if on login page)
-                if (window.location.pathname.includes('login.html')) {
+            // Only initialize if auth check passes (or if on login page)
+            if (window.location.pathname.includes('login.html')) {
                     console.log('On login page, skipping app initialization');
-                    return; // Login page handles its own logic
-                }
-                
-                if (checkAuth()) {
+                return; // Login page handles its own logic
+            }
+            
+            if (checkAuth()) {
                     console.log('Auth check passed, creating app instance...');
-                    window.marketMoodApp = new MarketMoodApp();
+                window.marketMoodApp = new MarketMoodApp();
                     console.log('✅ MarketMoodApp initialized successfully');
                 } else {
                     console.log('Auth check failed, app not initialized');
