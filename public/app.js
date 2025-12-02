@@ -533,6 +533,9 @@ class MarketMoodApp {
                 this.stopPolling();
             }
         });
+
+        // Set initial active state for footer (Mood is default view)
+        this.updateFooterActiveState('mood');
     }
 
     async loadData(retryCount = 0) {
@@ -3350,6 +3353,9 @@ class MarketMoodApp {
             this.moodPageView.style.setProperty('display', 'block', 'important');
         }
         
+        // Update active state in footer
+        this.updateFooterActiveState('mood');
+        
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -3368,8 +3374,28 @@ class MarketMoodApp {
         this.moodPageView.style.setProperty('display', 'none', 'important');
         this.signalsPageView.style.setProperty('display', 'block', 'important');
         
+        // Update active state in footer
+        this.updateFooterActiveState('signals');
+        
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    updateFooterActiveState(activeTab) {
+        // Remove active class from all footer buttons
+        const allFooterBtns = document.querySelectorAll('.footer-menu-btn');
+        allFooterBtns.forEach(btn => btn.classList.remove('active'));
+        
+        // Add active class to the current tab
+        if (activeTab === 'mood') {
+            if (this.moodBtn) {
+                this.moodBtn.classList.add('active');
+            }
+        } else if (activeTab === 'signals') {
+            if (this.signalsBtn) {
+                this.signalsBtn.classList.add('active');
+            }
+        }
     }
 
 

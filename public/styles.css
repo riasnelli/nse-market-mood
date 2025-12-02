@@ -1204,6 +1204,11 @@ footer:not(.hidden) {
     transform: scale(0.95);
 }
 
+.footer-menu-btn.active {
+    background: rgba(102, 126, 234, 0.15);
+    color: #667eea;
+}
+
 .footer-menu-btn svg {
     display: block;
     flex-shrink: 0;
