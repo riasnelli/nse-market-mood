@@ -3868,11 +3868,19 @@ class MarketMoodApp {
         const dataSource = document.getElementById('dataSource');
         const updateInfo = document.getElementById('updateInfo');
 
-        // Always show minimal message: "NSE India • Updates every 30 sec. during market hrs."
-        if (dataSource) {
+        if (!dataSource || !updateInfo) return;
+
+        // Update based on data source
+        if (source === 'uploaded' || source === 'database') {
+            // Show uploaded CSV data info
+            const fileName = data?.fileName || 'Uploaded CSV';
+            const date = data?.date || '';
+            
+            dataSource.textContent = fileName;
+            updateInfo.textContent = date ? `Data from ${date}` : 'Static uploaded data';
+        } else {
+            // Show NSE India (API) info
             dataSource.textContent = 'NSE India';
-        }
-        if (updateInfo) {
             updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
         }
     }
