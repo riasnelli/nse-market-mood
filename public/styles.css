@@ -262,6 +262,32 @@ header h1 {
     margin-bottom: 20px;
 }
 
+/* Page Views */
+.page-view {
+    width: 100%;
+    display: block;
+}
+
+.page-view[style*="display: none"] {
+    display: none !important;
+}
+
+/* Ensure page views are visible when not explicitly hidden */
+#moodPageView:not([style*="display: none"]) {
+    display: block !important;
+}
+
+#signalsPageView:not([style*="display: none"]) {
+    display: block !important;
+}
+
+/* Force signals page to show when display is set to block */
+#signalsPageView[style*="display: block"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
 .all-indices-section {
     margin-bottom: 20px;
     visibility: visible !important;
@@ -273,6 +299,72 @@ header h1 {
 
 .all-indices-section:not([style*="display: none"]) {
     display: block !important;
+}
+
+.data-availability-section {
+    margin-bottom: 20px;
+    margin-top: 30px;
+    visibility: visible !important;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+}
+
+.data-availability-content {
+    margin-top: 15px;
+}
+
+.signals-section {
+    margin-bottom: 20px;
+    margin-top: 30px;
+    visibility: visible !important;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+}
+
+.signals-section[style*="display: none"] {
+    display: none !important;
+}
+
+.signals-section:not([style*="display: none"]) {
+    display: block !important;
+}
+
+.signals-section .section-header {
+    margin-bottom: 20px;
+}
+
+.signals-section .section-title {
+    color: white;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.signals-container {
+    margin-top: 15px;
+}
+
+.signals-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+}
+
+.signal-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+@media (min-width: 768px) {
+    .signals-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 .section-header {
@@ -541,6 +633,7 @@ header h1 {
     grid-auto-rows: auto !important;
     gap: 15px !important;
     margin-top: 15px;
+    margin-bottom: 20px;
     visibility: visible !important;
     opacity: 1 !important;
     width: 100% !important;
@@ -554,7 +647,7 @@ header h1 {
     grid-template-columns: 1fr 1fr !important;
     grid-template-rows: auto !important;
     grid-auto-rows: auto !important;
-    margin-bottom: 0 !important;
+    margin-bottom: 20px !important;
     display: grid !important;
     visibility: visible !important;
     opacity: 1 !important;
@@ -677,6 +770,7 @@ header h1 {
     overflow-x: hidden;
     width: 100%;
     max-width: 100%;
+    margin-bottom: 20px;
 }
 
 .indices-table {
@@ -864,7 +958,6 @@ header h1 {
     body {
         padding: 10px; /* Less padding on mobile */
     }
-}
     
     .indices-table th {
         font-size: 0.7rem;
