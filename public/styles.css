@@ -315,6 +315,30 @@ header h1 {
     margin-top: 15px;
 }
 
+/* Signals Page Styles */
+.signals-page-header {
+    margin-bottom: 30px;
+    text-align: center;
+    padding: 20px;
+}
+
+.signals-page-title {
+    color: white;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.signals-content-area {
+    min-height: 50vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+}
+
+/* Legacy signals section styles (if needed for backward compatibility) */
 .signals-section {
     margin-bottom: 20px;
     margin-top: 30px;

@@ -294,9 +294,10 @@ class MarketMoodApp {
         this.moodBtnLabel = document.getElementById('moodBtnLabel');
         this.signalsBtn = document.getElementById('signalsBtn');
         this.signalsBtnLabel = document.getElementById('signalsBtnLabel');
-        this.generateSignalsBtn = document.getElementById('generateSignalsBtn');
-        this.refreshDataAvailabilityBtn = document.getElementById('refreshDataAvailabilityBtn');
-        this.dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
+        // Signals page elements removed - page is now blank with just title
+        // this.generateSignalsBtn = document.getElementById('generateSignalsBtn');
+        // this.refreshDataAvailabilityBtn = document.getElementById('refreshDataAvailabilityBtn');
+        // this.dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
         this.uploadBtn = document.getElementById('uploadBtn');
         this.moodPageView = document.getElementById('moodPageView');
         this.signalsPageView = document.getElementById('signalsPageView');
@@ -397,12 +398,13 @@ class MarketMoodApp {
                 }
             });
         }
-        if (this.generateSignalsBtn) {
-            this.generateSignalsBtn.addEventListener('click', () => this.generateSignals());
-        }
-        if (this.refreshDataAvailabilityBtn) {
-            this.refreshDataAvailabilityBtn.addEventListener('click', () => this.loadDataAvailability());
-        }
+        // Signals page functionality removed - page is now blank
+        // if (this.generateSignalsBtn) {
+        //     this.generateSignalsBtn.addEventListener('click', () => this.generateSignals());
+        // }
+        // if (this.refreshDataAvailabilityBtn) {
+        //     this.refreshDataAvailabilityBtn.addEventListener('click', () => this.loadDataAvailability());
+        // }
         if (this.uploadBtn) {
             this.uploadBtn.addEventListener('click', () => this.openUploadModal());
         }
@@ -3353,154 +3355,21 @@ class MarketMoodApp {
     }
 
     showSignalsView() {
-        console.log('=== Switching to Signals view ===');
-        console.log('Mood page view element:', this.moodPageView);
-        console.log('Signals page view element:', this.signalsPageView);
-        
-        // Re-query elements if they're not found (in case DOM changed)
-        if (!this.moodPageView) {
-            this.moodPageView = document.getElementById('moodPageView');
-            console.log('Re-queried moodPageView:', this.moodPageView);
-        }
-        if (!this.signalsPageView) {
-            this.signalsPageView = document.getElementById('signalsPageView');
-            console.log('Re-queried signalsPageView:', this.signalsPageView);
-        }
-        
-        // If still not found, try querySelector as fallback
-        if (!this.signalsPageView) {
-            this.signalsPageView = document.querySelector('#signalsPageView');
-            console.log('Tried querySelector for signalsPageView:', this.signalsPageView);
-        }
-        
-        // If still not found, check if main element exists and search within it
-        if (!this.signalsPageView) {
-            const main = document.querySelector('main');
-            if (main) {
-                this.signalsPageView = main.querySelector('#signalsPageView');
-                console.log('Searched within main element:', this.signalsPageView);
-            }
-        }
-        
-        // Last resort: check all page-view elements
-        if (!this.signalsPageView) {
-            const allPageViews = document.querySelectorAll('.page-view');
-            console.log('All page-view elements found:', allPageViews.length);
-            allPageViews.forEach((el, idx) => {
-                console.log(`Page view ${idx}: id="${el.id}", display="${getComputedStyle(el).display}"`);
-                if (el.id === 'signalsPageView') {
-                    this.signalsPageView = el;
-                    console.log('Found signalsPageView in page-view list!');
-                }
-            });
-        }
+        console.log('Switching to Signals view');
         
         if (!this.moodPageView || !this.signalsPageView) {
             console.error('Page view elements not found! Cannot switch views.');
-            console.error('moodPageView:', this.moodPageView);
-            console.error('signalsPageView:', this.signalsPageView);
-            console.error('Document body:', document.body);
-            console.error('Main element:', document.querySelector('main'));
-            console.error('All elements with id signalsPageView:', document.querySelectorAll('#signalsPageView'));
-            alert('Error: Signals page elements not found. Please refresh the page.');
             return;
         }
         
         this.currentView = 'signals';
         
-        // Hide mood page first - use setProperty for better compatibility
-        // CRITICAL: Ensure mood page is completely hidden
+        // Hide mood page, show signals page
         this.moodPageView.style.setProperty('display', 'none', 'important');
-        this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
-        this.moodPageView.classList.add('hidden');
-        // Force reflow to ensure the change takes effect
-        void this.moodPageView.offsetHeight;
-        console.log('Mood page hidden, computed display:', getComputedStyle(this.moodPageView).display);
-        
-        // Show signals page - use multiple methods to ensure it displays
-        // Method 1: Remove inline style completely
-        this.signalsPageView.removeAttribute('style');
-        
-        // Method 2: Set display using cssText to override everything
-        this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; width: 100% !important; height: auto !important; min-height: 100vh !important;';
-        
-        // Method 3: Also set individual properties
         this.signalsPageView.style.setProperty('display', 'block', 'important');
-        this.signalsPageView.style.setProperty('visibility', 'visible', 'important');
-        this.signalsPageView.style.setProperty('opacity', '1', 'important');
-        this.signalsPageView.style.setProperty('position', 'relative', 'important');
         
-        // Method 4: Remove any hidden class
-        this.signalsPageView.classList.remove('hidden');
-        
-        console.log('Signals page style set to block');
-        
-        // Force multiple reflows to ensure display change takes effect
-        void this.signalsPageView.offsetHeight;
-        void this.signalsPageView.offsetWidth;
-        void this.signalsPageView.getBoundingClientRect();
-        
-        // Verify it's visible
-        const computedDisplay = getComputedStyle(this.signalsPageView).display;
-        const computedVisibility = getComputedStyle(this.signalsPageView).visibility;
-        const rect = this.signalsPageView.getBoundingClientRect();
-        console.log('Signals page computed styles - display:', computedDisplay, 'visibility:', computedVisibility);
-        console.log('Signals page bounding rect:', rect);
-        
-        if (computedDisplay === 'none') {
-            console.error('Signals page still hidden! Trying alternative method...');
-            // Try using classList manipulation
-            this.signalsPageView.classList.remove('hidden');
-            this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important;';
-            void this.signalsPageView.offsetHeight;
-        }
-        
-        // Double-check visibility
-        const finalDisplay = getComputedStyle(this.signalsPageView).display;
-        if (finalDisplay === 'none') {
-            console.error('CRITICAL: Signals page still not visible after all attempts!');
-            console.error('Element:', this.signalsPageView);
-            console.error('Parent:', this.signalsPageView.parentElement);
-            console.error('All computed styles:', window.getComputedStyle(this.signalsPageView));
-        } else {
-            console.log('✓ Signals page is now visible');
-        }
-        
-        // Copy mood data to signals page mood card
-        // Get current mood data from the main page
-        const moodEmoji = document.getElementById('moodEmoji');
-        const moodText = document.getElementById('moodText');
-        const scoreText = document.getElementById('scoreText');
-        if (moodEmoji && moodText && scoreText) {
-            const mood = {
-                emoji: moodEmoji.textContent || '😐',
-                text: moodText.textContent || '',
-                score: scoreText.textContent ? parseInt(scoreText.textContent.split('/')[0]) : null
-            };
-            this.syncMoodToSignalsPage(mood);
-        }
-        
-        // Immediately scroll to top to prevent any unwanted scrolling
-        window.scrollTo({ top: 0, behavior: 'instant' });
-        
-        // Ensure signals section is visible
-        const signalsSection = document.getElementById('signalsSection');
-        if (signalsSection) {
-            signalsSection.style.display = 'block';
-            signalsSection.style.visibility = 'visible';
-        }
-        
-        // Wait a bit to ensure the view is actually visible before doing anything else
-        setTimeout(() => {
-            // Verify signals page is visible
-            const finalCheck = getComputedStyle(this.signalsPageView).display;
-            const signalsPageRect = this.signalsPageView.getBoundingClientRect();
-            console.log('Signals page visibility check:', {
-                display: finalCheck,
-                rect: signalsPageRect,
-                width: signalsPageRect.width,
-                height: signalsPageRect.height
-            });
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
             
             if (finalCheck !== 'none' && signalsPageRect.height > 0) {
                 // Ensure we're at the top

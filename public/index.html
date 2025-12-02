@@ -113,68 +113,13 @@
 
             <!-- Signals Page View -->
             <div class="page-view" id="signalsPageView" style="display: none;">
-                <div class="mood-card" id="signalsMoodCard">
-                    <div class="mood-indicator">
-                        <div class="mood-emoji" id="signalsMoodEmoji">😐</div>
-                        <div class="mood-text" id="signalsMoodText">Loading...</div>
-                    </div>
-                    <div class="mood-score">
-                        <div class="score-bar">
-                            <div class="score-fill" id="signalsScoreFill"></div>
-                        </div>
-                        <div class="score-text" id="signalsScoreText">-/-</div>
-                    </div>
+                <div class="signals-page-header">
+                    <h2 class="signals-page-title">NSE Signals</h2>
                 </div>
-
-                <!-- Data Availability Section -->
-                <div class="data-availability-section" id="dataAvailabilitySection" style="display: none;">
-                    <div class="section-header">
-                        <h3 class="section-title">Data Availability</h3>
-                        <button id="refreshDataAvailabilityBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" title="Refresh">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="23 4 23 10 17 10"></polyline>
-                                <polyline points="1 20 1 14 7 14"></polyline>
-                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div id="dataAvailabilityContent" class="data-availability-content">
-                        <!-- Data availability info will be populated here -->
-                    </div>
-                    <div id="dataAvailabilityLoading" class="loading-message" style="display: none; text-align: center; padding: 20px;">
-                        Loading data availability...
-                    </div>
-                    <div id="dataAvailabilityError" class="error-message" style="display: none; text-align: center; padding: 20px; color: #ef4444;">
-                        <!-- Error message will be shown here -->
-                    </div>
-                </div>
-
-                <!-- Signals Section -->
-                <div class="signals-section" id="signalsSection">
-                    <div class="section-header">
-                    <h3 class="section-title">Intraday Signals</h3>
-                    <button id="generateSignalsBtn" class="btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">Generate Signals</button>
-                </div>
-                <div id="signalsLoading" class="loading-message" style="display: none; text-align: center; padding: 20px;">
-                    Loading signals...
-                </div>
-                <div id="signalsError" class="error-message" style="display: none; text-align: center; padding: 20px; color: #ef4444;">
-                    <!-- Error message will be shown here -->
-                </div>
-                <div id="signalsContainer" class="signals-container">
-                    <!-- Signals will be populated here -->
-                </div>
-                <div id="signalsEmpty" class="empty-message" style="display: none; text-align: center; padding: 40px 20px; color: #666;">
-                    <div style="font-size: 3rem; margin-bottom: 15px;">📊</div>
-                    <div style="font-size: 1.2rem; font-weight: 600; color: #333; margin-bottom: 10px;">No Potential Signals</div>
-                    <div style="font-size: 0.95rem; color: #666; margin-bottom: 20px;">
-                        No trading signals were found for the selected date.<br>
-                        This could mean the market conditions don't meet the signal criteria.
-                    </div>
-                    <button id="generateSignalsBtnEmpty" class="btn-primary" style="padding: 10px 20px; font-size: 0.95rem; margin-top: 10px;">
-                        Generate Signals
-                    </button>
-                </div>
+                
+                <!-- Blank content area - ready for future implementation -->
+                <div class="signals-content-area">
+                    <!-- Content will be added here -->
                 </div>
             </div>
         </main>
