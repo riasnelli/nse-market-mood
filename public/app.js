@@ -940,8 +940,6 @@ class MarketMoodApp {
             if (moodEmoji) moodEmoji.textContent = data.mood.emoji || '😐';
             if (moodText) moodText.textContent = data.mood.text || '';
             
-            // Also update signals page mood card if it exists
-            this.syncMoodToSignalsPage(data.mood);
             if (scoreFill && typeof data.mood.score === 'number') {
                 const pct = Math.max(0, Math.min(100, data.mood.score));
                 scoreFill.style.width = pct + '%';
@@ -962,24 +960,7 @@ class MarketMoodApp {
         if (dec) dec.textContent = (data.advanceDecline && data.advanceDecline.declines != null) ? data.advanceDecline.declines : '-';
     }
 
-    syncMoodToSignalsPage(mood) {
-        // Sync mood data to signals page mood card
-        if (!mood) return;
-        
-        const signalsMoodEmoji = document.getElementById('signalsMoodEmoji');
-        const signalsMoodText = document.getElementById('signalsMoodText');
-        const signalsScoreFill = document.getElementById('signalsScoreFill');
-        const signalsScoreText = document.getElementById('signalsScoreText');
-        
-        if (signalsMoodEmoji) signalsMoodEmoji.textContent = mood.emoji || '😐';
-        if (signalsMoodText) signalsMoodText.textContent = mood.text || '';
-        
-        if (signalsScoreFill && typeof mood.score === 'number') {
-            const pct = Math.max(0, Math.min(100, mood.score));
-            signalsScoreFill.style.width = pct + '%';
-        }
-        if (signalsScoreText) signalsScoreText.textContent = (mood.score != null) ? `${mood.score}/100` : '-/-';
-    }
+    // Removed: syncMoodToSignalsPage() - Signals page is now separate and doesn't need mood data
 
     updateIndices(indices, vix) {
         // Main indices: Always show these 4 in cards under mood box
