@@ -3370,66 +3370,6 @@ class MarketMoodApp {
         
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
-            
-            if (finalCheck !== 'none' && signalsPageRect.height > 0) {
-                // Ensure we're at the top
-                window.scrollTo({ top: 0, behavior: 'instant' });
-                console.log('✓ Signals page is visible and has content, staying at top');
-            } else {
-                console.error('Signals page not visible after switch! Attempting aggressive fix...');
-                
-                // Aggressive fix - try everything
-                this.signalsPageView.classList.remove('hidden');
-                this.signalsPageView.removeAttribute('style');
-                this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; width: 100% !important;';
-                
-                // Force multiple reflows
-                void this.signalsPageView.offsetHeight;
-                void this.signalsPageView.offsetWidth;
-                void this.signalsPageView.getBoundingClientRect();
-                
-                // Also check parent
-                const parent = this.signalsPageView.parentElement;
-                if (parent) {
-                    parent.style.setProperty('display', 'block', 'important');
-                }
-                
-                window.scrollTo({ top: 0, behavior: 'instant' });
-                
-                // Wait a bit and check again
-                setTimeout(() => {
-                    const retryCheck = getComputedStyle(this.signalsPageView).display;
-                    const retryRect = this.signalsPageView.getBoundingClientRect();
-                    console.log('After aggressive fix attempt:', {
-                        display: retryCheck,
-                        rect: retryRect,
-                        visible: retryCheck !== 'none' && retryRect.height > 0
-                    });
-                    
-                    if (retryCheck === 'none' || retryRect.height === 0) {
-                        console.error('CRITICAL: Signals page still not visible!');
-                        // Show error message in the UI instead of alert
-                        const signalsError = document.getElementById('signalsError');
-                        if (signalsError) {
-                            signalsError.style.display = 'block';
-                            signalsError.textContent = 'Signals page failed to load. Please refresh the page.';
-                        } else {
-                            // Fallback to alert if error element doesn't exist
-                            alert('Signals page failed to load. Please refresh the page.');
-                        }
-                    }
-                }, 100);
-            }
-            
-            // Load data availability and signals
-            console.log('Loading data availability...');
-            this.loadDataAvailability();
-            
-            console.log('Loading signals...');
-            this.loadSignals();
-        }, 100);
-        
-        console.log('=== Signals view switch complete ===');
     }
 
 
