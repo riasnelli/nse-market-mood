@@ -1,0 +1,75 @@
+services:
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nse-market-mood-app
+    ports:
+      - "3001:3001"
+    volumes:
+      # Mount source code for hot reload (if using nodemon or similar)
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/nse-market-mood}
+      - storage_MONGODB_URI=${storage_MONGODB_URI:-mongodb://mongo:27017/nse-market-mood}
+      - NSE_API_BASE_URL=${NSE_API_BASE_URL:-https://www.nseindia.com/api}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - nse-network
+    restart: unless-stopped
+
+  # MongoDB for local development
+  mongo:
+    image: mongo:7.0
+    container_name: nse-market-mood-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    environment:
+      - MONGO_INITDB_DATABASE=nse-market-mood
+    networks:
+      - nse-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/nse-market-mood --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # MongoDB Express (optional - web UI for MongoDB)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: nse-market-mood-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_URL=mongodb://mongo:27017/
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - nse-network
+    restart: unless-stopped
+    profiles:
+      - tools  # Only start with --profile tools
+
+volumes:
+  mongo-data:
+    driver: local
+  mongo-config:
+    driver: local
+
+networks:
+  nse-network:
+    driver: bridge
+
