@@ -3511,7 +3511,12 @@ class MarketMoodApp {
         this.currentView = 'signals';
         
         // Hide mood page first - use setProperty for better compatibility
+        // CRITICAL: Ensure mood page is completely hidden
         this.moodPageView.style.setProperty('display', 'none', 'important');
+        this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
+        this.moodPageView.classList.add('hidden');
+        // Force reflow to ensure the change takes effect
+        void this.moodPageView.offsetHeight;
         console.log('Mood page hidden, computed display:', getComputedStyle(this.moodPageView).display);
         
         // Show signals page - use multiple methods to ensure it displays
@@ -3519,7 +3524,7 @@ class MarketMoodApp {
         this.signalsPageView.removeAttribute('style');
         
         // Method 2: Set display using cssText to override everything
-        this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important;';
+        this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; width: 100% !important; height: auto !important; min-height: 100vh !important;';
         
         // Method 3: Also set individual properties
         this.signalsPageView.style.setProperty('display', 'block', 'important');
@@ -3651,8 +3656,15 @@ class MarketMoodApp {
                     
                     if (retryCheck === 'none' || retryRect.height === 0) {
                         console.error('CRITICAL: Signals page still not visible!');
-                        // Last resort - alert user
-                        alert('Signals page failed to load. Please refresh the page.');
+                        // Show error message in the UI instead of alert
+                        const signalsError = document.getElementById('signalsError');
+                        if (signalsError) {
+                            signalsError.style.display = 'block';
+                            signalsError.textContent = 'Signals page failed to load. Please refresh the page.';
+                        } else {
+                            // Fallback to alert if error element doesn't exist
+                            alert('Signals page failed to load. Please refresh the page.');
+                        }
                     }
                 }, 100);
             }
@@ -3731,6 +3743,26 @@ class MarketMoodApp {
 
             console.log('Fetching from:', url);
             let response = await fetch(url);
+            
+            if (!response.ok) {
+                // If 404, the API endpoint might not be deployed yet
+                if (response.status === 404) {
+                    console.warn('Signals API endpoint not found (404). This might not be deployed yet.');
+                    throw new Error('Signals API endpoint not available. Please check deployment.');
+                }
+                // Try to get error message from response
+                let errorText = '';
+                try {
+                    errorText = await response.text();
+                    // If it's HTML (like a 404 page), don't try to parse as JSON
+                    if (errorText.startsWith('<') || errorText.startsWith('The page')) {
+                        throw new Error(`API endpoint returned HTML instead of JSON (${response.status})`);
+                    }
+                } catch (e) {
+                    throw new Error(`Failed to fetch signals: ${response.status} ${response.statusText}`);
+                }
+            }
+            
             let data = await response.json();
             console.log('Get signals response:', data);
 
@@ -3998,18 +4030,28 @@ class MarketMoodApp {
         try {
             // Get latest date if not provided
             if (!date) {
-                const latestDateResponse = await fetch('/api/get-latest-signal-date');
-                const latestDateData = await latestDateResponse.json();
-                if (latestDateData.latest_complete_date) {
-                    date = latestDateData.latest_complete_date;
-                } else if (latestDateData.dates) {
-                    // Use the latest available date
-                    const dates = [latestDateData.dates.bhavcopy, latestDateData.dates.indices]
-                        .filter(Boolean)
-                        .sort()
-                        .reverse();
-                    date = dates[0] || '2025-11-28';
-                } else {
+                try {
+                    const latestDateResponse = await fetch('/api/get-latest-signal-date');
+                    if (!latestDateResponse.ok) {
+                        console.warn('get-latest-signal-date API not available, using default date');
+                        date = '2025-11-28';
+                    } else {
+                        const latestDateData = await latestDateResponse.json();
+                        if (latestDateData.latest_complete_date) {
+                            date = latestDateData.latest_complete_date;
+                        } else if (latestDateData.dates) {
+                            // Use the latest available date
+                            const dates = [latestDateData.dates.bhavcopy, latestDateData.dates.indices]
+                                .filter(Boolean)
+                                .sort()
+                                .reverse();
+                            date = dates[0] || '2025-11-28';
+                        } else {
+                            date = '2025-11-28';
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Error fetching latest signal date, using default:', error);
                     date = '2025-11-28';
                 }
             }
