@@ -302,6 +302,13 @@ class MarketMoodApp {
         this.headerTitle = document.querySelector('header h1');
         this.currentView = 'mood'; // 'mood' or 'signals'
         
+        // Debug: Log header title element
+        if (this.headerTitle) {
+            console.log('Header title element found:', this.headerTitle);
+        } else {
+            console.warn('Header title element not found!');
+        }
+        
         console.log('🔍 Element check:', {
             signalsBtn: !!this.signalsBtn,
             signalsBtnLabel: !!this.signalsBtnLabel,
@@ -3444,20 +3451,17 @@ class MarketMoodApp {
         if (this.headerTitle) {
             const logo = this.headerTitle.querySelector('img');
             if (logo) {
-                // Find the text node (should be after the img)
-                const textNode = Array.from(this.headerTitle.childNodes).find(node => 
-                    node.nodeType === Node.TEXT_NODE && node.textContent.trim()
-                );
-                if (textNode) {
-                    textNode.textContent = ' NSE Market Mood';
-                } else {
-                    // If no text node found, append one
-                    this.headerTitle.appendChild(document.createTextNode(' NSE Market Mood'));
-                }
+                // Clone the logo to preserve its attributes
+                const logoClone = logo.cloneNode(true);
+                // Clear and rebuild the header content
+                this.headerTitle.innerHTML = '';
+                this.headerTitle.appendChild(logoClone);
+                this.headerTitle.appendChild(document.createTextNode(' NSE Market Mood'));
             } else {
                 // If logo not found, just update text
                 this.headerTitle.textContent = 'NSE Market Mood';
             }
+            console.log('Header title updated to NSE Market Mood');
         }
         
         // Update button label and icon
@@ -3593,16 +3597,12 @@ class MarketMoodApp {
         if (this.headerTitle) {
             const logo = this.headerTitle.querySelector('img');
             if (logo) {
-                // Find the text node (should be after the img)
-                const textNode = Array.from(this.headerTitle.childNodes).find(node => 
-                    node.nodeType === Node.TEXT_NODE && node.textContent.trim()
-                );
-                if (textNode) {
-                    textNode.textContent = ' NSE Market Signals';
-                } else {
-                    // If no text node found, append one
-                    this.headerTitle.appendChild(document.createTextNode(' NSE Market Signals'));
-                }
+                // Clone the logo to preserve its attributes
+                const logoClone = logo.cloneNode(true);
+                // Clear and rebuild the header content
+                this.headerTitle.innerHTML = '';
+                this.headerTitle.appendChild(logoClone);
+                this.headerTitle.appendChild(document.createTextNode(' NSE Market Signals'));
             } else {
                 // If logo not found, just update text
                 this.headerTitle.textContent = 'NSE Market Signals';
