@@ -3361,24 +3361,57 @@ class MarketMoodApp {
     }
 
     showSignalsView() {
-        console.log('Switching to Signals view');
+        console.log('=== Switching to Signals view ===');
+        console.log('Current view before switch:', this.currentView);
+        console.log('moodPageView exists:', !!this.moodPageView);
+        console.log('signalsPageView exists:', !!this.signalsPageView);
+        
+        // Re-query elements if not found
+        if (!this.moodPageView) {
+            this.moodPageView = document.getElementById('moodPageView');
+        }
+        if (!this.signalsPageView) {
+            this.signalsPageView = document.getElementById('signalsPageView');
+        }
         
         if (!this.moodPageView || !this.signalsPageView) {
-            console.error('Page view elements not found! Cannot switch views.');
+            console.error('❌ Page view elements not found! Cannot switch views.');
+            console.error('moodPageView:', this.moodPageView);
+            console.error('signalsPageView:', this.signalsPageView);
+            alert('Error: Cannot find page elements. Please refresh the page.');
             return;
         }
         
+        console.log('✓ Both page elements found');
         this.currentView = 'signals';
         
         // Hide mood page, show signals page
+        console.log('Hiding mood page...');
         this.moodPageView.style.setProperty('display', 'none', 'important');
+        console.log('Showing signals page...');
         this.signalsPageView.style.setProperty('display', 'block', 'important');
+        
+        // Verify the change
+        setTimeout(() => {
+            const moodDisplay = getComputedStyle(this.moodPageView).display;
+            const signalsDisplay = getComputedStyle(this.signalsPageView).display;
+            console.log('After switch - Mood display:', moodDisplay, 'Signals display:', signalsDisplay);
+            
+            if (signalsDisplay === 'none') {
+                console.error('❌ Signals page still hidden! Forcing display...');
+                this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important;';
+            } else {
+                console.log('✅ Signals page is now visible');
+            }
+        }, 100);
         
         // Update active state in footer
         this.updateFooterActiveState('signals');
         
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        console.log('=== View switch complete ===');
     }
 
     updateFooterActiveState(activeTab) {
