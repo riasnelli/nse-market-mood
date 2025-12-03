@@ -367,6 +367,9 @@ class MarketMoodApp {
         this.settingsMenuBtn = document.getElementById('settingsMenuBtn');
         this.logoutMenuBtn = document.getElementById('logoutMenuBtn');
         this.aiConnectModal = document.getElementById('aiConnectModal');
+        
+        // Navigation stack to track modal navigation history
+        this.modalNavigationStack = [];
 
         if (this.refreshBtn) {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
@@ -380,8 +383,9 @@ class MarketMoodApp {
         }
         if (this.settingsMenuBtn) {
             this.settingsMenuBtn.addEventListener('click', () => {
-                // Close menu modal first
+                // Push menu modal to navigation stack before closing
                 if (this.menuModal) {
+                    this.modalNavigationStack.push('menu');
                     this.menuModal.classList.remove('show');
                     this.unlockBodyScroll();
                 }
@@ -3010,11 +3014,36 @@ class MarketMoodApp {
     }
 
     openMenuModal() {
+        // Clear navigation stack when opening menu directly (not from back navigation)
+        // This ensures a clean state when user opens menu from footer button
+        if (this.modalNavigationStack.length === 0) {
+            // Only clear if stack is empty - if we're navigating back, stack will be managed by navigateBackFromModal
+        }
+        
         // Update AI Connect status when menu opens
         this.updateMenuAiConnectStatus();
         if (this.menuModal) {
             this.menuModal.classList.add('show');
             this.lockBodyScroll();
+        }
+    }
+
+    navigateBackFromModal() {
+        // Pop the last modal from navigation stack
+        const previousModal = this.modalNavigationStack.pop();
+        
+        // Close current modal (AI Connect or Settings)
+        if (this.aiConnectModal && this.aiConnectModal.classList.contains('show')) {
+            this.aiConnectModal.classList.remove('show');
+            this.unlockBodyScroll();
+        }
+        
+        // Open previous modal if it exists
+        if (previousModal === 'menu' && this.menuModal) {
+            this.openMenuModal();
+        } else {
+            // If no previous modal, just unlock scroll
+            this.unlockBodyScroll();
         }
     }
 
@@ -3040,9 +3069,11 @@ class MarketMoodApp {
     }
 
     openAiConnectModal() {
-        // Close menu modal first
+        // Push menu modal to navigation stack before closing
         if (this.menuModal) {
+            this.modalNavigationStack.push('menu');
             this.menuModal.classList.remove('show');
+            this.unlockBodyScroll();
         }
         
         // Open AI Connect modal
@@ -3064,15 +3095,13 @@ class MarketMoodApp {
         
         if (closeAiConnect && this.aiConnectModal) {
             closeAiConnect.addEventListener('click', () => {
-                this.aiConnectModal.classList.remove('show');
-                this.unlockBodyScroll();
+                this.navigateBackFromModal();
             });
         }
 
         if (cancelAiConnect && this.aiConnectModal) {
             cancelAiConnect.addEventListener('click', () => {
-                this.aiConnectModal.classList.remove('show');
-                this.unlockBodyScroll();
+                this.navigateBackFromModal();
             });
         }
 
@@ -3088,8 +3117,7 @@ class MarketMoodApp {
         if (this.aiConnectModal) {
             this.aiConnectModal.addEventListener('click', (e) => {
                 if (e.target === this.aiConnectModal) {
-                    this.aiConnectModal.classList.remove('show');
-                    this.unlockBodyScroll();
+                    this.navigateBackFromModal();
                 }
             });
         }
@@ -3154,6 +3182,9 @@ class MarketMoodApp {
         
         // Update menu status
         this.updateMenuAiConnectStatus();
+
+        // Clear navigation stack since we're closing without navigating back
+        this.modalNavigationStack = [];
 
         // Close modal after 1.5 seconds
         setTimeout(() => {

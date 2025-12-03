@@ -349,6 +349,11 @@ class SettingsManager {
                     // Show notification
                     this.showNotification(`Loaded data for ${date}`, 'success');
                     
+                    // Clear navigation stack since we're closing without navigating back
+                    if (window.marketMoodApp && window.marketMoodApp.modalNavigationStack) {
+                        window.marketMoodApp.modalNavigationStack = [];
+                    }
+                    
                     // Close settings modal
                     this.closeSettings();
                     
@@ -380,6 +385,11 @@ class SettingsManager {
                         
                         // Show notification
                         this.showNotification(`Loaded data for ${date}`, 'success');
+                        
+                        // Clear navigation stack since we're closing without navigating back
+                        if (window.marketMoodApp && window.marketMoodApp.modalNavigationStack) {
+                            window.marketMoodApp.modalNavigationStack = [];
+                        }
                         
                         // Close settings modal
                         this.closeSettings();
@@ -732,6 +742,8 @@ class SettingsManager {
                 }, 10);
             }
         };
+        
+        // Note: Navigation stack is managed in app.js when opening Settings from Menu
 
         if (settingsBtn && settingsModal) {
             settingsBtn.addEventListener('click', () => {
@@ -760,15 +772,13 @@ class SettingsManager {
 
         if (closeSettings) {
             closeSettings.addEventListener('click', () => {
-                settingsModal.classList.remove('show');
-                this.unlockBodyScroll();
+                this.navigateBackFromSettings();
             });
         }
 
         if (cancelSettings) {
             cancelSettings.addEventListener('click', () => {
-                settingsModal.classList.remove('show');
-                this.unlockBodyScroll();
+                this.navigateBackFromSettings();
             });
         }
 
@@ -776,8 +786,7 @@ class SettingsManager {
         if (settingsModal) {
             settingsModal.addEventListener('click', (e) => {
                 if (e.target === settingsModal) {
-                    settingsModal.classList.remove('show');
-                    this.unlockBodyScroll();
+                    this.navigateBackFromSettings();
                 }
             });
         }
@@ -882,6 +891,11 @@ class SettingsManager {
         }
 
         this.saveSettings();
+        
+        // Clear navigation stack since we're closing without navigating back
+        if (window.marketMoodApp && window.marketMoodApp.modalNavigationStack) {
+            window.marketMoodApp.modalNavigationStack = [];
+        }
         
         // Close modal
         const settingsModal = document.getElementById('settingsModal');
@@ -1018,6 +1032,40 @@ class SettingsManager {
     getActiveApiConfig() {
         const activeApi = this.settings.apis[this.settings.activeApi];
         return activeApi || this.settings.apis.nse;
+    }
+
+    closeSettings() {
+        const settingsModal = document.getElementById('settingsModal');
+        if (settingsModal) {
+            settingsModal.classList.remove('show');
+            this.unlockBodyScroll();
+        }
+    }
+
+    navigateBackFromSettings() {
+        // Check if we have navigation stack from app.js
+        if (window.marketMoodApp && window.marketMoodApp.modalNavigationStack) {
+            // Pop the last modal from navigation stack
+            const previousModal = window.marketMoodApp.modalNavigationStack.pop();
+            
+            // Close settings modal
+            const settingsModal = document.getElementById('settingsModal');
+            if (settingsModal) {
+                settingsModal.classList.remove('show');
+                this.unlockBodyScroll();
+            }
+            
+            // Open previous modal if it exists
+            if (previousModal === 'menu' && window.marketMoodApp.menuModal) {
+                window.marketMoodApp.openMenuModal();
+            } else {
+                // If no previous modal, just unlock scroll
+                this.unlockBodyScroll();
+            }
+        } else {
+            // Fallback: just close the modal
+            this.closeSettings();
+        }
     }
 }
 
