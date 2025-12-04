@@ -178,8 +178,8 @@ class SettingsManager {
                 <input type="radio" name="activeApi" value="uploaded" ${this.settings.activeApi === 'uploaded' ? 'checked' : ''}>
                 <span class="api-name">Upload CSV Data</span>
             </label>
-            <span class="api-status ${availableDates.length > 0 ? 'enabled' : 'disabled'}">
-                ${availableDates.length > 0 ? '✓ Available' : '✗ No Data'}
+            <span class="api-status ${this.settings.activeApi === 'uploaded' ? 'enabled' : (availableDates.length > 0 ? 'enabled' : 'disabled')}">
+                ${this.settings.activeApi === 'uploaded' ? '✓ Connected' : (availableDates.length > 0 ? '✓ Available' : '✗ No Data')}
             </span>
             <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -508,8 +508,8 @@ class SettingsManager {
                     <input type="radio" name="activeApi" value="${key}" ${this.settings.activeApi === key ? 'checked' : ''}>
                     <span class="api-name">${api.name}</span>
                 </label>
-                <span class="api-status ${api.testStatus === 'success' ? 'enabled' : api.testStatus === 'failed' ? 'disabled' : (api.enabled ? 'enabled' : 'disabled')}">
-                    ${api.testStatus === 'success' ? '✓ Connected' : api.testStatus === 'failed' ? '✗ Failed' : (api.enabled ? '✓ Enabled' : '✗ Not Tested')}
+                <span class="api-status ${this.settings.activeApi === key ? 'enabled' : (api.testStatus === 'success' || api.enabled ? 'enabled' : 'disabled')}">
+                    ${this.settings.activeApi === key ? '✓ Connected' : (api.testStatus === 'success' ? '✓ Ready' : api.testStatus === 'failed' ? '✗ Failed' : (api.enabled ? '✓ Available' : '✗ Not Configured'))}
                 </span>
                 <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
