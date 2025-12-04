@@ -4059,12 +4059,24 @@ class MarketMoodApp {
         const dataSource = document.getElementById('dataSource');
         const updateInfo = document.getElementById('updateInfo');
 
-        // Always show minimal message: "NSE India • Updates every 30 sec. during market hrs."
-        if (dataSource) {
-            dataSource.textContent = 'NSE India';
-        }
-        if (updateInfo) {
-            updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
+        if (source === 'uploaded' && data) {
+            // Show uploaded data info
+            if (dataSource) {
+                dataSource.textContent = 'Uploaded Data';
+            }
+            if (updateInfo) {
+                const fileName = data.fileName || 'CSV File';
+                const date = data.date || 'Unknown date';
+                updateInfo.textContent = `${fileName} • ${date}`;
+            }
+        } else {
+            // Show NSE India info
+            if (dataSource) {
+                dataSource.textContent = 'NSE India';
+            }
+            if (updateInfo) {
+                updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
+            }
         }
     }
 }
