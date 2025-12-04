@@ -2071,3 +2071,4 @@ input[type="date"] {
     animation: pulse 1.5s infinite;
 }.hidden { display: none !important; }
 .hidden { display: none !important; }
+#uploadedDataSection { display: none !important; }
