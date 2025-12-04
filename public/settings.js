@@ -778,20 +778,6 @@ class SettingsManager {
             });
         }
 
-        // Clear uploaded data button
-                if (confirm('Are you sure you want to clear the uploaded data? This will switch back to API data.')) {
-                    localStorage.removeItem('uploadedMarketData');
-                    localStorage.removeItem('uploadedIndicesData'); // Also check old key
-                    this.updateUploadedDataSection();
-                    this.showNotification('Uploaded data cleared. Switching to API data.', 'success');
-                    
-                    // Reload app data
-                    if (window.marketMoodApp) {
-                        window.marketMoodApp.loadData();
-                    }
-                }
-            });
-        }
 
         // Event listeners are now set up in updateApiList()
     }
