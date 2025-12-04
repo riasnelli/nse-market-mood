@@ -178,7 +178,7 @@ class SettingsManager {
                 <input type="radio" name="activeApi" value="uploaded" ${this.settings.activeApi === 'uploaded' ? 'checked' : ''}>
                 <span class="api-name">Upload CSV Data</span>
             </label>
-            <span class="api-status ${availableDates.length > 0 ? 'enabled'} checked ? 'enabled' : (${availableDates.length > 0 ? 'enabled' : 'disabled'}">
+            <span class="api-status ${this.settings.activeApi === 'uploaded' ? 'enabled' : (availableDates.length > 0 ? 'enabled' : 'disabled')}">
                 ${this.settings.activeApi === 'uploaded' ? '✓ Connected' : (availableDates.length > 0 ? '✓ Available' : '✗ No Data')}
             </span>
             <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
