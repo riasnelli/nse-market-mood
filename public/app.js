@@ -4059,17 +4059,20 @@ class MarketMoodApp {
         const dataSource = document.getElementById('dataSource');
         const updateInfo = document.getElementById('updateInfo');
 
-        if (source === 'uploaded' && data) {
+        console.log('updateDataSourceDisplay called:', { source, data: !!data });
+
+        if (source === 'uploaded' || source === 'database') {
             // Show uploaded data info
             if (dataSource) {
                 dataSource.textContent = 'Uploaded Data';
             }
             if (updateInfo) {
-                const fileName = data.fileName || 'CSV File';
-                const date = data.date || 'Unknown date';
+                const fileName = data?.fileName || 'CSV File';
+                const date = data?.date || 'Unknown date';
                 updateInfo.textContent = `${fileName} • ${date}`;
             }
-        } else {
+            console.log('✓ Updated to Uploaded Data display');
+        } else if (source === 'api') {
             // Show NSE India info
             if (dataSource) {
                 dataSource.textContent = 'NSE India';
@@ -4077,6 +4080,7 @@ class MarketMoodApp {
             if (updateInfo) {
                 updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
             }
+            console.log('✓ Updated to NSE India display');
         }
     }
 }
