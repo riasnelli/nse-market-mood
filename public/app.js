@@ -398,9 +398,8 @@ class MarketMoodApp {
         }
         if (this.signalsBtn) {
             this.signalsBtn.addEventListener('click', () => {
-                if (this.currentView !== 'signals') {
-                    this.showSignalsView();
-                }
+                console.log("🔔 Signals button clicked, current view:", this.currentView);
+                this.toggleView();
             });
         }
         if (this.generateSignalsBtn) {
@@ -3346,6 +3345,12 @@ class MarketMoodApp {
         console.log('Switching to Mood view');
         this.currentView = 'mood';
         
+        
+        // Update header title to "NSE Market Mood"
+        const headerTitle = document.getElementById('headerTitle');
+        if (headerTitle) {
+            headerTitle.textContent = 'NSE Market Mood';
+        }
         // Hide signals page, show mood page
         if (this.signalsPageView) {
             this.signalsPageView.style.setProperty('display', 'none', 'important');
@@ -3353,6 +3358,8 @@ class MarketMoodApp {
         if (this.moodPageView) {
             this.moodPageView.style.setProperty('display', 'block', 'important');
         }
+        
+        this.currentView = 'signals';
         
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
