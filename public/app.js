@@ -3359,6 +3359,12 @@ class MarketMoodApp {
     }
 
     showSignalsView() {
+        // Update header title to "NSE Signals"
+        const headerTitle = document.getElementById('headerTitle');
+        if (headerTitle) {
+            headerTitle.textContent = 'NSE Signals';
+        }
+
         console.log('=== Switching to Signals view ===');
         console.log('Mood page view element:', this.moodPageView);
         console.log('Signals page view element:', this.signalsPageView);
