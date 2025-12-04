@@ -215,11 +215,6 @@ class SettingsManager {
             setTimeout(() => {
                 const loadBtn = document.getElementById('loadUploadedDataBtn');
                 
-                if (dateSelect) {
-                    // Enable/disable load button based on selection
-                    dateSelect.addEventListener('change', (e) => {
-                        if (loadBtn) {
-                            loadBtn.disabled = !e.target.value;
                         }
                     });
                     
@@ -415,41 +410,8 @@ class SettingsManager {
         if (!uploadedData) {
             // Fallback to old key name
             uploadedData = localStorage.getItem('uploadedMarketData');
-        }
-        
-        
-        if (!uploadedSection) {
-            return;
-        }
-        
-        if (uploadedData) {
-            try {
-                const data = JSON.parse(uploadedData);
-                
-                if (sourceEl) sourceEl.textContent = 'Uploaded Data • Static data from file';
-                if (dateEl) dateEl.textContent = data.date || data.dataDate || 'N/A';
-                if (countEl) countEl.textContent = data.indices?.length || 0;
-                
-                // Use classList for consistent display handling
-                uploadedSection.classList.add('show');
-                // Also set display style directly as fallback for iOS Safari
-                uploadedSection.style.display = 'block';
-                
-                console.log('Uploaded data section shown:', {
-                    fileName: data.fileName || data.source,
-                    date: data.date || data.dataDate,
-                    count: data.indices?.length || 0
-                });
-            } catch (e) {
-                console.error('Error parsing uploaded data in settings:', e);
-                uploadedSection.classList.remove('show');
-                uploadedSection.style.display = 'none';
-            }
-        } else {
-            uploadedSection.classList.remove('show');
-            uploadedSection.style.display = 'none';
-            console.log('No uploaded data found in localStorage');
-        }
+    updateUploadedDataSection() {
+        // No-op: Duplicate section removed from HTML
     }
 
     updateApiList() {
