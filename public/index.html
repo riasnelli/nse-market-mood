@@ -112,70 +112,49 @@
             </div>
 
             <!-- Signals Page View -->
-            <div class="page-view" id="signalsPageView" style="display: none;">
-                <div class="mood-card" id="signalsMoodCard">
-                    <div class="mood-indicator">
-                        <div class="mood-emoji" id="signalsMoodEmoji">😐</div>
-                        <div class="mood-text" id="signalsMoodText">Loading...</div>
-                    </div>
-                    <div class="mood-score">
-                        <div class="score-bar">
-                            <div class="score-fill" id="signalsScoreFill"></div>
-                        </div>
-                        <div class="score-text" id="signalsScoreText">-/-</div>
-                    </div>
+                        <div id="signalsPageView" class="page-view hidden">
+              
+              <!-- AI Market Analysis Section -->
+              <section class="card signals-section">
+                <div class="section-header">
+                  <h2>AI Market Analysis</h2>
+                  <button id="analyzeMarketBtn" class="btn btn-primary">Analyze Market</button>
                 </div>
 
-                <!-- Data Availability Section -->
-                <div class="data-availability-section" id="dataAvailabilitySection" style="display: none;">
-                    <div class="section-header">
-                        <h3 class="section-title">Data Availability</h3>
-                        <button id="refreshDataAvailabilityBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" title="Refresh">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="23 4 23 10 17 10"></polyline>
-                                <polyline points="1 20 1 14 7 14"></polyline>
-                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div id="dataAvailabilityContent" class="data-availability-content">
-                        <!-- Data availability info will be populated here -->
-                    </div>
-                    <div id="dataAvailabilityLoading" class="loading-message" style="display: none; text-align: center; padding: 20px;">
-                        Loading data availability...
-                    </div>
-                    <div id="dataAvailabilityError" class="error-message" style="display: none; text-align: center; padding: 20px; color: #ef4444;">
-                        <!-- Error message will be shown here -->
-                    </div>
+                <div id="aiAnalysisLoading" class="loading hidden">Analyzing market using AI…</div>
+                <div id="aiAnalysisError" class="error hidden"></div>
+
+                <div id="aiAnalysisContent" class="ai-analysis-placeholder">
+                  Click <strong>Analyze Market</strong> to get today's AI view.
+                </div>
+              </section>
+
+              <!-- Strategy Recommendation -->
+              <section id="strategySection" class="card signals-section hidden">
+                <h2>Recommended Strategy</h2>
+                <div id="strategyChip" class="strategy-chip"></div>
+                <p id="strategyDescription" class="strategy-description"></p>
+              </section>
+
+              <!-- Signals Section -->
+              <section id="signalsSection" class="card signals-section hidden">
+                <div class="section-header">
+                  <h2>Intraday Signals</h2>
+                  <button id="generateSignalsBtn" class="btn btn-primary">Generate Signals</button>
                 </div>
 
-                <!-- Signals Section -->
-                <div class="signals-section" id="signalsSection">
-                    <div class="section-header">
-                    <h3 class="section-title">Intraday Signals</h3>
-                    <button id="generateSignalsBtn" class="btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">Generate Signals</button>
+                <div id="signalsMeta" class="signals-meta">
+                  <span id="signalsDateLabel"></span>
+                  <span id="signalsStrategyLabel"></span>
                 </div>
-                <div id="signalsLoading" class="loading-message" style="display: none; text-align: center; padding: 20px;">
-                    Loading signals...
-                </div>
-                <div id="signalsError" class="error-message" style="display: none; text-align: center; padding: 20px; color: #ef4444;">
-                    <!-- Error message will be shown here -->
-                </div>
-                <div id="signalsContainer" class="signals-container">
-                    <!-- Signals will be populated here -->
-                </div>
-                <div id="signalsEmpty" class="empty-message" style="display: none; text-align: center; padding: 40px 20px; color: #666;">
-                    <div style="font-size: 3rem; margin-bottom: 15px;">📊</div>
-                    <div style="font-size: 1.2rem; font-weight: 600; color: #333; margin-bottom: 10px;">No Potential Signals</div>
-                    <div style="font-size: 0.95rem; color: #666; margin-bottom: 20px;">
-                        No trading signals were found for the selected date.<br>
-                        This could mean the market conditions don't meet the signal criteria.
-                    </div>
-                    <button id="generateSignalsBtnEmpty" class="btn-primary" style="padding: 10px 20px; font-size: 0.95rem; margin-top: 10px;">
-                        Generate Signals
-                    </button>
-                </div>
-                </div>
+
+                <div id="signalsLoading" class="loading hidden">Scanning NSE universe…</div>
+                <div id="signalsError" class="error hidden"></div>
+                <div id="signalsEmpty" class="empty-state hidden">No signals met criteria.</div>
+
+                <div id="signalsContainer" class="signals-container"></div>
+              </section>
+
             </div>
         </main>
 
@@ -638,7 +617,7 @@
             originalConsoleWarn.apply(console, args);
         };
     </script>
-    <script src="settings.js?v=FINAL-GOOD"></script>
+    <script src="settings.js?v=SIGNALS-CLEAN"></script>
     <script>
         // IMMEDIATE check for signalsPageView element - runs before app.js
         (function() {
@@ -695,7 +674,7 @@
             }, 1000);
         })();
     </script>
-    <script src="app.js?v=FINAL-GOOD"></script>
+    <script src="app.js?v=SIGNALS-CLEAN"></script>
     <script>
         // IMMEDIATE test - runs as soon as script loads
         console.log('🔍 SIGNALS BUTTON TEST SCRIPT LOADED');
