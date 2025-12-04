@@ -379,15 +379,21 @@ class MarketMoodApp {
         }
         if (this.settingsMenuBtn) {
             this.settingsMenuBtn.addEventListener('click', () => {
+                console.log('Settings menu button clicked');
                 // Close menu modal first
                 if (this.menuModal) {
                     this.menuModal.classList.remove('show');
                     this.unlockBodyScroll();
                 }
-                // Open settings modal
-                if (window.settingsManager) {
-                    window.settingsManager.openSettingsModal();
-                }
+                // Open settings modal after menu closes
+                setTimeout(() => {
+                    if (window.settingsManager) {
+                        console.log('Opening settings modal...');
+                        window.settingsManager.openSettingsModal();
+                    } else {
+                        console.error('settingsManager not found!');
+                    }
+                }, 100);
             });
         }
         if (this.signalsBtn) {
