@@ -199,10 +199,8 @@ class SettingsManager {
                 <p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">📁 Select a date to load uploaded CSV data for market mood analysis</p>
                 <div style="margin-top: 15px;">
                     <label style="display: block; font-weight: 600; color: #333; margin-bottom: 8px; font-size: 0.9rem;">Select Date:</label>
-                    <select id="uploadedDataDateSelect" class="form-control" style="width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; background: white; cursor: pointer;">
                         <option value="">-- Select a date --</option>
                         ${sortedDates.map(dateInfo => `
-                            <option value="${dateInfo.date}" ${this.settings.uploadedDataDate === dateInfo.date ? 'selected' : ''}>
                                 ${dateInfo.date} (${dateInfo.count} indices)
                             </option>
                         `).join('')}
@@ -215,7 +213,6 @@ class SettingsManager {
             
             // Add event listeners after a short delay to ensure DOM is ready
             setTimeout(() => {
-                const dateSelect = document.getElementById('uploadedDataDateSelect');
                 const loadBtn = document.getElementById('loadUploadedDataBtn');
                 
                 if (dateSelect) {
@@ -343,7 +340,6 @@ class SettingsManager {
                     
                     // Set as active API
                     this.settings.activeApi = 'uploaded';
-                    this.settings.uploadedDataDate = date;
                     this.saveSettings();
                     
                     // Show notification
@@ -375,7 +371,6 @@ class SettingsManager {
                     if (data.date === date) {
                         // Set as active API
                         this.settings.activeApi = 'uploaded';
-                        this.settings.uploadedDataDate = date;
                         this.saveSettings();
                         
                         // Show notification
@@ -422,19 +417,14 @@ class SettingsManager {
             uploadedData = localStorage.getItem('uploadedMarketData');
         }
         
-        const uploadedSection = document.getElementById('uploadedDataSection');
         
         if (!uploadedSection) {
-            console.warn('uploadedDataSection element not found');
             return;
         }
         
         if (uploadedData) {
             try {
                 const data = JSON.parse(uploadedData);
-                const sourceEl = document.getElementById('uploadedDataSource');
-                const dateEl = document.getElementById('uploadedDataDate');
-                const countEl = document.getElementById('uploadedDataCount');
                 
                 if (sourceEl) sourceEl.textContent = 'Uploaded Data • Static data from file';
                 if (dateEl) dateEl.textContent = data.date || data.dataDate || 'N/A';
@@ -789,9 +779,6 @@ class SettingsManager {
         }
 
         // Clear uploaded data button
-        const clearUploadedDataBtn = document.getElementById('clearUploadedDataBtn');
-        if (clearUploadedDataBtn) {
-            clearUploadedDataBtn.addEventListener('click', () => {
                 if (confirm('Are you sure you want to clear the uploaded data? This will switch back to API data.')) {
                     localStorage.removeItem('uploadedMarketData');
                     localStorage.removeItem('uploadedIndicesData'); // Also check old key
