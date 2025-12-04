@@ -2070,3 +2070,4 @@ input[type="date"] {
 .pulse {
     animation: pulse 1.5s infinite;
 }.hidden { display: none !important; }
+.hidden { display: none !important; }
