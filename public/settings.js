@@ -1024,3 +1024,4 @@ class SettingsManager {
 // Initialize settings manager
 window.settingsManager = new SettingsManager();
 
+/* Force: 1764859063 */
