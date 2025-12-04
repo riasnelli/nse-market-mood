@@ -178,8 +178,8 @@ class SettingsManager {
                 <input type="radio" name="activeApi" value="uploaded" ${this.settings.activeApi === 'uploaded' ? 'checked' : ''}>
                 <span class="api-name">Upload CSV Data</span>
             </label>
-            <span class="api-status ${this.settings.activeApi === 'uploaded' ? 'enabled' : (availableDates.length > 0 ? 'enabled' : 'disabled')}">
-                ${this.settings.activeApi === 'uploaded' ? '✓ Connected' : (availableDates.length > 0 ? '✓ Available' : '✗ No Data')}
+            <span class="api-status ${availableDates.length > 0 ? 'enabled' : 'disabled'}">
+                ${availableDates.length > 0 ? '✓ Available' : '✗ No Data'}
             </span>
             <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -199,8 +199,10 @@ class SettingsManager {
                 <p class="api-description" style="font-size: 0.85rem; color: #666; margin: 5px 0 10px 0;">📁 Select a date to load uploaded CSV data for market mood analysis</p>
                 <div style="margin-top: 15px;">
                     <label style="display: block; font-weight: 600; color: #333; margin-bottom: 8px; font-size: 0.9rem;">Select Date:</label>
+                    <select id="uploadedDataDateSelect" class="form-control" style="width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 0.9rem; background: white; cursor: pointer;">
                         <option value="">-- Select a date --</option>
                         ${sortedDates.map(dateInfo => `
+                            <option value="${dateInfo.date}" ${this.settings.uploadedDataDate === dateInfo.date ? 'selected' : ''}>
                                 ${dateInfo.date} (${dateInfo.count} indices)
                             </option>
                         `).join('')}
@@ -213,8 +215,14 @@ class SettingsManager {
             
             // Add event listeners after a short delay to ensure DOM is ready
             setTimeout(() => {
+                const dateSelect = document.getElementById('uploadedDataDateSelect');
                 const loadBtn = document.getElementById('loadUploadedDataBtn');
                 
+                if (dateSelect) {
+                    // Enable/disable load button based on selection
+                    dateSelect.addEventListener('change', (e) => {
+                        if (loadBtn) {
+                            loadBtn.disabled = !e.target.value;
                         }
                     });
                     
@@ -335,6 +343,7 @@ class SettingsManager {
                     
                     // Set as active API
                     this.settings.activeApi = 'uploaded';
+                    this.settings.uploadedDataDate = date;
                     this.saveSettings();
                     
                     // Show notification
@@ -366,6 +375,7 @@ class SettingsManager {
                     if (data.date === date) {
                         // Set as active API
                         this.settings.activeApi = 'uploaded';
+                        this.settings.uploadedDataDate = date;
                         this.saveSettings();
                         
                         // Show notification
@@ -410,8 +420,46 @@ class SettingsManager {
         if (!uploadedData) {
             // Fallback to old key name
             uploadedData = localStorage.getItem('uploadedMarketData');
-    updateUploadedDataSection() {
-        // No-op: Duplicate section removed from HTML
+        }
+        
+        const uploadedSection = document.getElementById('uploadedDataSection');
+        
+        if (!uploadedSection) {
+            console.warn('uploadedDataSection element not found');
+            return;
+        }
+        
+        if (uploadedData) {
+            try {
+                const data = JSON.parse(uploadedData);
+                const sourceEl = document.getElementById('uploadedDataSource');
+                const dateEl = document.getElementById('uploadedDataDate');
+                const countEl = document.getElementById('uploadedDataCount');
+                
+                if (sourceEl) sourceEl.textContent = 'Uploaded Data • Static data from file';
+                if (dateEl) dateEl.textContent = data.date || data.dataDate || 'N/A';
+                if (countEl) countEl.textContent = data.indices?.length || 0;
+                
+                // Use classList for consistent display handling
+                uploadedSection.classList.add('show');
+                // Also set display style directly as fallback for iOS Safari
+                uploadedSection.style.display = 'block';
+                
+                console.log('Uploaded data section shown:', {
+                    fileName: data.fileName || data.source,
+                    date: data.date || data.dataDate,
+                    count: data.indices?.length || 0
+                });
+            } catch (e) {
+                console.error('Error parsing uploaded data in settings:', e);
+                uploadedSection.classList.remove('show');
+                uploadedSection.style.display = 'none';
+            }
+        } else {
+            uploadedSection.classList.remove('show');
+            uploadedSection.style.display = 'none';
+            console.log('No uploaded data found in localStorage');
+        }
     }
 
     updateApiList() {
@@ -461,7 +509,7 @@ class SettingsManager {
                     <span class="api-name">${api.name}</span>
                 </label>
                 <span class="api-status ${api.testStatus === 'success' ? 'enabled' : api.testStatus === 'failed' ? 'disabled' : (api.enabled ? 'enabled' : 'disabled')}">
-                    ${this.settings.activeApi === key ? '✓ Connected' : (api.testStatus === 'success' ? '✓ Ready' : api.testStatus === 'failed' ? '✗ Failed' : (api.enabled ? '✓ Available' : '✗ Not Configured'))}
+                    ${api.testStatus === 'success' ? '✓ Connected' : api.testStatus === 'failed' ? '✗ Failed' : (api.enabled ? '✓ Enabled' : '✗ Not Tested')}
                 </span>
                 <svg class="api-collapse-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -740,6 +788,23 @@ class SettingsManager {
             });
         }
 
+        // Clear uploaded data button
+        const clearUploadedDataBtn = document.getElementById('clearUploadedDataBtn');
+        if (clearUploadedDataBtn) {
+            clearUploadedDataBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to clear the uploaded data? This will switch back to API data.')) {
+                    localStorage.removeItem('uploadedMarketData');
+                    localStorage.removeItem('uploadedIndicesData'); // Also check old key
+                    this.updateUploadedDataSection();
+                    this.showNotification('Uploaded data cleared. Switching to API data.', 'success');
+                    
+                    // Reload app data
+                    if (window.marketMoodApp) {
+                        window.marketMoodApp.loadData();
+                    }
+                }
+            });
+        }
 
         // Event listeners are now set up in updateApiList()
     }
