@@ -3340,15 +3340,12 @@ class MarketMoodApp {
         console.log('Switching to Mood view');
         this.currentView = 'mood';
         
-        // Hide signals page, show mood page
-        if (this.signalsPageView) {
-            this.signalsPageView.style.setProperty('display', 'none', 'important');
-        }
-        if (this.moodPageView) {
-            this.moodPageView.style.setProperty('display', 'block', 'important');
-        }
+        if (this.signalsPageView) this.signalsPageView.classList.add('hidden');
+        if (this.moodPageView) this.moodPageView.classList.remove('hidden');
         
-        // Scroll to top
+        const headerTitle = document.getElementById('headerTitle');
+        if (headerTitle) headerTitle.textContent = 'NSE Market Mood';
+        
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
