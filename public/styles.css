@@ -146,7 +146,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 15px 20px 10px 20px;
+    padding: 15px 20px 120px 20px;
     padding-top: calc(15px + env(safe-area-inset-top, 0px));
     color: white;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -157,8 +157,10 @@ header {
     margin-left: calc(-50vw + 50%);
     margin-right: calc(-50vw + 50%);
     margin-top: calc(-1 * env(safe-area-inset-top, 0px));
+    margin-bottom: -80px;
     box-sizing: border-box;
     position: relative;
+    z-index: 1;
 }
 
 .mood-greeting-area::before {
@@ -216,8 +218,8 @@ header {
     background: transparent;
     box-shadow: none;
     position: relative;
-    z-index: 1;
-    margin: 0 auto 20px auto;
+    z-index: 2;
+    margin: -80px auto 20px auto;
     padding: 20px;
     max-width: 400px;
     width: 100%;
