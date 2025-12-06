@@ -33,6 +33,14 @@ body {
     -webkit-overflow-scrolling: touch;
     overflow-y: auto;
     overscroll-behavior-y: auto;
+    /* Hide scrollbar */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+body::-webkit-scrollbar {
+    display: none;
 }
 
 .container {
@@ -146,7 +154,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 15px 20px 120px 20px;
+    padding: 15px 20px 156px 20px;
     padding-top: calc(15px + env(safe-area-inset-top, 0px));
     color: white;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -154,12 +162,12 @@ header {
     transition: background 0.5s ease, background-color 0.5s ease;
     border-radius: 0 0 30px 30px;
     width: 100vw;
-    margin-left: calc(-50vw + 50%);
-    margin-right: calc(-50vw + 50%);
-    margin-top: calc(-1 * env(safe-area-inset-top, 0px));
-    margin-bottom: -80px;
-    box-sizing: border-box;
     position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 0;
+    margin-bottom: -104px;
+    box-sizing: border-box;
     z-index: 1;
 }
 
@@ -219,7 +227,7 @@ header {
     box-shadow: none;
     position: relative;
     z-index: 2;
-    margin: -80px auto 20px auto;
+    margin: -120px auto 20px auto;
     padding: 20px;
     max-width: 400px;
     width: 100%;
@@ -431,6 +439,8 @@ header h1 {
 .page-view {
     width: 100%;
     display: block;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
 }
 
 .page-view[style*="display: none"] {
