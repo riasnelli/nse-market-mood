@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@vercel/functions": "^3.3.3",
+    "chart.js": "^4.5.1",
     "mongodb": "^7.0.0",
     "node-fetch": "^2.6.7"
   },

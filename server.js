@@ -28,7 +28,8 @@ const apiRoutes = [
   'test-generate-signals',
   'get-signals',
   'check-date-data',
-  'manifest'
+  'manifest',
+  'index-history'
 ];
 
 // Mount API routes

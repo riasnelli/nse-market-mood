@@ -6,8 +6,20 @@ class MarketMoodApp {
         this.consecutiveFailures = 0; // Track consecutive API failures
         this.maxFailures = 3; // Max failures before marking market as closed
         this.viewMode = 'card'; // 'card' or 'table' for all indices view
+        this.indexTrends = {}; // Store 14-day trend data for indices
+        this.chartsEnabled = this.loadChartsPreference(); // Load preference from localStorage
         this.updateApiUrl();
         this.init();
+    }
+
+    loadChartsPreference() {
+        const saved = localStorage.getItem('indexChartsEnabled');
+        return saved !== null ? saved === 'true' : true; // Default to enabled
+    }
+
+    saveChartsPreference(enabled) {
+        localStorage.setItem('indexChartsEnabled', enabled.toString());
+        this.chartsEnabled = enabled;
     }
 
     updateApiUrl() {
@@ -274,6 +286,24 @@ class MarketMoodApp {
         console.log('Document ready state:', document.readyState);
         console.log('Window location:', window.location.pathname);
         
+        // Show loading overlay immediately - check if element exists first
+        const overlayCheck = document.getElementById('moodLoadingOverlay');
+        console.log('🔍 Loading overlay element check:', !!overlayCheck);
+        if (overlayCheck) {
+            console.log('✅ Overlay found, showing...');
+            this.showMoodLoading('Loading market mood...', 'Initializing...');
+        } else {
+            console.error('❌ Loading overlay not found in DOM!');
+            // Try again after a short delay
+            setTimeout(() => {
+                const retryOverlay = document.getElementById('moodLoadingOverlay');
+                if (retryOverlay) {
+                    console.log('✅ Overlay found on retry, showing...');
+                    this.showMoodLoading('Loading market mood...', 'Initializing...');
+                }
+            }, 100);
+        }
+        
         // Immediate check for signalsPageView element
         const testSignalsPage = document.getElementById('signalsPageView');
         console.log('🔍 Immediate signalsPageView check:', !!testSignalsPage, testSignalsPage);
@@ -445,6 +475,13 @@ class MarketMoodApp {
             this.tableViewBtn.addEventListener('click', () => this.switchView('table'));
         }
 
+        // Setup chart toggle button
+        this.chartToggleBtn = document.getElementById('chartToggleBtn');
+        if (this.chartToggleBtn) {
+            this.updateChartToggleButton();
+            this.chartToggleBtn.addEventListener('click', () => this.toggleCharts());
+        }
+
         // Setup custom calendar for loading data from database
         this.customCalendar = document.getElementById('customCalendar');
         this.calendarModal = document.getElementById('calendarModal');
@@ -528,6 +565,10 @@ class MarketMoodApp {
             }
         });
 
+        // Update loading status (overlay already shown in init)
+        this.updateMoodLoadingStatus('Fetching latest data...');
+        
+        // First load current mood data (NSE or uploaded CSV)
         this.loadData().then(() => {
             // After initial load, check market status and start/stop polling accordingly
             if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
@@ -535,7 +576,75 @@ class MarketMoodApp {
             } else {
                 this.stopPolling();
             }
+            
+            // THEN load index history ONLY if charts are enabled
+            // This happens after mood page is already displayed
+            if (this.chartsEnabled) {
+                this.loadIndexHistory().catch(err => {
+                    console.warn('Index history loading failed (non-critical):', err);
+                });
+            } else {
+                // Hide loading immediately if charts are disabled
+                this.hideMoodLoading();
+            }
+        }).catch(() => {
+            // Hide loading even on error
+            this.hideMoodLoading();
         });
+    }
+
+    async loadIndexHistory() {
+        try {
+            // Show loading status for index history
+            this.updateMoodLoadingStatus('Loading 14-day trend data...');
+            console.log('📊 Loading index history data...');
+            
+            const response = await fetch('/api/index-history');
+            if (response.ok) {
+                const data = await response.json();
+                this.indexTrends = data || {};
+                const indicesCount = Object.keys(this.indexTrends).length;
+                console.log(`✅ Loaded index history for ${indicesCount} indices`);
+                if (indicesCount > 0) {
+                    console.log('📈 Index symbols with history:', Object.keys(this.indexTrends).slice(0, 5).join(', '), indicesCount > 5 ? '...' : '');
+                    this.updateMoodLoadingStatus(`Loaded ${indicesCount} index trends`);
+                } else {
+                    console.warn('⚠️ No index history data available');
+                    this.updateMoodLoadingStatus('No trend data available');
+                }
+                // Re-render index cards if they're already displayed (use setTimeout to not block)
+                if (this.lastMarketData && this.lastMarketData.indices) {
+                    console.log('🔄 Re-rendering index cards with trend data...');
+                    // Delay re-render slightly to avoid blocking UI
+                    setTimeout(() => {
+                        this.updateIndices(this.lastMarketData.indices || [], this.lastMarketData.vix);
+                        // Hide loading after cards are updated
+                        setTimeout(() => {
+                            this.hideMoodLoading();
+                        }, 300);
+                    }, 100);
+                } else {
+                    // Hide loading if no data to update
+                    setTimeout(() => {
+                        this.hideMoodLoading();
+                    }, 300);
+                }
+            } else {
+                const errorText = await response.text().catch(() => '');
+                console.warn(`⚠️ Failed to load index history: ${response.status}`, errorText.substring(0, 200));
+                this.updateMoodLoadingStatus('Trend data unavailable');
+                setTimeout(() => {
+                    this.hideMoodLoading();
+                }, 500);
+            }
+        } catch (error) {
+            console.error('❌ Error loading index history:', error);
+            console.error('Error details:', error.message, error.stack);
+            this.updateMoodLoadingStatus('Error loading trends');
+            setTimeout(() => {
+                this.hideMoodLoading();
+            }, 500);
+        }
     }
 
     async loadData(retryCount = 0) {
@@ -929,7 +1038,66 @@ class MarketMoodApp {
         }
     }
 
+    showMoodLoading(message = 'Loading market mood...', status = 'Fetching latest data...') {
+        console.log('🎨 Showing mood loading overlay...', message, status);
+        const overlay = document.getElementById('moodLoadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const loadingStatus = document.getElementById('loadingStatus');
+        const moodCard = document.getElementById('moodCard');
+        
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            overlay.style.cssText = 'display: flex !important; opacity: 1 !important; visibility: visible !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 99999 !important;';
+            console.log('✅ Loading overlay shown', overlay.style.display);
+            if (loadingText) loadingText.textContent = message;
+            if (loadingStatus) loadingStatus.textContent = status;
+        } else {
+            console.error('❌ Loading overlay element not found!');
+        }
+        if (moodCard) {
+            moodCard.style.opacity = '0';
+        }
+    }
+
+    hideMoodLoading() {
+        console.log('🎨 Hiding mood loading overlay...');
+        const overlay = document.getElementById('moodLoadingOverlay');
+        const moodCard = document.getElementById('moodCard');
+        
+        if (overlay) {
+            overlay.classList.add('hidden');
+            // Also set display to none for safety
+            setTimeout(() => {
+                if (overlay.classList.contains('hidden')) {
+                    overlay.style.display = 'none';
+                }
+            }, 500); // After fade out animation
+        }
+        if (moodCard) {
+            moodCard.style.opacity = '1';
+        }
+    }
+
+    updateMoodLoadingStatus(status) {
+        const loadingStatus = document.getElementById('loadingStatus');
+        if (loadingStatus) {
+            loadingStatus.textContent = status;
+        }
+    }
+
     updateUI(data) {
+        // Store current market data for re-rendering when index history loads
+        this.lastMarketData = data;
+
+        // Update loading status - mood data loaded, now loading index history
+        this.updateMoodLoadingStatus('Mood data loaded. Loading trend charts...');
+
+        // Show chart toggle container when data is loaded
+        const chartToggleContainer = document.getElementById('chartToggleContainer');
+        if (chartToggleContainer && data.indices && data.indices.length > 0) {
+            chartToggleContainer.style.display = 'block';
+        }
+
         // Update mood
         const moodEmoji = document.getElementById('moodEmoji');
         const moodText = document.getElementById('moodText');
@@ -940,8 +1108,7 @@ class MarketMoodApp {
             if (moodEmoji) moodEmoji.textContent = data.mood.emoji || '😐';
             if (moodText) moodText.textContent = data.mood.text || '';
             
-            // Also update signals page mood card if it exists
-            this.syncMoodToSignalsPage(data.mood);
+            // Note: Signals page is standalone - no mood syncing needed
             if (scoreFill && typeof data.mood.score === 'number') {
                 const pct = Math.max(0, Math.min(100, data.mood.score));
                 scoreFill.style.width = pct + '%';
@@ -949,6 +1116,7 @@ class MarketMoodApp {
             if (scoreText) scoreText.textContent = (data.mood.score != null) ? `${data.mood.score}/100` : '-/-';
             
             // Update background color based on mood score
+            console.log('🎨 Calling updateBackgroundColor with score:', data.mood.score);
             this.updateBackgroundColor(data.mood.score);
         }
 
@@ -1124,6 +1292,12 @@ class MarketMoodApp {
             return aPChange - bPChange;
         });
         
+        // Show chart toggle container when indices are available
+        const chartToggleContainer = document.getElementById('chartToggleContainer');
+        if (chartToggleContainer && indices.length > 0) {
+            chartToggleContainer.style.display = 'block';
+        }
+        
         if (sortedOtherIndices.length > 0 && allIndicesSection) {
             allIndicesSection.style.display = 'block';
             
@@ -1138,13 +1312,143 @@ class MarketMoodApp {
         }
     }
 
+    // Trend calculation utilities
+    getTrendColor(values) {
+        if (!values || values.length < 2) return '#9CA3AF';
+        const first = values[0];
+        const last = values[values.length - 1];
+        if (last > first) return '#22C55E';
+        if (last < first) return '#EF4444';
+        return '#9CA3AF';
+    }
+
+    getTrendPercent(values) {
+        if (!values || values.length < 2) return '0.00';
+        const first = values[0];
+        const last = values[values.length - 1];
+        if (first === 0) return '0.00';
+        return ((last - first) / first * 100).toFixed(2);
+    }
+
+    // Create sparkline chart
+    createSparkline(container, data, color) {
+        if (!data || data.length < 2) {
+            container.style.height = '40px';
+            container.style.display = 'flex';
+            container.style.alignItems = 'center';
+            container.style.justifyContent = 'center';
+            container.textContent = '-';
+            return null;
+        }
+
+        // Check if Chart.js is available
+        if (typeof Chart === 'undefined') {
+            // Chart.js not loaded yet - try again after a delay
+            setTimeout(() => {
+                if (typeof Chart !== 'undefined') {
+                    this.createSparkline(container, data, color);
+                } else {
+                    container.style.height = '40px';
+                    container.style.display = 'flex';
+                    container.style.alignItems = 'center';
+                    container.style.justifyContent = 'center';
+                    container.textContent = '-';
+                }
+            }, 500);
+            return null;
+        }
+
+        // Clear container
+        container.innerHTML = '';
+        container.style.position = 'relative';
+        container.style.height = '40px';
+        container.style.width = '100%';
+        container.style.minWidth = '150px';
+
+        const canvas = document.createElement('canvas');
+        container.appendChild(canvas);
+
+        // Use double requestAnimationFrame to ensure container is fully rendered
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                try {
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Get container width, use parent width or default
+                    const parentWidth = container.parentElement?.offsetWidth || container.offsetWidth || 200;
+                    const containerWidth = Math.max(parentWidth - 40, 150); // Account for padding
+                    
+                    // Set canvas size
+                    canvas.width = containerWidth;
+                    canvas.height = 40;
+
+                    // Create Chart.js chart
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.map((_, i) => i),
+                            datasets: [{
+                                data: data,
+                                borderColor: color,
+                                backgroundColor: 'transparent',
+                                borderWidth: 2,
+                                tension: 0.3,
+                                pointRadius: 0,
+                                pointHoverRadius: 0,
+                                fill: false
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: {
+                                duration: 0 // Disable animation for faster rendering
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    enabled: false
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    display: false
+                                },
+                                y: {
+                                    display: false
+                                }
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error creating sparkline chart:', error);
+                    container.textContent = '-';
+                }
+            });
+        });
+
+        return null; // Return null since chart is created asynchronously
+    }
+
     createIndexCard(index) {
         const card = document.createElement('div');
         card.className = 'data-card';
         
+        // Create flex container for content
+        const contentContainer = document.createElement('div');
+        contentContainer.style.display = 'flex';
+        contentContainer.style.flexDirection = 'column';
+        contentContainer.style.gap = '8px';
+        contentContainer.style.width = '100%';
+        
         const title = document.createElement('h3');
         title.textContent = index.symbol;
-        card.appendChild(title);
+        title.style.margin = '0';
+        title.style.fontSize = '0.9rem';
+        title.style.fontWeight = '600';
+        contentContainer.appendChild(title);
         
         const value = document.createElement('div');
         value.className = 'data-value';
@@ -1153,7 +1457,10 @@ class MarketMoodApp {
         } else {
             value.textContent = '-';
         }
-        card.appendChild(value);
+        value.style.margin = '0';
+        value.style.fontSize = '1.1rem';
+        value.style.fontWeight = 'bold';
+        contentContainer.appendChild(value);
         
         const change = document.createElement('div');
         change.className = 'data-change';
@@ -1172,9 +1479,88 @@ class MarketMoodApp {
         } else {
             change.textContent = '-';
         }
-        card.appendChild(change);
+        change.style.margin = '0';
+        change.style.fontSize = '0.85rem';
+        contentContainer.appendChild(change);
+
+        // Add 14-day trend section (only if charts are enabled and data is available)
+        if (this.chartsEnabled) {
+            const trendData = this.indexTrends && this.indexTrends[index.symbol];
+            if (trendData && Array.isArray(trendData) && trendData.length >= 2) {
+                const trendValues = trendData.map(d => d.close);
+                const trendColor = this.getTrendColor(trendValues);
+                const trendPercent = this.getTrendPercent(trendValues);
+                const isPositive = parseFloat(trendPercent) > 0;
+                const isNegative = parseFloat(trendPercent) < 0;
+                const arrow = isPositive ? '↑' : (isNegative ? '↓' : '→');
+                const sign = isPositive ? '+' : '';
+
+                const trendContainer = document.createElement('div');
+                trendContainer.style.display = 'flex';
+                trendContainer.style.flexDirection = 'column';
+                trendContainer.style.gap = '4px';
+                trendContainer.style.marginTop = '8px';
+                trendContainer.style.paddingTop = '8px';
+                trendContainer.style.borderTop = '1px solid #e5e7eb';
+
+                const trendLabel = document.createElement('div');
+                trendLabel.style.fontSize = '0.75rem';
+                trendLabel.style.color = '#6b7280';
+                trendLabel.textContent = `${arrow} ${sign}${trendPercent}% (14-day)`;
+                trendLabel.style.color = trendColor;
+                trendLabel.style.fontWeight = '500';
+                trendContainer.appendChild(trendLabel);
+
+                const sparklineContainer = document.createElement('div');
+                sparklineContainer.style.height = '40px';
+                sparklineContainer.style.width = '100%';
+                trendContainer.appendChild(sparklineContainer);
+
+                // Create sparkline chart
+                this.createSparkline(sparklineContainer, trendValues, trendColor);
+
+                contentContainer.appendChild(trendContainer);
+            }
+        }
+        
+        card.appendChild(contentContainer);
         
         return card;
+    }
+
+    toggleCharts() {
+        this.chartsEnabled = !this.chartsEnabled;
+        this.saveChartsPreference(this.chartsEnabled);
+        this.updateChartToggleButton();
+        
+        if (this.chartsEnabled) {
+            // Load index history if enabled
+            console.log('📊 Charts enabled, loading index history...');
+            this.loadIndexHistory().catch(err => {
+                console.warn('Index history loading failed:', err);
+            });
+        } else {
+            // Clear index trends and re-render cards without charts
+            console.log('📊 Charts disabled, clearing trend data...');
+            this.indexTrends = {};
+        }
+        
+        // Re-render all index cards
+        if (this.lastMarketData && this.lastMarketData.indices) {
+            this.updateIndices(this.lastMarketData.indices || [], this.lastMarketData.vix);
+        }
+    }
+
+    updateChartToggleButton() {
+        if (this.chartToggleBtn) {
+            if (this.chartsEnabled) {
+                this.chartToggleBtn.classList.add('active');
+                this.chartToggleBtn.title = 'Disable 14-day trend charts';
+            } else {
+                this.chartToggleBtn.classList.remove('active');
+                this.chartToggleBtn.title = 'Enable 14-day trend charts';
+            }
+        }
     }
 
     applyCardStyles(card) {
@@ -1448,9 +1834,15 @@ class MarketMoodApp {
     }
 
     updateBackgroundColor(score) {
-        // Update body background based on mood score
-        const body = document.body;
-        if (!body) return;
+        // Update only the mood header section background based on mood score
+        const moodHeaderSection = document.getElementById('moodHeaderSection');
+        console.log('🎨 updateBackgroundColor called with score:', score);
+        console.log('🎨 moodHeaderSection element:', moodHeaderSection);
+        
+        if (!moodHeaderSection) {
+            console.warn('⚠️ moodHeaderSection element not found!');
+            return;
+        }
 
         let gradient;
         let themeColor; // Primary color for PWA theme-color
@@ -1485,47 +1877,18 @@ class MarketMoodApp {
             themeColor = '#dc2626'; // Dark red
         }
 
-        body.style.background = gradient;
+        // Update only the mood header section with !important to override any CSS
+        moodHeaderSection.style.setProperty('background', gradient, 'important');
+        moodHeaderSection.style.setProperty('background-color', themeColor, 'important');
+        moodHeaderSection.style.setProperty('background-image', gradient, 'important');
+        console.log('✅ Updated mood header section with gradient:', gradient, 'themeColor:', themeColor);
+        console.log('✅ Element computed styles:', {
+            background: window.getComputedStyle(moodHeaderSection).background,
+            backgroundColor: window.getComputedStyle(moodHeaderSection).backgroundColor
+        });
         
-        // Update PWA theme-color meta tag for mobile browser inset
+        // Update PWA theme-color meta tag for mobile browser inset (keep for status bar)
         this.updateThemeColor(themeColor);
-        
-        // Update CSS custom property for safe-area-inset background
-        // Update CSS custom properties for mood-based colors with !important
-        document.documentElement.style.setProperty('--mood-bg-color', themeColor, 'important');
-        document.documentElement.style.setProperty('--mood-gradient', gradient, 'important');
-        
-        // Also update html background to extend to top safe area
-        const html = document.documentElement;
-        html.style.setProperty('background-color', themeColor, 'important');
-        html.style.setProperty('background-image', gradient, 'important');
-        html.style.setProperty('background-attachment', 'fixed', 'important');
-        html.style.setProperty('background-size', 'cover', 'important');
-        html.style.setProperty('background-repeat', 'no-repeat', 'important');
-        
-        // Update body background
-        body.style.setProperty('background-color', themeColor, 'important');
-        body.style.setProperty('background-image', gradient, 'important');
-        body.style.setProperty('background-attachment', 'fixed', 'important');
-        body.style.setProperty('background-size', 'cover', 'important');
-        body.style.setProperty('background-repeat', 'no-repeat', 'important');
-        
-        // Force update body::before pseudo-element via dynamic style element
-        // This ensures the safe area overlay always shows mood color, even in dark mode
-        const styleId = 'safeAreaDynamicStyle';
-        let dynamicStyle = document.getElementById(styleId);
-        if (!dynamicStyle) {
-            dynamicStyle = document.createElement('style');
-            dynamicStyle.id = styleId;
-            document.head.appendChild(dynamicStyle);
-        }
-        dynamicStyle.textContent = `
-            body::before {
-                background: ${gradient} !important;
-                background-color: ${themeColor} !important;
-                background-image: ${gradient} !important;
-            }
-        `;
     }
 
     updateThemeColor(color) {
@@ -3345,7 +3708,6 @@ class MarketMoodApp {
         console.log('Switching to Mood view');
         this.currentView = 'mood';
         
-        
         // Update header title to "NSE Market Mood"
         const headerTitle = document.getElementById('headerTitle');
         if (headerTitle) {
@@ -3358,8 +3720,6 @@ class MarketMoodApp {
         if (this.moodPageView) {
             this.moodPageView.style.setProperty('display', 'block', 'important');
         }
-        
-        this.currentView = 'signals';
         
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3485,19 +3845,7 @@ class MarketMoodApp {
             console.log('✓ Signals page is now visible');
         }
         
-        // Copy mood data to signals page mood card
-        // Get current mood data from the main page
-        const moodEmoji = document.getElementById('moodEmoji');
-        const moodText = document.getElementById('moodText');
-        const scoreText = document.getElementById('scoreText');
-        if (moodEmoji && moodText && scoreText) {
-            const mood = {
-                emoji: moodEmoji.textContent || '😐',
-                text: moodText.textContent || '',
-                score: scoreText.textContent ? parseInt(scoreText.textContent.split('/')[0]) : null
-            };
-            this.syncMoodToSignalsPage(mood);
-        }
+        // Note: Signals page is standalone - no mood card syncing needed
         
         // Immediately scroll to top to prevent any unwanted scrolling
         window.scrollTo({ top: 0, behavior: 'instant' });

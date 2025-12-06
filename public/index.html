@@ -24,18 +24,52 @@
         </header>
 
         <main>
-            <!-- Mood Page View -->
-            <div class="page-view" id="moodPageView">
-                <div class="mood-card" id="moodCard">
-                    <div class="mood-indicator">
-                        <div class="mood-emoji" id="moodEmoji">😐</div>
-                        <div class="mood-text" id="moodText">Loading...</div>
+            <!-- Loading Overlay (outside page-view for proper z-index) -->
+            <div class="mood-loading-overlay" id="moodLoadingOverlay" style="display: flex !important; opacity: 1 !important; visibility: visible !important; z-index: 99999 !important;">
+                <div class="loading-content">
+                    <div class="loading-spinner">
+                        <div class="spinner-ring"></div>
+                        <div class="spinner-ring"></div>
+                        <div class="spinner-ring"></div>
                     </div>
-                    <div class="mood-score">
-                        <div class="score-bar">
-                            <div class="score-fill" id="scoreFill"></div>
+                    <div class="loading-text" id="loadingText">Loading market mood...</div>
+                    <div class="loading-progress-container">
+                        <div class="loading-progress-bar" id="loadingProgressBar"></div>
+                    </div>
+                    <div class="loading-status" id="loadingStatus">Fetching latest data...</div>
+                </div>
+            </div>
+            
+            <!-- Mood Page View -->
+            <div class="page-view" id="moodPageView" style="padding: 0 20px;">
+                <!-- Mood Header Section - Changes color based on mood -->
+                <div class="mood-header-section" id="moodHeaderSection">
+                    <div class="mood-card" id="moodCard" style="opacity: 0;">
+                        <div class="mood-indicator">
+                            <div class="mood-emoji" id="moodEmoji">😐</div>
+                            <div class="mood-text" id="moodText">Loading...</div>
                         </div>
-                        <div class="score-text" id="scoreText">-/-</div>
+                        <div class="mood-score">
+                            <div class="score-bar">
+                                <div class="score-fill" id="scoreFill"></div>
+                            </div>
+                            <div class="score-text" id="scoreText">-/-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart Toggle Button - Always visible when indices are loaded -->
+                <div class="chart-toggle-container" id="chartToggleContainer" style="display: none; margin-bottom: 15px;">
+                    <div class="section-header" style="margin-bottom: 0;">
+                        <h3 class="section-title" style="font-size: 0.95rem; opacity: 0.9;">14-Day Trend Charts</h3>
+                        <div class="section-icons-group">
+                            <button class="chart-toggle-btn" id="chartToggleBtn" title="Toggle 14-day trend charts">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 3 7 9 11 5 15 11 19 3"></polyline>
+                                    <line x1="3" y1="21" x2="21" y2="21"></line>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -607,6 +641,7 @@
             originalConsoleWarn.apply(console, args);
         };
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="settings.js?v=TITLE-1764867156"></script>
     <script>
         // IMMEDIATE check for signalsPageView element - runs before app.js

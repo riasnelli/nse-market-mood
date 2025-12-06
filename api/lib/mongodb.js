@@ -88,9 +88,54 @@ async function getAllUploadedDataCollections() {
   };
 }
 
+/**
+ * Get daily indices collection
+ */
+async function getDailyIndicesCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('daily_indices');
+}
+
+/**
+ * Get daily bhavcopy collection
+ */
+async function getDailyBhavcopyCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('daily_bhavcopy');
+}
+
+/**
+ * Get premarket data collection
+ */
+async function getPreMarketDataCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('premarket_data');
+}
+
+/**
+ * Get signal collection
+ */
+async function getSignalCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('signals');
+}
+
+/**
+ * Get signal run collection
+ */
+async function getSignalRunCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('signal_runs');
+}
+
 module.exports = {
   connectToDatabase,
   getUploadedDataCollection,
   getAllUploadedDataCollections,
+  getDailyIndicesCollection,
+  getDailyBhavcopyCollection,
+  getPreMarketDataCollection,
+  getSignalCollection,
+  getSignalRunCollection,
 };
 

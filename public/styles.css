@@ -10,45 +10,33 @@
 }
 
 html {
-    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    background-color: var(--mood-bg-color, #667eea);
-    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    /* Extend background to cover safe area insets */
+    background: #f3f4f6; /* Neutral light gray background */
+    background-color: #f3f4f6;
     min-height: 100vh;
     min-height: -webkit-fill-available; /* For iOS Safari */
-    /* Ensure background extends to top including Dynamic Island */
     background-attachment: fixed;
     background-size: cover;
     background-repeat: no-repeat;
-    /* Enable elastic scrolling on iOS */
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: auto;
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    background: #f3f4f6; /* Neutral light gray background */
     min-height: 100vh;
     min-height: -webkit-fill-available; /* For iOS Safari */
-    padding: 20px;
+    padding: 0;
     padding-bottom: calc(100px + env(safe-area-inset-bottom));
-    padding-top: 20px;
-    padding-top: calc(20px + env(safe-area-inset-top));
-    /* Ensure background extends to safe area insets */
-    background-color: var(--mood-bg-color, #667eea);
-    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    /* Extend background to top including Dynamic Island area */
     margin: 0;
     position: relative;
-    /* Ensure background covers entire viewport including safe areas */
-    background-attachment: fixed;
-    background-size: cover;
-    background-repeat: no-repeat;
-    /* Enable elastic scrolling */
     -webkit-overflow-scrolling: touch;
     overflow-y: auto;
-    /* Allow elastic bounce at boundaries */
     overscroll-behavior-y: auto;
+}
+
+.container {
+    padding: 0;
 }
 
 /* Prevent body scrolling when modal is open */
@@ -136,38 +124,7 @@ body::before {
     background-repeat: no-repeat;
 }
 
-/* Override dark mode for safe area */
-@media (prefers-color-scheme: dark) {
-    body::before {
-        background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-        background-color: var(--mood-bg-color, #667eea) !important;
-        background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-    }
-    
-    #safeAreaOverlay {
-        background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-        background-color: var(--mood-bg-color, #667eea) !important;
-        background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-    }
-}
-
-/* Additional overlay div for PWA mode (more reliable than ::before) */
-#safeAreaOverlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: env(safe-area-inset-top, 0px);
-    min-height: env(safe-area-inset-top, 0px);
-    z-index: 99999;
-    pointer-events: none;
-    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-    background-color: var(--mood-bg-color, #667eea) !important;
-    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-    background-attachment: fixed;
-    background-size: cover;
-    background-repeat: no-repeat;
-}
+/* Safe area overlay removed - using mood header section instead */
 
 .container {
     max-width: 400px;
@@ -178,8 +135,35 @@ body::before {
 
 header {
     text-align: center;
-    margin-bottom: 30px;
-    color: white;
+    margin-bottom: 0;
+    padding: 15px 20px 10px 20px;
+    color: #333;
+    background: transparent;
+}
+
+/* Mood Header Section - Colored top area */
+.mood-header-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background-color: #667eea !important;
+    border-radius: 0 0 30px 30px;
+    padding: 20px;
+    padding-top: calc(20px + env(safe-area-inset-top));
+    margin: 0 -20px 30px -20px;
+    margin-top: 0;
+    transition: background 0.5s ease, background-color 0.5s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.mood-header-section .mood-card {
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    position: relative;
+    z-index: 1;
 }
 
 header h1 {
@@ -197,12 +181,132 @@ header h1 {
     width: 32px;
     height: 32px;
     object-fit: contain;
-    filter: brightness(0) invert(1); /* Make logo white */
+    filter: none; /* Keep logo original colors for dark text */
 }
 
 .last-updated {
     font-size: 0.9rem;
     opacity: 0.8;
+}
+
+/* Loading Overlay */
+.mood-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(102, 126, 234, 0.95);
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%);
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+    backdrop-filter: blur(10px);
+    pointer-events: auto;
+}
+
+.mood-loading-overlay.hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    display: none !important;
+}
+
+.loading-content {
+    text-align: center;
+    color: white;
+    max-width: 300px;
+    width: 90%;
+}
+
+.loading-spinner {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 30px;
+}
+
+.spinner-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 4px solid transparent;
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1.2s linear infinite;
+}
+
+.spinner-ring:nth-child(1) {
+    animation-delay: 0s;
+    opacity: 1;
+}
+
+.spinner-ring:nth-child(2) {
+    animation-delay: 0.4s;
+    opacity: 0.7;
+    transform: scale(0.8);
+}
+
+.spinner-ring:nth-child(3) {
+    animation-delay: 0.8s;
+    opacity: 0.4;
+    transform: scale(0.6);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.loading-progress-container {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.loading-progress-bar {
+    height: 100%;
+    background: white;
+    border-radius: 3px;
+    width: 0%;
+    animation: progress 2s ease-in-out infinite;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+@keyframes progress {
+    0% { width: 0%; transform: translateX(0); }
+    50% { width: 70%; transform: translateX(0); }
+    100% { width: 100%; transform: translateX(0); }
+}
+
+.loading-status {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    animation: flash 1.5s ease-in-out infinite;
+}
+
+@keyframes flash {
+    0%, 100% { opacity: 0.9; }
+    50% { opacity: 0.5; }
 }
 
 .mood-card {
@@ -212,6 +316,7 @@ header h1 {
     text-align: center;
     margin-bottom: 20px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    transition: opacity 0.5s ease;
 }
 
 .mood-indicator {
@@ -384,6 +489,14 @@ header h1 {
 }
 
 /* Icons group - calendar + view toggles on same line */
+.chart-toggle-container {
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+}
+
 .section-icons-group {
     display: flex;
     align-items: center;
@@ -392,6 +505,36 @@ header h1 {
 }
 
 /* Calendar Icon Button */
+.chart-toggle-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    opacity: 0.8;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-toggle-btn:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.chart-toggle-btn.active {
+    color: white;
+    opacity: 1;
+}
+
+.chart-toggle-btn svg {
+    display: block;
+}
+
 .calendar-icon-btn {
     display: none; /* Hidden by default, shown when data is available */
     background: none;
