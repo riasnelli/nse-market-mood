@@ -26,21 +26,35 @@ body {
     background: #f3f4f6; /* Neutral light gray background */
     min-height: 100vh;
     min-height: -webkit-fill-available; /* For iOS Safari */
-    padding: 0;
-    padding-bottom: calc(100px + env(safe-area-inset-bottom));
-    margin: 0;
+    padding: 0 !important;
+    padding-bottom: calc(100px + env(safe-area-inset-bottom)) !important;
+    margin: 0 !important;
     position: relative;
     -webkit-overflow-scrolling: touch;
     overflow-y: auto;
     overscroll-behavior-y: auto;
     /* Hide scrollbar */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
 body::-webkit-scrollbar {
-    display: none;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+html {
+    /* Hide scrollbar on html as well */
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+html::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
 }
 
 .container {
@@ -1169,7 +1183,7 @@ header h1 {
     }
     
     body {
-        padding: 10px; /* Less padding on mobile */
+        padding: 0 !important; /* No padding on mobile */
     }
     
     .indices-table th {
