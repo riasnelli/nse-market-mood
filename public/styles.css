@@ -153,10 +153,24 @@ header {
     background-color: #667eea;
     transition: background 0.5s ease, background-color 0.5s ease;
     border-radius: 0 0 30px 30px;
-    width: 100%;
-    margin-left: -10px;
-    margin-right: -10px;
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+    margin-right: calc(-50vw + 50%);
+    margin-top: calc(-1 * env(safe-area-inset-top, 0px));
     box-sizing: border-box;
+    position: relative;
+}
+
+.mood-greeting-area::before {
+    content: '';
+    position: absolute;
+    top: calc(-1 * env(safe-area-inset-top, 0px));
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: inherit;
+    background-color: inherit;
+    z-index: -1;
 }
 
 .greeting-text {
