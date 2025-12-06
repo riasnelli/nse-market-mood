@@ -15,14 +15,6 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>
-                <img src="/icons/logo.svg" alt="Market Mood Logo" class="header-logo" width="32" height="32">
-                <span id="headerTitle">NSE Market Mood</span>
-            </h1>
-            <p class="last-updated">Last updated: <span id="updateTime">-</span></p>
-        </header>
-
         <main>
             <!-- Loading Overlay (outside page-view for proper z-index) -->
             <div class="mood-loading-overlay" id="moodLoadingOverlay" style="display: flex !important; opacity: 1 !important; visibility: visible !important; z-index: 99999 !important;">
@@ -41,35 +33,53 @@
             </div>
             
             <!-- Mood Page View -->
-            <div class="page-view" id="moodPageView" style="padding: 0 20px;">
-                <!-- Mood Header Section - Changes color based on mood -->
-                <div class="mood-header-section" id="moodHeaderSection">
-                    <div class="mood-card" id="moodCard" style="opacity: 0;">
-                        <div class="mood-indicator">
-                            <div class="mood-emoji" id="moodEmoji">😐</div>
-                            <div class="mood-text" id="moodText">Loading...</div>
-                        </div>
-                        <div class="mood-score">
-                            <div class="score-bar">
-                                <div class="score-fill" id="scoreFill"></div>
-                            </div>
-                            <div class="score-text" id="scoreText">-/-</div>
-                        </div>
+            <div class="page-view" id="moodPageView" style="padding: 0;">
+                <!-- Status Bar Area -->
+                <div class="mood-status-bar" id="moodStatusBar">
+                    <div class="status-bar-left">
+                        <span class="status-time" id="statusTime">9:41</span>
+                    </div>
+                    <div class="status-bar-right">
+                        <svg class="status-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 12h20M2 6h20M2 18h20"/>
+                        </svg>
+                        <svg class="status-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                        </svg>
+                        <svg class="status-icon battery" width="24" height="12" viewBox="0 0 24 12" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="1" y="3" width="18" height="6" rx="1"/>
+                            <rect x="19" y="5" width="2" height="2" fill="currentColor"/>
+                            <rect x="3" y="4.5" width="14" height="3" fill="currentColor"/>
+                        </svg>
                     </div>
                 </div>
-
-                <!-- Chart Toggle Button - Always visible when indices are loaded -->
-                <div class="chart-toggle-container" id="chartToggleContainer" style="display: none; margin-bottom: 15px;">
-                    <div class="section-header" style="margin-bottom: 0;">
-                        <h3 class="section-title" style="font-size: 0.95rem; opacity: 0.9;">14-Day Trend Charts</h3>
-                        <div class="section-icons-group">
-                            <button class="chart-toggle-btn" id="chartToggleBtn" title="Toggle 14-day trend charts">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="3 3 7 9 11 5 15 11 19 3"></polyline>
-                                    <line x1="3" y1="21" x2="21" y2="21"></line>
-                                </svg>
-                            </button>
+                
+                <!-- Greeting and Notification Area -->
+                <div class="mood-greeting-area">
+                    <div class="greeting-text">
+                        <div class="greeting-time" id="greetingTime">Good Morning!</div>
+                        <div class="greeting-name" id="greetingName">Hi, Muhammed</div>
+                    </div>
+                    <div class="notification-bell" id="notificationBell">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        <span class="notification-badge" id="notificationBadge" style="display: none;"></span>
+                    </div>
+                </div>
+                
+                <!-- Mood Card -->
+                <div class="mood-card" id="moodCard" style="opacity: 0;">
+                    <div class="mood-indicator">
+                        <div class="mood-emoji" id="moodEmoji">😐</div>
+                        <div class="mood-text" id="moodText">Loading...</div>
+                    </div>
+                    <div class="mood-score">
+                        <div class="score-bar">
+                            <div class="score-fill" id="scoreFill"></div>
                         </div>
+                        <div class="score-text" id="scoreText">-/-</div>
                     </div>
                 </div>
 
@@ -81,6 +91,12 @@
                 <div class="section-header">
                     <h3 class="section-title">All Indices</h3>
                     <div class="section-icons-group">
+                        <button class="chart-toggle-btn" id="chartToggleBtn" title="Toggle 14-day trend charts">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 3 7 9 11 5 15 11 19 3"></polyline>
+                                <line x1="3" y1="21" x2="21" y2="21"></line>
+                            </svg>
+                        </button>
                         <button class="calendar-icon-btn" id="calendarTriggerBtn" title="Select date" style="display: none;">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>

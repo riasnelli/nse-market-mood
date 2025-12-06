@@ -319,6 +319,9 @@ class MarketMoodApp {
         this.updateThemeColor(initialColor);
         
         this.updateTimeEl = document.getElementById('updateTime');
+        this.statusTimeEl = document.getElementById('statusTime');
+        this.greetingTimeEl = document.getElementById('greetingTime');
+        this.greetingNameEl = document.getElementById('greetingName');
         this.refreshBtn = document.getElementById('refreshBtn');
         this.moodBtn = document.getElementById('moodBtn');
         this.moodBtnLabel = document.getElementById('moodBtnLabel');
@@ -1026,15 +1029,40 @@ class MarketMoodApp {
     }
 
     updateLastUpdated(date) {
-        if (!this.updateTimeEl) return;
-        // Format time in IST with AM/PM and seconds
-        try {
-            const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' };
-            const formatted = new Intl.DateTimeFormat('en-US', opts).format(date);
-            this.updateTimeEl.textContent = formatted;
-        } catch (e) {
-            // Fallback: use local time formatted
-            this.updateTimeEl.textContent = date.toLocaleTimeString();
+        // Update status bar time
+        if (this.statusTimeEl) {
+            try {
+                const opts = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' };
+                const formatted = new Intl.DateTimeFormat('en-US', opts).format(date);
+                this.statusTimeEl.textContent = formatted;
+            } catch (e) {
+                this.statusTimeEl.textContent = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+        }
+        
+        // Update greeting based on time
+        if (this.greetingTimeEl) {
+            const hour = new Date(date).getHours();
+            let greeting = 'Good Morning!';
+            if (hour >= 12 && hour < 17) {
+                greeting = 'Good Afternoon!';
+            } else if (hour >= 17 && hour < 21) {
+                greeting = 'Good Evening!';
+            } else if (hour >= 21 || hour < 5) {
+                greeting = 'Good Night!';
+            }
+            this.greetingTimeEl.textContent = greeting;
+        }
+        
+        // Update last updated time (if element exists)
+        if (this.updateTimeEl) {
+            try {
+                const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' };
+                const formatted = new Intl.DateTimeFormat('en-US', opts).format(date);
+                this.updateTimeEl.textContent = formatted;
+            } catch (e) {
+                this.updateTimeEl.textContent = date.toLocaleTimeString();
+            }
         }
     }
 
@@ -1091,12 +1119,6 @@ class MarketMoodApp {
 
         // Update loading status - mood data loaded, now loading index history
         this.updateMoodLoadingStatus('Mood data loaded. Loading trend charts...');
-
-        // Show chart toggle container when data is loaded
-        const chartToggleContainer = document.getElementById('chartToggleContainer');
-        if (chartToggleContainer && data.indices && data.indices.length > 0) {
-            chartToggleContainer.style.display = 'block';
-        }
 
         // Update mood
         const moodEmoji = document.getElementById('moodEmoji');
@@ -1291,12 +1313,6 @@ class MarketMoodApp {
             // Both negative: sort ascending by % (most negative % first, i.e., -5% comes before -2%)
             return aPChange - bPChange;
         });
-        
-        // Show chart toggle container when indices are available
-        const chartToggleContainer = document.getElementById('chartToggleContainer');
-        if (chartToggleContainer && indices.length > 0) {
-            chartToggleContainer.style.display = 'block';
-        }
         
         if (sortedOtherIndices.length > 0 && allIndicesSection) {
             allIndicesSection.style.display = 'block';
@@ -1834,16 +1850,11 @@ class MarketMoodApp {
     }
 
     updateBackgroundColor(score) {
-        // Update only the mood header section background based on mood score
-        const moodHeaderSection = document.getElementById('moodHeaderSection');
+        // Update status bar and greeting area background based on mood score
+        const moodStatusBar = document.getElementById('moodStatusBar');
+        const moodGreetingArea = document.querySelector('.mood-greeting-area');
         console.log('🎨 updateBackgroundColor called with score:', score);
-        console.log('🎨 moodHeaderSection element:', moodHeaderSection);
         
-        if (!moodHeaderSection) {
-            console.warn('⚠️ moodHeaderSection element not found!');
-            return;
-        }
-
         let gradient;
         let themeColor; // Primary color for PWA theme-color
         
@@ -1877,15 +1888,17 @@ class MarketMoodApp {
             themeColor = '#dc2626'; // Dark red
         }
 
-        // Update only the mood header section with !important to override any CSS
-        moodHeaderSection.style.setProperty('background', gradient, 'important');
-        moodHeaderSection.style.setProperty('background-color', themeColor, 'important');
-        moodHeaderSection.style.setProperty('background-image', gradient, 'important');
-        console.log('✅ Updated mood header section with gradient:', gradient, 'themeColor:', themeColor);
-        console.log('✅ Element computed styles:', {
-            background: window.getComputedStyle(moodHeaderSection).background,
-            backgroundColor: window.getComputedStyle(moodHeaderSection).backgroundColor
-        });
+        // Update status bar and greeting area backgrounds
+        if (moodStatusBar) {
+            moodStatusBar.style.setProperty('background', gradient, 'important');
+            moodStatusBar.style.setProperty('background-color', themeColor, 'important');
+        }
+        if (moodGreetingArea) {
+            moodGreetingArea.style.setProperty('background', gradient, 'important');
+            moodGreetingArea.style.setProperty('background-color', themeColor, 'important');
+        }
+        
+        console.log('✅ Updated status bar and greeting area with gradient:', gradient, 'themeColor:', themeColor);
         
         // Update PWA theme-color meta tag for mobile browser inset (keep for status bar)
         this.updateThemeColor(themeColor);
