@@ -319,7 +319,6 @@ class MarketMoodApp {
         this.updateThemeColor(initialColor);
         
         this.updateTimeEl = document.getElementById('updateTime');
-        this.statusTimeEl = document.getElementById('statusTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
         this.greetingNameEl = document.getElementById('greetingName');
         this.refreshBtn = document.getElementById('refreshBtn');
@@ -1850,8 +1849,7 @@ class MarketMoodApp {
     }
 
     updateBackgroundColor(score) {
-        // Update status bar and greeting area background based on mood score
-        const moodStatusBar = document.getElementById('moodStatusBar');
+        // Update greeting area background based on mood score
         const moodGreetingArea = document.querySelector('.mood-greeting-area');
         console.log('🎨 updateBackgroundColor called with score:', score);
         
@@ -1888,19 +1886,15 @@ class MarketMoodApp {
             themeColor = '#dc2626'; // Dark red
         }
 
-        // Update status bar and greeting area backgrounds
-        if (moodStatusBar) {
-            moodStatusBar.style.setProperty('background', gradient, 'important');
-            moodStatusBar.style.setProperty('background-color', themeColor, 'important');
-        }
+        // Update greeting area background
         if (moodGreetingArea) {
             moodGreetingArea.style.setProperty('background', gradient, 'important');
             moodGreetingArea.style.setProperty('background-color', themeColor, 'important');
         }
         
-        console.log('✅ Updated status bar and greeting area with gradient:', gradient, 'themeColor:', themeColor);
+        console.log('✅ Updated greeting area with gradient:', gradient, 'themeColor:', themeColor);
         
-        // Update PWA theme-color meta tag for mobile browser inset (keep for status bar)
+        // Update PWA theme-color meta tag for mobile browser inset
         this.updateThemeColor(themeColor);
     }
 
