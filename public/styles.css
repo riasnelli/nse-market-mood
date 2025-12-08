@@ -458,6 +458,27 @@ header h1 {
     display: block;
     padding-top: 0 !important;
     margin-top: 0 !important;
+    background: #ffffff;
+}
+
+#signalsPageView {
+    background: #ffffff;
+    min-height: 100vh;
+}
+
+/* Ensure mood page and all its children are completely hidden when display is none */
+#moodPageView[style*="display: none"],
+#moodPageView[style*="display: none"] * {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Ensure signals page is visible and has white background */
+#signalsPageView[style*="display: block"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background: #ffffff !important;
 }
 
 .page-view[style*="display: none"] {

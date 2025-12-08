@@ -1162,10 +1162,12 @@ class MarketMoodApp {
         this.updateIndices(data.indices || [], data.vix);
 
         // Advance/Decline (only on Mood page)
-        const adv = document.getElementById('advances');
-        const dec = document.getElementById('declines');
-        if (adv) adv.textContent = (data.advanceDecline && data.advanceDecline.advances != null) ? data.advanceDecline.advances : '-';
-        if (dec) dec.textContent = (data.advanceDecline && data.advanceDecline.declines != null) ? data.advanceDecline.declines : '-';
+        if (this.currentView === 'mood') {
+            const adv = document.getElementById('advances');
+            const dec = document.getElementById('declines');
+            if (adv) adv.textContent = (data.advanceDecline && data.advanceDecline.advances != null) ? data.advanceDecline.advances : '-';
+            if (dec) dec.textContent = (data.advanceDecline && data.advanceDecline.declines != null) ? data.advanceDecline.declines : '-';
+        }
     }
 
     syncMoodToSignalsPage(mood) {
@@ -3732,26 +3734,41 @@ class MarketMoodApp {
         // Hide signals page, show mood page
         if (this.signalsPageView) {
             this.signalsPageView.style.setProperty('display', 'none', 'important');
+            this.signalsPageView.style.setProperty('visibility', 'hidden', 'important');
         }
         if (this.moodPageView) {
             this.moodPageView.style.setProperty('display', 'block', 'important');
+            this.moodPageView.style.setProperty('visibility', 'visible', 'important');
             
-            // Re-render indices if we have data stored
-            if (this.lastMarketData && this.lastMarketData.indices) {
-                console.log('Re-rendering Mood page with stored data');
+            // Show indices sections if they have content
+            const mainIndicesGrid = document.getElementById('mainIndicesGrid');
+            const allIndicesSection = document.getElementById('allIndicesSection');
+            const advanceDecline = document.querySelector('.advance-decline');
+            const dataSourceInfo = document.querySelector('.data-source-info');
+
+            if (mainIndicesGrid) mainIndicesGrid.style.setProperty('display', 'grid', 'important');
+            if (allIndicesSection) allIndicesSection.style.setProperty('display', 'block', 'important');
+            if (advanceDecline) advanceDecline.style.setProperty('display', 'block', 'important');
+            if (dataSourceInfo) dataSourceInfo.style.setProperty('display', 'block', 'important');
+            
+            // Re-render all data if lastMarketData exists, otherwise load fresh data
+            if (this.lastMarketData) {
+                console.log('Re-rendering Mood page with last known data.');
                 this.updateUI(this.lastMarketData);
+                if (this.chartsEnabled) {
+                    this.loadIndexHistory().catch(err => console.warn('Index history loading failed on Mood view switch:', err));
+                }
+                if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+                    this.startPolling();
+                }
             } else {
-                // If no data, load it
-                console.log('No stored data, loading Mood page data');
-                this.loadData().catch(err => {
-                    console.error('Error loading data for Mood page:', err);
-                });
+                console.log('No lastMarketData, loading fresh data for Mood page.');
+                this.loadData().then(() => {
+                    if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+                        this.startPolling();
+                    }
+                }).catch(err => console.error('Error loading data on Mood view switch:', err));
             }
-        }
-        
-        // Restart polling if market is open
-        if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
-            this.startPolling();
         }
         
         // Scroll to top
@@ -3778,9 +3795,14 @@ class MarketMoodApp {
         // Hide Mood page first - ensure it's completely hidden
         if (this.moodPageView) {
             this.moodPageView.style.setProperty('display', 'none', 'important');
+            this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
             // Also hide all indices sections within mood page
             const mainIndicesGrid = document.getElementById('mainIndicesGrid');
             const allIndicesSection = document.getElementById('allIndicesSection');
+            const advanceDecline = document.querySelector('.advance-decline');
+            const dataSourceInfo = document.querySelector('.data-source-info');
+            const tableContainer = document.getElementById('tableContainer');
+            
             if (mainIndicesGrid) {
                 mainIndicesGrid.style.setProperty('display', 'none', 'important');
                 mainIndicesGrid.innerHTML = ''; // Clear indices cards
@@ -3791,6 +3813,15 @@ class MarketMoodApp {
             }
             if (allIndicesSection) {
                 allIndicesSection.style.setProperty('display', 'none', 'important');
+            }
+            if (tableContainer) {
+                tableContainer.style.setProperty('display', 'none', 'important');
+            }
+            if (advanceDecline) {
+                advanceDecline.style.setProperty('display', 'none', 'important');
+            }
+            if (dataSourceInfo) {
+                dataSourceInfo.style.setProperty('display', 'none', 'important');
             }
         }
         
@@ -3850,6 +3881,14 @@ class MarketMoodApp {
         this.moodPageView.style.setProperty('display', 'none', 'important');
         this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
         this.moodPageView.classList.add('hidden');
+        
+        // Also explicitly hide all mood page children to prevent any leakage
+        const moodPageChildren = this.moodPageView.querySelectorAll('*');
+        moodPageChildren.forEach(child => {
+            child.style.setProperty('display', 'none', 'important');
+            child.style.setProperty('visibility', 'hidden', 'important');
+        });
+        
         // Force reflow to ensure the change takes effect
         void this.moodPageView.offsetHeight;
         console.log('Mood page hidden, computed display:', getComputedStyle(this.moodPageView).display);
@@ -3859,13 +3898,14 @@ class MarketMoodApp {
         this.signalsPageView.removeAttribute('style');
         
         // Method 2: Set display using cssText to override everything
-        this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; width: 100% !important; height: auto !important; min-height: 100vh !important;';
+        this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; width: 100% !important; height: auto !important; min-height: 100vh !important; background: #ffffff !important;';
         
         // Method 3: Also set individual properties
         this.signalsPageView.style.setProperty('display', 'block', 'important');
         this.signalsPageView.style.setProperty('visibility', 'visible', 'important');
         this.signalsPageView.style.setProperty('opacity', '1', 'important');
         this.signalsPageView.style.setProperty('position', 'relative', 'important');
+        this.signalsPageView.style.setProperty('background', '#ffffff', 'important');
         
         // Method 4: Remove any hidden class
         this.signalsPageView.classList.remove('hidden');
