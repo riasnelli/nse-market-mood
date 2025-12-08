@@ -949,6 +949,12 @@ class MarketMoodApp {
     }
 
     startPolling() {
+        // Don't start polling if we're on Signals page
+        if (this.currentView === 'signals') {
+            console.log('On Signals page - not starting polling');
+            return;
+        }
+        
         // Check market status from API response (more reliable than time-based)
         if (this.lastMarketStatus && !this.lastMarketStatus.isOpen) {
             console.log('Market is closed (from API) - not starting polling');
@@ -965,6 +971,12 @@ class MarketMoodApp {
         console.log('Starting auto-polling (30s interval)');
 
         this.timerId = setInterval(() => {
+            // Don't poll if we're on Signals page
+            if (this.currentView === 'signals') {
+                console.log('On Signals page - skipping polling cycle');
+                return;
+            }
+            
             // Check market status before each fetch
             // We'll check again after loadData() updates lastMarketStatus
             this.loadData().then(() => {
@@ -3740,6 +3752,9 @@ class MarketMoodApp {
         // Update current view first
         this.currentView = 'signals';
         
+        // Stop polling when switching to Signals page
+        this.stopPolling();
+        
         // Update header title to "NSE Signals"
         const headerTitle = document.getElementById('headerTitle');
         if (headerTitle) {
@@ -3756,8 +3771,17 @@ class MarketMoodApp {
             // Also hide all indices sections within mood page
             const mainIndicesGrid = document.getElementById('mainIndicesGrid');
             const allIndicesSection = document.getElementById('allIndicesSection');
-            if (mainIndicesGrid) mainIndicesGrid.style.setProperty('display', 'none', 'important');
-            if (allIndicesSection) allIndicesSection.style.setProperty('display', 'none', 'important');
+            if (mainIndicesGrid) {
+                mainIndicesGrid.style.setProperty('display', 'none', 'important');
+                mainIndicesGrid.innerHTML = ''; // Clear indices cards
+            }
+            const allIndicesGrid = document.getElementById('allIndicesGrid');
+            if (allIndicesGrid) {
+                allIndicesGrid.innerHTML = ''; // Clear all indices grid
+            }
+            if (allIndicesSection) {
+                allIndicesSection.style.setProperty('display', 'none', 'important');
+            }
         }
         
         // Re-query elements if they're not found (in case DOM changed)
