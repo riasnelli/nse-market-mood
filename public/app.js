@@ -1152,22 +1152,9 @@ class MarketMoodApp {
     }
 
     syncMoodToSignalsPage(mood) {
-        // Sync mood data to signals page mood card
-        if (!mood) return;
-        
-        const signalsMoodEmoji = document.getElementById('signalsMoodEmoji');
-        const signalsMoodText = document.getElementById('signalsMoodText');
-        const signalsScoreFill = document.getElementById('signalsScoreFill');
-        const signalsScoreText = document.getElementById('signalsScoreText');
-        
-        if (signalsMoodEmoji) signalsMoodEmoji.textContent = mood.emoji || '😐';
-        if (signalsMoodText) signalsMoodText.textContent = mood.text || '';
-        
-        if (signalsScoreFill && typeof mood.score === 'number') {
-            const pct = Math.max(0, Math.min(100, mood.score));
-            signalsScoreFill.style.width = pct + '%';
-        }
-        if (signalsScoreText) signalsScoreText.textContent = (mood.score != null) ? `${mood.score}/100` : '-/-';
+        // Mood elements removed from Signals page - this function is now a no-op
+        // Signals page is standalone and doesn't display mood information
+        return;
     }
 
     updateIndices(indices, vix) {
