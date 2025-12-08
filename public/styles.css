@@ -469,7 +469,18 @@ header h1 {
 
 /* Ensure mood page and all its children are completely hidden when display is none */
 #moodPageView[style*="display: none"],
-#moodPageView[style*="display: none"] * {
+#moodPageView[style*="display: none"] *,
+#moodPageView[style*="visibility: hidden"] * {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Ensure signals page doesn't show any mood page elements */
+#signalsPageView #mainIndicesGrid,
+#signalsPageView .mood-greeting-area,
+#signalsPageView .mood-card,
+#signalsPageView .advance-decline,
+#signalsPageView .data-source-info {
     display: none !important;
     visibility: hidden !important;
 }

@@ -3731,33 +3731,71 @@ class MarketMoodApp {
         if (headerTitle) {
             headerTitle.textContent = 'NSE Market Mood';
         }
-        // Hide signals page, show mood page
+        
+        // Hide signals page first
         if (this.signalsPageView) {
             this.signalsPageView.style.setProperty('display', 'none', 'important');
             this.signalsPageView.style.setProperty('visibility', 'hidden', 'important');
         }
+        
+        // Show mood page
         if (this.moodPageView) {
+            // First, make sure mood page is visible
             this.moodPageView.style.setProperty('display', 'block', 'important');
             this.moodPageView.style.setProperty('visibility', 'visible', 'important');
             
-            // Show indices sections if they have content
+            // Force a reflow to ensure display change takes effect
+            void this.moodPageView.offsetHeight;
+            
+            // Show all mood page elements
             const mainIndicesGrid = document.getElementById('mainIndicesGrid');
             const allIndicesSection = document.getElementById('allIndicesSection');
             const advanceDecline = document.querySelector('.advance-decline');
             const dataSourceInfo = document.querySelector('.data-source-info');
+            const moodCard = document.getElementById('moodCard');
+            const moodGreetingArea = document.querySelector('.mood-greeting-area');
 
-            if (mainIndicesGrid) mainIndicesGrid.style.setProperty('display', 'grid', 'important');
-            if (allIndicesSection) allIndicesSection.style.setProperty('display', 'block', 'important');
-            if (advanceDecline) advanceDecline.style.setProperty('display', 'block', 'important');
-            if (dataSourceInfo) dataSourceInfo.style.setProperty('display', 'block', 'important');
+            // Show greeting area
+            if (moodGreetingArea) {
+                moodGreetingArea.style.setProperty('display', 'flex', 'important');
+                moodGreetingArea.style.setProperty('visibility', 'visible', 'important');
+            }
+            
+            // Show mood card
+            if (moodCard) {
+                moodCard.style.setProperty('opacity', '1', 'important');
+                moodCard.style.setProperty('display', 'block', 'important');
+                moodCard.style.setProperty('visibility', 'visible', 'important');
+            }
+            
+            // Show indices sections
+            if (mainIndicesGrid) {
+                mainIndicesGrid.style.setProperty('display', 'grid', 'important');
+                mainIndicesGrid.style.setProperty('visibility', 'visible', 'important');
+            }
+            if (allIndicesSection) {
+                allIndicesSection.style.setProperty('display', 'block', 'important');
+                allIndicesSection.style.setProperty('visibility', 'visible', 'important');
+            }
+            if (advanceDecline) {
+                advanceDecline.style.setProperty('display', 'block', 'important');
+                advanceDecline.style.setProperty('visibility', 'visible', 'important');
+            }
+            if (dataSourceInfo) {
+                dataSourceInfo.style.setProperty('display', 'block', 'important');
+                dataSourceInfo.style.setProperty('visibility', 'visible', 'important');
+            }
             
             // Re-render all data if lastMarketData exists, otherwise load fresh data
             if (this.lastMarketData) {
                 console.log('Re-rendering Mood page with last known data.');
-                this.updateUI(this.lastMarketData);
-                if (this.chartsEnabled) {
-                    this.loadIndexHistory().catch(err => console.warn('Index history loading failed on Mood view switch:', err));
-                }
+                // Use setTimeout to ensure DOM is ready
+                setTimeout(() => {
+                    this.updateUI(this.lastMarketData);
+                    if (this.chartsEnabled) {
+                        this.loadIndexHistory().catch(err => console.warn('Index history loading failed on Mood view switch:', err));
+                    }
+                }, 50);
                 if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
                     this.startPolling();
                 }
@@ -3794,34 +3832,60 @@ class MarketMoodApp {
         
         // Hide Mood page first - ensure it's completely hidden
         if (this.moodPageView) {
+            // Hide the entire mood page
             this.moodPageView.style.setProperty('display', 'none', 'important');
             this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
+            
+            // Also explicitly hide all mood page children to prevent any leakage
+            const moodPageChildren = this.moodPageView.querySelectorAll('*');
+            moodPageChildren.forEach(child => {
+                child.style.setProperty('display', 'none', 'important');
+                child.style.setProperty('visibility', 'hidden', 'important');
+            });
+            
             // Also hide all indices sections within mood page
             const mainIndicesGrid = document.getElementById('mainIndicesGrid');
             const allIndicesSection = document.getElementById('allIndicesSection');
             const advanceDecline = document.querySelector('.advance-decline');
             const dataSourceInfo = document.querySelector('.data-source-info');
             const tableContainer = document.getElementById('tableContainer');
+            const moodCard = document.getElementById('moodCard');
+            const moodGreetingArea = document.querySelector('.mood-greeting-area');
             
             if (mainIndicesGrid) {
                 mainIndicesGrid.style.setProperty('display', 'none', 'important');
-                mainIndicesGrid.innerHTML = ''; // Clear indices cards
+                mainIndicesGrid.style.setProperty('visibility', 'hidden', 'important');
+                // Don't clear innerHTML - we'll need it when switching back
             }
             const allIndicesGrid = document.getElementById('allIndicesGrid');
             if (allIndicesGrid) {
-                allIndicesGrid.innerHTML = ''; // Clear all indices grid
+                allIndicesGrid.style.setProperty('display', 'none', 'important');
+                allIndicesGrid.style.setProperty('visibility', 'hidden', 'important');
+                // Don't clear innerHTML - we'll need it when switching back
             }
             if (allIndicesSection) {
                 allIndicesSection.style.setProperty('display', 'none', 'important');
+                allIndicesSection.style.setProperty('visibility', 'hidden', 'important');
             }
             if (tableContainer) {
                 tableContainer.style.setProperty('display', 'none', 'important');
+                tableContainer.style.setProperty('visibility', 'hidden', 'important');
             }
             if (advanceDecline) {
                 advanceDecline.style.setProperty('display', 'none', 'important');
+                advanceDecline.style.setProperty('visibility', 'hidden', 'important');
             }
             if (dataSourceInfo) {
                 dataSourceInfo.style.setProperty('display', 'none', 'important');
+                dataSourceInfo.style.setProperty('visibility', 'hidden', 'important');
+            }
+            if (moodCard) {
+                moodCard.style.setProperty('display', 'none', 'important');
+                moodCard.style.setProperty('visibility', 'hidden', 'important');
+            }
+            if (moodGreetingArea) {
+                moodGreetingArea.style.setProperty('display', 'none', 'important');
+                moodGreetingArea.style.setProperty('visibility', 'hidden', 'important');
             }
         }
         
