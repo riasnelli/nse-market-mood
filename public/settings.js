@@ -425,7 +425,7 @@ class SettingsManager {
         const uploadedSection = document.getElementById('uploadedDataSection');
         
         if (!uploadedSection) {
-            console.warn('uploadedDataSection element not found');
+            // Element only exists in settings modal, so this is expected if modal isn't open
             return;
         }
         
