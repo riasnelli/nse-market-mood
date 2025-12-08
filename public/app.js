@@ -3735,13 +3735,23 @@ class MarketMoodApp {
         }
         if (this.moodPageView) {
             this.moodPageView.style.setProperty('display', 'block', 'important');
-            // Show indices sections if they have content
-            const mainIndicesGrid = document.getElementById('mainIndicesGrid');
-            const allIndicesSection = document.getElementById('allIndicesSection');
-            if (mainIndicesGrid && mainIndicesGrid.children.length > 0) {
-                mainIndicesGrid.style.setProperty('display', 'grid', 'important');
+            
+            // Re-render indices if we have data stored
+            if (this.lastMarketData && this.lastMarketData.indices) {
+                console.log('Re-rendering Mood page with stored data');
+                this.updateUI(this.lastMarketData);
+            } else {
+                // If no data, load it
+                console.log('No stored data, loading Mood page data');
+                this.loadData().catch(err => {
+                    console.error('Error loading data for Mood page:', err);
+                });
             }
-            // allIndicesSection visibility is controlled by updateIndices
+        }
+        
+        // Restart polling if market is open
+        if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+            this.startPolling();
         }
         
         // Scroll to top
