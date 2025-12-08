@@ -404,9 +404,8 @@ class MarketMoodApp {
         }
         if (this.moodBtn) {
             this.moodBtn.addEventListener('click', () => {
-                if (this.currentView !== 'mood') {
-                    this.showMoodView();
-                }
+                console.log('Mood button clicked, current view:', this.currentView);
+                this.showMoodView();
             });
         }
         if (this.settingsMenuBtn) {
@@ -1158,6 +1157,11 @@ class MarketMoodApp {
     }
 
     updateIndices(indices, vix) {
+        // Only update indices if we're on the Mood page
+        if (this.currentView !== 'mood') {
+            return; // Don't render indices on Signals page
+        }
+        
         // Main indices: Always show these 4 in cards under mood box
         // First row: NIFTY 50, NIFTY BANK
         // Second row: NIFTY IT, INDIA VIX
@@ -3713,6 +3717,13 @@ class MarketMoodApp {
         }
         if (this.moodPageView) {
             this.moodPageView.style.setProperty('display', 'block', 'important');
+            // Show indices sections if they have content
+            const mainIndicesGrid = document.getElementById('mainIndicesGrid');
+            const allIndicesSection = document.getElementById('allIndicesSection');
+            if (mainIndicesGrid && mainIndicesGrid.children.length > 0) {
+                mainIndicesGrid.style.setProperty('display', 'grid', 'important');
+            }
+            // allIndicesSection visibility is controlled by updateIndices
         }
         
         // Scroll to top
@@ -3720,6 +3731,9 @@ class MarketMoodApp {
     }
 
     showSignalsView() {
+        // Update current view first
+        this.currentView = 'signals';
+        
         // Update header title to "NSE Signals"
         const headerTitle = document.getElementById('headerTitle');
         if (headerTitle) {
@@ -3729,6 +3743,16 @@ class MarketMoodApp {
         console.log('=== Switching to Signals view ===');
         console.log('Mood page view element:', this.moodPageView);
         console.log('Signals page view element:', this.signalsPageView);
+        
+        // Hide Mood page first - ensure it's completely hidden
+        if (this.moodPageView) {
+            this.moodPageView.style.setProperty('display', 'none', 'important');
+            // Also hide all indices sections within mood page
+            const mainIndicesGrid = document.getElementById('mainIndicesGrid');
+            const allIndicesSection = document.getElementById('allIndicesSection');
+            if (mainIndicesGrid) mainIndicesGrid.style.setProperty('display', 'none', 'important');
+            if (allIndicesSection) allIndicesSection.style.setProperty('display', 'none', 'important');
+        }
         
         // Re-query elements if they're not found (in case DOM changed)
         if (!this.moodPageView) {
