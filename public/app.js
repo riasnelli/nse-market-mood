@@ -1112,6 +1112,12 @@ class MarketMoodApp {
     }
 
     updateUI(data) {
+        // Only update Mood page elements if we're on the Mood page
+        if (this.currentView !== 'mood') {
+            console.log('Not on Mood page, skipping UI updates');
+            return;
+        }
+        
         // Store current market data for re-rendering when index history loads
         this.lastMarketData = data;
 
@@ -1140,10 +1146,10 @@ class MarketMoodApp {
             this.updateBackgroundColor(data.mood.score);
         }
 
-        // Update indices display
+        // Update indices display (only on Mood page)
         this.updateIndices(data.indices || [], data.vix);
 
-        // Advance/Decline
+        // Advance/Decline (only on Mood page)
         const adv = document.getElementById('advances');
         const dec = document.getElementById('declines');
         if (adv) adv.textContent = (data.advanceDecline && data.advanceDecline.advances != null) ? data.advanceDecline.advances : '-';
@@ -4441,6 +4447,11 @@ class MarketMoodApp {
     }
 
     updateDataSourceDisplay(source, data = null) {
+        // Only update data source display on Mood page
+        if (this.currentView !== 'mood') {
+            return;
+        }
+        
         const dataSource = document.getElementById('dataSource');
         const updateInfo = document.getElementById('updateInfo');
 
