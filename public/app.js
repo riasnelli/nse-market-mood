@@ -1940,11 +1940,11 @@ class MarketMoodApp {
         // Use black-translucent for iOS PWA to show the theme color through
         appleStatusBar.setAttribute('content', 'black-translucent');
         
-        // Force update the html and body background immediately for PWA
+        // Keep html and body background white (mood color is only on greeting area now)
         const html = document.documentElement;
         const body = document.body;
-        html.style.setProperty('background-color', color, 'important');
-        body.style.setProperty('background-color', color, 'important');
+        html.style.setProperty('background-color', '#ffffff', 'important');
+        body.style.setProperty('background-color', '#ffffff', 'important');
         
         // Create or update a fixed overlay div for Dynamic Island area (more reliable than ::before)
         // Get current gradient from CSS variable

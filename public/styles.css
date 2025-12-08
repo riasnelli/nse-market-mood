@@ -10,8 +10,8 @@
 }
 
 html {
-    background: #f3f4f6; /* Neutral light gray background */
-    background-color: #f3f4f6;
+    background: #ffffff; /* White background */
+    background-color: #ffffff;
     min-height: 100vh;
     min-height: -webkit-fill-available; /* For iOS Safari */
     background-attachment: fixed;
@@ -23,7 +23,8 @@ html {
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: #f3f4f6; /* Neutral light gray background */
+    background: #ffffff !important; /* White background */
+    background-color: #ffffff !important;
     min-height: 100vh;
     min-height: -webkit-fill-available; /* For iOS Safari */
     padding: 0 !important;
