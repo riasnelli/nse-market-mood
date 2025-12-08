@@ -167,9 +167,9 @@ header {
 .mood-greeting-area {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding: 15px 20px 156px 20px;
-    padding-top: calc(15px + env(safe-area-inset-top, 0px));
+    align-items: flex-end;
+    padding: 0 20px 156px 20px;
+    padding-top: calc(env(safe-area-inset-top, 0px));
     color: white;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     background-color: #667eea;
@@ -199,6 +199,8 @@ header {
 
 .greeting-text {
     flex: 1;
+    padding-top: 15px;
+    padding-bottom: 15px;
 }
 
 .greeting-time {
