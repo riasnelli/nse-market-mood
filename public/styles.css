@@ -168,7 +168,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    padding: 0 20px 156px 20px;
+    padding: 0 20px 120px 20px;
     padding-top: calc(env(safe-area-inset-top, 0px));
     color: white;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -180,7 +180,7 @@ header {
     left: 50%;
     transform: translateX(-50%);
     margin-top: 0;
-    margin-bottom: -104px;
+    margin-bottom: -80px;
     box-sizing: border-box;
     z-index: 1;
 }
@@ -225,6 +225,7 @@ header {
     justify-content: center;
     cursor: pointer;
     color: white;
+    padding-bottom: 40px;
 }
 
 .notification-badge {
@@ -243,7 +244,7 @@ header {
     box-shadow: none;
     position: relative;
     z-index: 2;
-    margin: -120px auto 20px auto;
+    margin: -80px auto 20px auto;
     padding: 20px;
     max-width: 400px;
     width: 100%;
