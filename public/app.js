@@ -4189,283 +4189,97 @@ class MarketMoodApp {
     }
 
     showSignalsView() {
-        // Update current view first
-        this.currentView = 'signals';
-        
-        // Stop polling when switching to Signals page
-        this.stopPolling();
-        
-        // Update header title to "NSE Signals"
-        const headerTitle = document.getElementById('headerTitle');
-        if (headerTitle) {
-            headerTitle.textContent = 'NSE Signals';
-        }
-
-        console.log('=== Switching to Signals view ===');
-        console.log('Mood page view element:', this.moodPageView);
-        console.log('Signals page view element:', this.signalsPageView);
-        
-        // Hide Mood page first - ensure it's completely hidden
-        if (this.moodPageView) {
-            // Hide the entire mood page
-            this.moodPageView.style.setProperty('display', 'none', 'important');
-            this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
-            
-            // Also explicitly hide all mood page children to prevent any leakage
-            const moodPageChildren = this.moodPageView.querySelectorAll('*');
-            moodPageChildren.forEach(child => {
-                child.style.setProperty('display', 'none', 'important');
-                child.style.setProperty('visibility', 'hidden', 'important');
-            });
-            
-            // Also hide all indices sections within mood page
-            const mainIndicesGrid = document.getElementById('mainIndicesGrid');
-            const allIndicesSection = document.getElementById('allIndicesSection');
-            const advanceDecline = document.querySelector('.advance-decline');
-            const dataSourceInfo = document.querySelector('.data-source-info');
-            const tableContainer = document.getElementById('tableContainer');
-            const moodCard = document.getElementById('moodCard');
-            const moodGreetingArea = document.querySelector('.mood-greeting-area');
-            
-            if (mainIndicesGrid) {
-                mainIndicesGrid.style.setProperty('display', 'none', 'important');
-                mainIndicesGrid.style.setProperty('visibility', 'hidden', 'important');
-                // Don't clear innerHTML - we'll need it when switching back
-            }
-            const allIndicesGrid = document.getElementById('allIndicesGrid');
-            if (allIndicesGrid) {
-                allIndicesGrid.style.setProperty('display', 'none', 'important');
-                allIndicesGrid.style.setProperty('visibility', 'hidden', 'important');
-                // Don't clear innerHTML - we'll need it when switching back
-            }
-            if (allIndicesSection) {
-                allIndicesSection.style.setProperty('display', 'none', 'important');
-                allIndicesSection.style.setProperty('visibility', 'hidden', 'important');
-            }
-            if (tableContainer) {
-                tableContainer.style.setProperty('display', 'none', 'important');
-                tableContainer.style.setProperty('visibility', 'hidden', 'important');
-            }
-            if (advanceDecline) {
-                advanceDecline.style.setProperty('display', 'none', 'important');
-                advanceDecline.style.setProperty('visibility', 'hidden', 'important');
-            }
-            if (dataSourceInfo) {
-                dataSourceInfo.style.setProperty('display', 'none', 'important');
-                dataSourceInfo.style.setProperty('visibility', 'hidden', 'important');
-            }
-            if (moodCard) {
-                moodCard.style.setProperty('display', 'none', 'important');
-                moodCard.style.setProperty('visibility', 'hidden', 'important');
-            }
-            if (moodGreetingArea) {
-                moodGreetingArea.style.setProperty('display', 'none', 'important');
-                moodGreetingArea.style.setProperty('visibility', 'hidden', 'important');
-            }
-        }
-        
-        // Re-query elements if they're not found (in case DOM changed)
-        if (!this.moodPageView) {
-            this.moodPageView = document.getElementById('moodPageView');
-            console.log('Re-queried moodPageView:', this.moodPageView);
-        }
-        if (!this.signalsPageView) {
-            this.signalsPageView = document.getElementById('signalsPageView');
-            console.log('Re-queried signalsPageView:', this.signalsPageView);
-        }
-        
-        // If still not found, try querySelector as fallback
-        if (!this.signalsPageView) {
-            this.signalsPageView = document.querySelector('#signalsPageView');
-            console.log('Tried querySelector for signalsPageView:', this.signalsPageView);
-        }
-        
-        // If still not found, check if main element exists and search within it
-        if (!this.signalsPageView) {
-            const main = document.querySelector('main');
-            if (main) {
-                this.signalsPageView = main.querySelector('#signalsPageView');
-                console.log('Searched within main element:', this.signalsPageView);
-            }
-        }
-        
-        // Last resort: check all page-view elements
-        if (!this.signalsPageView) {
-            const allPageViews = document.querySelectorAll('.page-view');
-            console.log('All page-view elements found:', allPageViews.length);
-            allPageViews.forEach((el, idx) => {
-                console.log(`Page view ${idx}: id="${el.id}", display="${getComputedStyle(el).display}"`);
-                if (el.id === 'signalsPageView') {
-                    this.signalsPageView = el;
-                    console.log('Found signalsPageView in page-view list!');
-                }
-            });
-        }
-        
-        if (!this.moodPageView || !this.signalsPageView) {
-            console.error('Page view elements not found! Cannot switch views.');
-            console.error('moodPageView:', this.moodPageView);
-            console.error('signalsPageView:', this.signalsPageView);
-            console.error('Document body:', document.body);
-            console.error('Main element:', document.querySelector('main'));
-            console.error('All elements with id signalsPageView:', document.querySelectorAll('#signalsPageView'));
-            alert('Error: Signals page elements not found. Please refresh the page.');
+        // Prevent multiple rapid calls
+        if (this._switchingView) {
+            console.log('View switch already in progress, ignoring');
             return;
         }
         
-        this.currentView = 'signals';
-        
-        // Hide mood page first - use setProperty for better compatibility
-        // CRITICAL: Ensure mood page is completely hidden
-        this.moodPageView.style.setProperty('display', 'none', 'important');
-        this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
-        this.moodPageView.classList.add('hidden');
-        
-        // Also explicitly hide all mood page children to prevent any leakage
-        const moodPageChildren = this.moodPageView.querySelectorAll('*');
-        moodPageChildren.forEach(child => {
-            child.style.setProperty('display', 'none', 'important');
-            child.style.setProperty('visibility', 'hidden', 'important');
-        });
-        
-        // Force reflow to ensure the change takes effect
-        void this.moodPageView.offsetHeight;
-        console.log('Mood page hidden, computed display:', getComputedStyle(this.moodPageView).display);
-        
-        // Show signals page - use multiple methods to ensure it displays
-        // Method 1: Remove inline style completely
-        this.signalsPageView.removeAttribute('style');
-        
-        // Method 2: Set display using cssText to override everything
-        this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; width: 100% !important; height: auto !important; min-height: 100vh !important; background: #ffffff !important;';
-        
-        // Method 3: Also set individual properties
-        this.signalsPageView.style.setProperty('display', 'block', 'important');
-        this.signalsPageView.style.setProperty('visibility', 'visible', 'important');
-        this.signalsPageView.style.setProperty('opacity', '1', 'important');
-        this.signalsPageView.style.setProperty('position', 'relative', 'important');
-        this.signalsPageView.style.setProperty('background', '#ffffff', 'important');
-        
-        // Method 4: Remove any hidden class
-        this.signalsPageView.classList.remove('hidden');
-        
-        console.log('Signals page style set to block');
-        
-        // Force multiple reflows to ensure display change takes effect
-        void this.signalsPageView.offsetHeight;
-        void this.signalsPageView.offsetWidth;
-        void this.signalsPageView.getBoundingClientRect();
-        
-        // Verify it's visible
-        const computedDisplay = getComputedStyle(this.signalsPageView).display;
-        const computedVisibility = getComputedStyle(this.signalsPageView).visibility;
-        const rect = this.signalsPageView.getBoundingClientRect();
-        console.log('Signals page computed styles - display:', computedDisplay, 'visibility:', computedVisibility);
-        console.log('Signals page bounding rect:', rect);
-        
-        if (computedDisplay === 'none') {
-            console.error('Signals page still hidden! Trying alternative method...');
-            // Try using classList manipulation
-            this.signalsPageView.classList.remove('hidden');
-            this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important;';
-            void this.signalsPageView.offsetHeight;
+        if (this.currentView === 'signals') {
+            console.log('Already on Signals view');
+            return;
         }
         
-        // Double-check visibility
-        const finalDisplay = getComputedStyle(this.signalsPageView).display;
-        if (finalDisplay === 'none') {
-            console.error('CRITICAL: Signals page still not visible after all attempts!');
-            console.error('Element:', this.signalsPageView);
-            console.error('Parent:', this.signalsPageView.parentElement);
-            console.error('All computed styles:', window.getComputedStyle(this.signalsPageView));
-        } else {
-            console.log('✓ Signals page is now visible');
-        }
+        this._switchingView = true;
+        console.log('Switching to Signals view');
         
-        // Note: Signals page is standalone - no mood card syncing needed
-        
-        // Immediately scroll to top to prevent any unwanted scrolling
-        window.scrollTo({ top: 0, behavior: 'instant' });
-        
-        // Ensure signals section is visible
-        const signalsSection = document.getElementById('signalsSection');
-        if (signalsSection) {
-            signalsSection.style.display = 'block';
-            signalsSection.style.visibility = 'visible';
-        }
-        
-        // Wait a bit to ensure the view is actually visible before doing anything else
-        setTimeout(() => {
-            // Verify signals page is visible
-            const finalCheck = getComputedStyle(this.signalsPageView).display;
-            const signalsPageRect = this.signalsPageView.getBoundingClientRect();
-            console.log('Signals page visibility check:', {
-                display: finalCheck,
-                rect: signalsPageRect,
-                width: signalsPageRect.width,
-                height: signalsPageRect.height
-            });
-            
-            if (finalCheck !== 'none' && signalsPageRect.height > 0) {
-                // Ensure we're at the top
-                window.scrollTo({ top: 0, behavior: 'instant' });
-                console.log('✓ Signals page is visible and has content, staying at top');
-            } else {
-                console.error('Signals page not visible after switch! Attempting aggressive fix...');
-                
-                // Aggressive fix - try everything
-                this.signalsPageView.classList.remove('hidden');
-                this.signalsPageView.removeAttribute('style');
-                this.signalsPageView.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; width: 100% !important;';
-                
-                // Force multiple reflows
-                void this.signalsPageView.offsetHeight;
-                void this.signalsPageView.offsetWidth;
-                void this.signalsPageView.getBoundingClientRect();
-                
-                // Also check parent
-                const parent = this.signalsPageView.parentElement;
-                if (parent) {
-                    parent.style.setProperty('display', 'block', 'important');
-                }
-                
-                window.scrollTo({ top: 0, behavior: 'instant' });
-                
-                // Wait a bit and check again
-                setTimeout(() => {
-                    const retryCheck = getComputedStyle(this.signalsPageView).display;
-                    const retryRect = this.signalsPageView.getBoundingClientRect();
-                    console.log('After aggressive fix attempt:', {
-                        display: retryCheck,
-                        rect: retryRect,
-                        visible: retryCheck !== 'none' && retryRect.height > 0
-                    });
-                    
-                    if (retryCheck === 'none' || retryRect.height === 0) {
-                        console.error('CRITICAL: Signals page still not visible!');
-                        // Show error message in the UI instead of alert
-                        const signalsError = document.getElementById('signalsError');
-                        if (signalsError) {
-                            signalsError.style.display = 'block';
-                            signalsError.textContent = 'Signals page failed to load. Please refresh the page.';
-                        } else {
-                            // Fallback to alert if error element doesn't exist
-                            alert('Signals page failed to load. Please refresh the page.');
-                        }
-                    }
-                }, 100);
+        try {
+            // Ensure we have references to page views
+            if (!this.moodPageView) {
+                this.moodPageView = document.getElementById('moodPageView');
+            }
+            if (!this.signalsPageView) {
+                this.signalsPageView = document.getElementById('signalsPageView');
             }
             
-            // Load data availability and signals
-            console.log('Loading data availability...');
-            this.loadDataAvailability();
+            // Validate elements exist
+            if (!this.signalsPageView) {
+                console.error('signalsPageView element not found');
+                this._switchingView = false;
+                return;
+            }
             
-            console.log('Loading signals...');
-            this.loadSignals();
-        }, 100);
-        
-        console.log('=== Signals view switch complete ===');
+            // Update state first
+            this.currentView = 'signals';
+            
+            // Stop polling when switching to Signals page
+            this.stopPolling();
+            
+            // Update header title
+            const headerTitle = document.getElementById('headerTitle');
+            if (headerTitle) {
+                headerTitle.textContent = 'NSE Signals';
+            }
+            
+            // Hide mood page cleanly
+            if (this.moodPageView) {
+                this.moodPageView.style.setProperty('display', 'none', 'important');
+                this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
+                this.moodPageView.classList.add('hidden');
+            }
+            
+            // Show signals page - use simple, reliable method
+            this.signalsPageView.style.removeProperty('display');
+            this.signalsPageView.style.removeProperty('visibility');
+            this.signalsPageView.style.setProperty('display', 'block', 'important');
+            this.signalsPageView.style.setProperty('visibility', 'visible', 'important');
+            this.signalsPageView.style.setProperty('background', '#ffffff', 'important');
+            this.signalsPageView.classList.remove('hidden');
+            
+            // Force reflow
+            void this.signalsPageView.offsetHeight;
+            
+            // Scroll to top immediately (before any async operations)
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            
+            // Load signals data asynchronously to prevent iPhone freeze
+            requestAnimationFrame(() => {
+                // Use requestIdleCallback if available for better performance on iPhone
+                const loadData = () => {
+                    try {
+                        this.loadSignals();
+                        this.loadDataAvailability();
+                    } catch (error) {
+                        console.error('Error loading signals data:', error);
+                    } finally {
+                        this._switchingView = false;
+                    }
+                };
+                
+                if (window.requestIdleCallback) {
+                    requestIdleCallback(loadData, { timeout: 100 });
+                } else {
+                    setTimeout(loadData, 50);
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error in showSignalsView:', error);
+            this._switchingView = false;
+        }
     }
+
+
 
 
     async loadSignals(date = null) {
