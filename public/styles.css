@@ -446,6 +446,16 @@ header h1 {
     color: #666;
 }
 
+.mood-explanation {
+    font-size: 0.85rem;
+    color: #555;
+    text-align: center;
+    margin-top: 12px;
+    padding: 0 10px;
+    line-height: 1.4;
+    display: none;
+}
+
 .data-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

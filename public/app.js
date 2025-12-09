@@ -424,7 +424,7 @@ class MarketMoodApp {
         if (this.moodBtn) {
             this.moodBtn.addEventListener('click', () => {
                 console.log('Mood button clicked, current view:', this.currentView);
-                this.showMoodView();
+                    this.showMoodView();
             });
         }
         if (this.settingsMenuBtn) {
@@ -447,11 +447,11 @@ class MarketMoodApp {
             });
         }
         if (this.signalsBtn) {
-  this.signalsBtn.addEventListener('click', () => {
+            this.signalsBtn.addEventListener('click', () => {
     console.log('Signals button clicked, current view:', this.currentView);
     this.showSignalsView();
-  });
-}
+            });
+        }
         if (this.generateSignalsBtn) {
             this.generateSignalsBtn.addEventListener('click', () => this.generateSignals());
         }
@@ -1085,12 +1085,12 @@ class MarketMoodApp {
         
         // Update last updated time (if element exists)
         if (this.updateTimeEl) {
-            try {
-                const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' };
-                const formatted = new Intl.DateTimeFormat('en-US', opts).format(date);
-                this.updateTimeEl.textContent = formatted;
-            } catch (e) {
-                this.updateTimeEl.textContent = date.toLocaleTimeString();
+        try {
+            const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' };
+            const formatted = new Intl.DateTimeFormat('en-US', opts).format(date);
+            this.updateTimeEl.textContent = formatted;
+        } catch (e) {
+            this.updateTimeEl.textContent = date.toLocaleTimeString();
             }
         }
     }
@@ -1172,6 +1172,9 @@ class MarketMoodApp {
             }
             if (scoreText) scoreText.textContent = (data.mood.score != null) ? `${data.mood.score}/100` : '-/-';
             
+            // Update market explanation
+            this.updateMarketExplanation(data);
+            
             // Update background color based on mood score
             console.log('🎨 Calling updateBackgroundColor with score:', data.mood.score);
             this.updateBackgroundColor(data.mood.score);
@@ -1182,10 +1185,10 @@ class MarketMoodApp {
 
         // Advance/Decline (only on Mood page)
         if (this.currentView === 'mood') {
-            const adv = document.getElementById('advances');
-            const dec = document.getElementById('declines');
-            if (adv) adv.textContent = (data.advanceDecline && data.advanceDecline.advances != null) ? data.advanceDecline.advances : '-';
-            if (dec) dec.textContent = (data.advanceDecline && data.advanceDecline.declines != null) ? data.advanceDecline.declines : '-';
+        const adv = document.getElementById('advances');
+        const dec = document.getElementById('declines');
+        if (adv) adv.textContent = (data.advanceDecline && data.advanceDecline.advances != null) ? data.advanceDecline.advances : '-';
+        if (dec) dec.textContent = (data.advanceDecline && data.advanceDecline.declines != null) ? data.advanceDecline.declines : '-';
         }
     }
 
@@ -1878,11 +1881,96 @@ class MarketMoodApp {
         }
     }
 
+    generateMarketExplanation(data) {
+        // Generate a simple explanation based on market data
+        if (!data) return '';
+        
+        const score = data.mood?.score;
+        const indices = data.indices || [];
+        const vix = data.vix;
+        const advanceDecline = data.advanceDecline;
+        
+        // Get key indices
+        const nifty50 = indices.find(idx => 
+            idx.symbol?.toUpperCase().includes('NIFTY 50') || 
+            idx.symbol?.toUpperCase() === 'NIFTY50'
+        );
+        const niftyBank = indices.find(idx => 
+            idx.symbol?.toUpperCase().includes('NIFTY BANK') || 
+            idx.symbol?.toUpperCase() === 'NIFTYBANK'
+        );
+        
+        // Count positive and negative indices
+        const positiveIndices = indices.filter(idx => idx.pChange > 0).length;
+        const negativeIndices = indices.filter(idx => idx.pChange < 0).length;
+        const totalIndices = indices.length;
+        
+        // Build explanation based on data
+        let explanation = '';
+        
+        if (score >= 70) {
+            explanation = 'Market is showing strong bullish momentum with most indices in positive territory.';
+        } else if (score >= 60) {
+            explanation = 'Market sentiment is bullish with majority of indices trading higher.';
+        } else if (score >= 50) {
+            if (nifty50 && nifty50.pChange > 0) {
+                explanation = 'Market is slightly positive with key indices showing modest gains.';
+            } else {
+                explanation = 'Market is mixed with some indices in positive territory.';
+            }
+        } else if (score >= 40) {
+            if (vix && vix.pChange > 10) {
+                explanation = 'Market volatility is elevated, indicating uncertainty among investors.';
+            } else {
+                explanation = 'Market sentiment is neutral with mixed signals from different sectors.';
+            }
+        } else if (score >= 30) {
+            if (advanceDecline && advanceDecline.declines > advanceDecline.advances) {
+                explanation = 'Market is showing bearish pressure with more declining stocks than advancing ones.';
+            } else {
+                explanation = 'Market sentiment is slightly bearish with most indices in negative territory.';
+            }
+        } else if (score >= 20) {
+            if (niftyBank && niftyBank.pChange < -1) {
+                explanation = 'Banking sector weakness is dragging the market lower.';
+            } else {
+                explanation = 'Market is bearish with widespread selling pressure across indices.';
+            }
+        } else {
+            if (vix && vix.pChange > 15) {
+                explanation = 'High volatility and fear are dominating the market with significant selling pressure.';
+            } else {
+                explanation = 'Market is showing strong bearish sentiment with most indices declining.';
+            }
+        }
+        
+        // Add specific details if available
+        if (nifty50 && Math.abs(nifty50.pChange) > 0.5) {
+            const direction = nifty50.pChange > 0 ? 'up' : 'down';
+            explanation += ` NIFTY 50 is ${direction} ${Math.abs(nifty50.pChange).toFixed(2)}%.`;
+        }
+        
+        return explanation;
+    }
+
+    updateMarketExplanation(data) {
+        const explanationEl = document.getElementById('moodExplanation');
+        if (!explanationEl) return;
+        
+        const explanation = this.generateMarketExplanation(data);
+        if (explanation) {
+            explanationEl.textContent = explanation;
+            explanationEl.style.display = 'block';
+        } else {
+            explanationEl.style.display = 'none';
+        }
+    }
+
     updateBackgroundColor(score) {
         // Update greeting area background based on mood score
         const moodGreetingArea = document.querySelector('.mood-greeting-area');
         console.log('🎨 updateBackgroundColor called with score:', score);
-        
+
         let gradient;
         let themeColor; // Primary color for PWA theme-color
         
