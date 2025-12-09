@@ -464,9 +464,13 @@ class MarketMoodApp {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
         }
         if (this.moodBtn) {
-            this.moodBtn.addEventListener('click', () => {
-                console.log('Mood button clicked, current view:', this.currentView);
+            this.moodBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (this.currentView !== 'mood') {
+                    console.log('Mood button clicked, switching to Mood view');
                     this.showMoodView();
+                }
             });
         }
         if (this.settingsMenuBtn) {
@@ -489,9 +493,13 @@ class MarketMoodApp {
             });
         }
         if (this.signalsBtn) {
-            this.signalsBtn.addEventListener('click', () => {
-    console.log('Signals button clicked, current view:', this.currentView);
-    this.showSignalsView();
+            this.signalsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (this.currentView !== 'signals') {
+                    console.log('Signals button clicked, switching to Signals view');
+                    this.showSignalsView();
+                }
             });
         }
         if (this.generateSignalsBtn) {
@@ -4049,110 +4057,135 @@ class MarketMoodApp {
         }
     }
 
-    toggleView() {
-        // Prevent any default scrolling behavior
-        if (document.activeElement) {
-            document.activeElement.blur();
+    showMoodView() {
+        // Prevent multiple rapid calls
+        if (this._switchingView) {
+            console.log('View switch already in progress, ignoring');
+            return;
         }
         
         if (this.currentView === 'mood') {
-            // Switch to Signals view
-            this.showSignalsView();
-        } else {
-            // Switch to Mood view
-            this.showMoodView();
+            console.log('Already on Mood view');
+            return;
         }
-    }
-
-    showMoodView() {
-        console.log('Switching to Mood view');
-        this.currentView = 'mood';
         
-        // Update header title to "NSE Market Mood"
+        this._switchingView = true;
+        console.log('Switching to Mood view');
+        
+        try {
+            // Ensure we have references to page views
+            if (!this.moodPageView) {
+                this.moodPageView = document.getElementById('moodPageView');
+            }
+            if (!this.signalsPageView) {
+                this.signalsPageView = document.getElementById('signalsPageView');
+            }
+            
+            // Validate elements exist
+            if (!this.moodPageView) {
+                console.error('moodPageView element not found');
+                this._switchingView = false;
+                return;
+            }
+            
+            // Update state first
+            this.currentView = 'mood';
+            
+            // Update header title
         const headerTitle = document.getElementById('headerTitle');
         if (headerTitle) {
             headerTitle.textContent = 'NSE Market Mood';
         }
-        
-        // Hide signals page first
+            
+            // Hide signals page cleanly
         if (this.signalsPageView) {
             this.signalsPageView.style.setProperty('display', 'none', 'important');
-            this.signalsPageView.style.setProperty('visibility', 'hidden', 'important');
+                this.signalsPageView.style.setProperty('visibility', 'hidden', 'important');
+                this.signalsPageView.classList.add('hidden');
         }
-        
-        // Show mood page
-        if (this.moodPageView) {
-            // First, make sure mood page is visible
+            
+            // Show mood page
+            this.moodPageView.style.removeProperty('display');
+            this.moodPageView.style.removeProperty('visibility');
             this.moodPageView.style.setProperty('display', 'block', 'important');
             this.moodPageView.style.setProperty('visibility', 'visible', 'important');
+            this.moodPageView.classList.remove('hidden');
             
-            // Force a reflow to ensure display change takes effect
+            // Force reflow
             void this.moodPageView.offsetHeight;
             
-            // Show all mood page elements
-            const mainIndicesGrid = document.getElementById('mainIndicesGrid');
-            const allIndicesSection = document.getElementById('allIndicesSection');
-            const advanceDecline = document.querySelector('.advance-decline');
-            const dataSourceInfo = document.querySelector('.data-source-info');
-            const moodCard = document.getElementById('moodCard');
-            const moodGreetingArea = document.querySelector('.mood-greeting-area');
-
-            // Show greeting area
+            // Show mood page elements
+            const moodGreetingArea = this.moodPageView.querySelector('.mood-greeting-area');
+            const moodCard = this.moodPageView.querySelector('#moodCard');
+            const mainIndicesGrid = this.moodPageView.querySelector('#mainIndicesGrid');
+            const allIndicesSection = this.moodPageView.querySelector('#allIndicesSection');
+            const advanceDecline = this.moodPageView.querySelector('.advance-decline');
+            const dataSourceInfo = this.moodPageView.querySelector('.data-source-info');
+            
             if (moodGreetingArea) {
                 moodGreetingArea.style.setProperty('display', 'flex', 'important');
                 moodGreetingArea.style.setProperty('visibility', 'visible', 'important');
             }
             
-            // Show mood card
             if (moodCard) {
                 moodCard.style.setProperty('opacity', '1', 'important');
                 moodCard.style.setProperty('display', 'block', 'important');
                 moodCard.style.setProperty('visibility', 'visible', 'important');
             }
             
-            // Show indices sections
             if (mainIndicesGrid) {
                 mainIndicesGrid.style.setProperty('display', 'grid', 'important');
                 mainIndicesGrid.style.setProperty('visibility', 'visible', 'important');
             }
+            
             if (allIndicesSection) {
                 allIndicesSection.style.setProperty('display', 'block', 'important');
                 allIndicesSection.style.setProperty('visibility', 'visible', 'important');
             }
+            
             if (advanceDecline) {
                 advanceDecline.style.setProperty('display', 'block', 'important');
                 advanceDecline.style.setProperty('visibility', 'visible', 'important');
             }
+            
             if (dataSourceInfo) {
                 dataSourceInfo.style.setProperty('display', 'block', 'important');
                 dataSourceInfo.style.setProperty('visibility', 'visible', 'important');
             }
             
-            // Re-render all data if lastMarketData exists, otherwise load fresh data
-            if (this.lastMarketData) {
-                console.log('Re-rendering Mood page with last known data.');
-                // Use setTimeout to ensure DOM is ready
-                setTimeout(() => {
+            // Load/refresh data
+            requestAnimationFrame(() => {
+                if (this.lastMarketData) {
                     this.updateUI(this.lastMarketData);
                     if (this.chartsEnabled) {
-                        this.loadIndexHistory().catch(err => console.warn('Index history loading failed on Mood view switch:', err));
+                        this.loadIndexHistory().catch(err => 
+                            console.warn('Index history loading failed:', err)
+                        );
                     }
-                }, 50);
-                if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
-                    this.startPolling();
-                }
-            } else {
-                console.log('No lastMarketData, loading fresh data for Mood page.');
-                this.loadData().then(() => {
                     if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
                         this.startPolling();
                     }
-                }).catch(err => console.error('Error loading data on Mood view switch:', err));
-            }
-        }
-        
-        // Scroll to top
+                } else {
+                    this.loadData().then(() => {
+                        if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+                            this.startPolling();
+                        }
+                    }).catch(err => {
+                        console.error('Error loading data:', err);
+                    });
+                }
+                
+                // Scroll to top after a brief delay
+                setTimeout(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
+                    this._switchingView = false;
+                }, 100);
+            });
+            
+        } catch (error) {
+            console.error('Error in showMoodView:', error);
+            this._switchingView = false;
+        }
     }
 
     showSignalsView() {
