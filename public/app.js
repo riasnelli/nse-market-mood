@@ -1103,17 +1103,86 @@ class MarketMoodApp {
         const moodCard = document.getElementById('moodCard');
         
         if (overlay) {
+            // Get current mood-greeting-area background to match loading overlay
+            const moodGreetingArea = document.querySelector('.mood-greeting-area');
+            if (moodGreetingArea) {
+                const computedStyle = getComputedStyle(moodGreetingArea);
+                const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+                const bgColor = computedStyle.backgroundColor;
+                
+                if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial') {
+                    overlay.style.setProperty('background', bgGradient, 'important');
+                    overlay.style.setProperty('background-image', bgGradient, 'important');
+                }
+                if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                    overlay.style.setProperty('background-color', bgColor, 'important');
+                }
+            } else {
+                // Use default gradient if greeting area not available yet
+                const defaultGradient = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                overlay.style.setProperty('background', defaultGradient, 'important');
+                overlay.style.setProperty('background-color', '#667eea', 'important');
+            }
+            
             overlay.classList.remove('hidden');
-            overlay.style.cssText = 'display: flex !important; opacity: 1 !important; visibility: visible !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 99999 !important;';
+            overlay.style.setProperty('display', 'flex', 'important');
+            overlay.style.setProperty('opacity', '1', 'important');
+            overlay.style.setProperty('visibility', 'visible', 'important');
+            overlay.style.setProperty('position', 'fixed', 'important');
+            overlay.style.setProperty('top', '0', 'important');
+            overlay.style.setProperty('left', '0', 'important');
+            overlay.style.setProperty('right', '0', 'important');
+            overlay.style.setProperty('bottom', '0', 'important');
+            overlay.style.setProperty('z-index', '99999', 'important');
+            overlay.style.setProperty('padding-top', 'env(safe-area-inset-top, 0px)', 'important');
+            
             console.log('✅ Loading overlay shown', overlay.style.display);
             if (loadingText) loadingText.textContent = message;
             if (loadingStatus) loadingStatus.textContent = status;
+            
+            // Update safe area overlay to match loading overlay
+            this.updateLoadingSafeArea(overlay);
         } else {
             console.error('❌ Loading overlay element not found!');
         }
         if (moodCard) {
             moodCard.style.opacity = '0';
         }
+    }
+    
+    updateLoadingSafeArea(overlay) {
+        // Update safe area overlay to match loading overlay background
+        const computedStyle = getComputedStyle(overlay);
+        const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+        const bgColor = computedStyle.backgroundColor;
+        
+        let safeAreaOverlay = document.getElementById('safeAreaOverlay');
+        if (!safeAreaOverlay) {
+            safeAreaOverlay = document.createElement('div');
+            safeAreaOverlay.id = 'safeAreaOverlay';
+            document.body.appendChild(safeAreaOverlay);
+        }
+        
+        const finalGradient = bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' 
+            ? bgGradient 
+            : `linear-gradient(135deg, ${bgColor} 0%, ${bgColor} 100%)`;
+        
+        safeAreaOverlay.style.cssText = `
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: env(safe-area-inset-top, 0px) !important;
+            min-height: env(safe-area-inset-top, 0px) !important;
+            background-color: ${bgColor} !important;
+            background-image: ${finalGradient} !important;
+            background: ${finalGradient} !important;
+            background-attachment: fixed !important;
+            background-size: cover !important;
+            background-repeat: no-repeat !important;
+            z-index: 100000 !important;
+            pointer-events: none !important;
+        `;
     }
 
     hideMoodLoading() {
@@ -2011,6 +2080,14 @@ class MarketMoodApp {
         }
         
         console.log('✅ Updated greeting area with gradient:', gradient, 'themeColor:', themeColor);
+        
+        // Update loading overlay if it's visible to match new background
+        const loadingOverlay = document.getElementById('moodLoadingOverlay');
+        if (loadingOverlay && !loadingOverlay.classList.contains('hidden')) {
+            loadingOverlay.style.setProperty('background', gradient, 'important');
+            loadingOverlay.style.setProperty('background-color', themeColor, 'important');
+            this.updateLoadingSafeArea(loadingOverlay);
+        }
         
         // Update PWA theme-color meta tag for mobile browser inset
         // Pass both color and gradient to ensure safe area matches greeting area
