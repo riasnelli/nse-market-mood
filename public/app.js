@@ -428,11 +428,11 @@ class MarketMoodApp {
             });
         }
         if (this.signalsBtn) {
-            this.signalsBtn.addEventListener('click', () => {
-                console.log("🔔 Signals button clicked, current view:", this.currentView);
-                this.toggleView();
-            });
-        }
+  this.signalsBtn.addEventListener('click', () => {
+    console.log('Signals button clicked, current view:', this.currentView);
+    this.showSignalsView();
+  });
+}
         if (this.generateSignalsBtn) {
             this.generateSignalsBtn.addEventListener('click', () => this.generateSignals());
         }
