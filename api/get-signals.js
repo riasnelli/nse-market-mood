@@ -59,7 +59,8 @@ module.exports = async (req, res) => {
           side: signal.side || 'BUY',
           confidence_score: signal.confidence_score,
           feature_fields: signal.feature_fields,
-          ai_explanation: signal.ai_explanation
+          ai_explanation: signal.ai_explanation,
+          reason: signal.reason
         }));
 
         return res.status(200).json({
@@ -73,6 +74,9 @@ module.exports = async (req, res) => {
             : 'No signals found for this date'
         });
       }
+
+      // No signals in DB - return empty (frontend can call generate-signals if needed)
+      // We don't auto-generate here to avoid circular dependencies
     } catch (dbError) {
       console.warn('Error querying database for signals, returning empty:', dbError.message);
     }
