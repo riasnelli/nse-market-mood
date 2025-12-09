@@ -4416,6 +4416,20 @@ class MarketMoodApp {
             signalsContainer.style.display = 'block';
             signalsContainer.innerHTML = '';
             
+            // Update strategy analysis with actual stock recommendations from signals
+            if (strategyAnalysis && data.signals && data.signals.length > 0) {
+                // Extract top stocks from signals
+                const topStocks = data.signals
+                    .slice(0, 5) // Top 5 stocks
+                    .map(signal => ({
+                        symbol: signal.symbol,
+                        score: signal.score,
+                        entryPrice: signal.entry_price,
+                        targetPrice: signal.target_price
+                    }));
+                strategyAnalysis.recommendedStocks = topStocks;
+            }
+            
             // Render strategy recommendation
             if (strategyAnalysis) {
                 this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
