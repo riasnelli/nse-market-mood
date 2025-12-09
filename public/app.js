@@ -4315,6 +4315,9 @@ class MarketMoodApp {
         signalsContainer.innerHTML = '';
 
         try {
+            // First, analyze today's market conditions and recommend strategy
+            const strategyAnalysis = this.analyzeMarketConditionsAndRecommendStrategy();
+            
             // Determine the date to use - prefer today's date if we have data
             let targetDate = date;
             if (!targetDate) {
@@ -4376,6 +4379,14 @@ class MarketMoodApp {
 
             // Handle response
             if (!data || !data.signals || data.signals.length === 0) {
+                // Show strategy recommendation even if no signals
+                if (strategyAnalysis) {
+                    this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
+                    signalsContainer.style.display = 'block';
+                    signalsEmpty.style.display = 'none';
+                    return;
+                }
+                
                 // Show empty state
                 signalsEmpty.style.display = 'block';
                 signalsContainer.style.display = 'none';
@@ -4400,11 +4411,19 @@ class MarketMoodApp {
                 return;
             }
             
-            // Display signals
+            // Display strategy recommendation first, then signals
             signalsEmpty.style.display = 'none';
             signalsContainer.style.display = 'block';
+            signalsContainer.innerHTML = '';
+            
+            // Render strategy recommendation
+            if (strategyAnalysis) {
+                this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
+            }
+            
+            // Display signals
             console.log('📈 Rendering', data.signals.length, 'signals');
-            this.renderSignals(data.signals, data.run_id || data.runId, data.date || targetDate);
+            this.renderSignals(data.signals, data.run_id || data.runId, data.date || targetDate, signalsContainer);
             
         } catch (error) {
             console.error('❌ Error loading signals:', error);
@@ -4523,23 +4542,47 @@ class MarketMoodApp {
 
         signalsContainer.innerHTML = '';
 
-        // Create header info
-        const headerInfo = document.createElement('div');
-        headerInfo.style.cssText = 'padding: 15px; background: #f3f4f6; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem;';
-        headerInfo.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                <div>
-                    <strong>Run ID:</strong> <span style="font-family: monospace; font-size: 0.85rem;">${runId}</span>
+        // Create header info (only if not appending to existing content)
+        if (!container) {
+            const headerInfo = document.createElement('div');
+            headerInfo.style.cssText = 'padding: 15px; background: #f3f4f6; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem;';
+            headerInfo.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <strong>Run ID:</strong> <span style="font-family: monospace; font-size: 0.85rem;">${runId || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>Date:</strong> ${date}
+                    </div>
+                    <div>
+                        <strong>Signals:</strong> ${signals.length}
+                    </div>
                 </div>
-                <div>
-                    <strong>Date:</strong> ${date}
+            `;
+            signalsContainer.appendChild(headerInfo);
+        } else {
+            // Add a separator if appending
+            const separator = document.createElement('div');
+            separator.style.cssText = 'margin: 20px 0; border-top: 2px solid #e5e7eb;';
+            signalsContainer.appendChild(separator);
+            
+            const headerInfo = document.createElement('div');
+            headerInfo.style.cssText = 'padding: 15px; background: #f3f4f6; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem;';
+            headerInfo.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <strong>Run ID:</strong> <span style="font-family: monospace; font-size: 0.85rem;">${runId || 'N/A'}</span>
+                    </div>
+                    <div>
+                        <strong>Date:</strong> ${date}
+                    </div>
+                    <div>
+                        <strong>Signals:</strong> ${signals.length}
+                    </div>
                 </div>
-                <div>
-                    <strong>Signals:</strong> ${signals.length}
-                </div>
-            </div>
-        `;
-        signalsContainer.appendChild(headerInfo);
+            `;
+            signalsContainer.appendChild(headerInfo);
+        }
 
         // Create signals grid
         const signalsGrid = document.createElement('div');
