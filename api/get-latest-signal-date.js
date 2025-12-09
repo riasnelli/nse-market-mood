@@ -29,6 +29,8 @@ module.exports = async (req, res) => {
     if (!mongoUri) {
       // MongoDB not configured - return today's date as fallback
       return res.status(200).json({
+        date: today,
+        hasSignals: false, // Stub: no signals yet
         latest_complete_date: today,
         dates: {
           bhavcopy: today,
@@ -79,6 +81,8 @@ module.exports = async (req, res) => {
       const latestCompleteDate = allDates[0] || today;
 
       res.status(200).json({
+        date: latestCompleteDate,
+        hasSignals: false, // Stub: no signals yet
         latest_complete_date: latestCompleteDate,
         dates: dates,
         message: 'Latest dates retrieved from database'
@@ -87,6 +91,8 @@ module.exports = async (req, res) => {
       console.warn('Error querying database for latest dates, using today:', dbError.message);
       // Fallback to today if database query fails
       res.status(200).json({
+        date: today,
+        hasSignals: false, // Stub: no signals yet
         latest_complete_date: today,
         dates: {
           bhavcopy: today,
@@ -100,6 +106,8 @@ module.exports = async (req, res) => {
     console.error('Error in get-latest-signal-date:', error);
     const today = new Date().toISOString().split('T')[0];
     res.status(200).json({
+      date: today,
+      hasSignals: false, // Stub: no signals yet
       latest_complete_date: today,
       dates: {
         bhavcopy: today,
