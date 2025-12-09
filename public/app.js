@@ -4283,7 +4283,7 @@ class MarketMoodApp {
 
 
     async loadSignals(date = null) {
-        console.log('Loading signals, date:', date);
+        console.log('📊 Loading signals, date:', date);
         
         // Wait a bit to ensure page view is visible
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -4294,38 +4294,18 @@ class MarketMoodApp {
         const signalsError = document.getElementById('signalsError');
         const signalsEmpty = document.getElementById('signalsEmpty');
 
-        console.log('Looking for signals elements:', {
-            signalsSection: !!signalsSection,
-            signalsContainer: !!signalsContainer,
-            signalsLoading: !!signalsLoading,
-            signalsError: !!signalsError,
-            signalsEmpty: !!signalsEmpty,
-            signalsPageViewVisible: this.signalsPageView ? getComputedStyle(this.signalsPageView).display : 'N/A'
-        });
-
         if (!signalsSection || !signalsContainer) {
-            console.error('Signals section or container not found!', { 
-                signalsSection, 
-                signalsContainer,
-                signalsPageView: this.signalsPageView,
-                signalsPageViewDisplay: this.signalsPageView ? getComputedStyle(this.signalsPageView).display : 'N/A'
-            });
-            
-            // Try to find elements again after a delay
+            console.error('Signals section or container not found!');
+            // Retry after a short delay
             setTimeout(() => {
                 const retrySection = document.getElementById('signalsSection');
                 const retryContainer = document.getElementById('signalsContainer');
                 if (retrySection && retryContainer) {
-                    console.log('Found elements on retry, loading signals...');
                     this.loadSignals(date);
-                } else {
-                    console.error('Still not found on retry');
                 }
             }, 200);
             return;
         }
-        
-        console.log('Signals elements found, proceeding with load');
 
         // Show loading
         signalsLoading.style.display = 'block';
@@ -4335,83 +4315,71 @@ class MarketMoodApp {
         signalsContainer.innerHTML = '';
 
         try {
-            console.log('Loading signals, date:', date);
-            // First try to get existing signals
-            let url = '/api/get-signals';
-            if (date) {
-                url = `/api/get-signals?date=${date}`;
-            }
-
-            console.log('Fetching from:', url);
-            let response = await fetch(url);
-            
-            if (!response.ok) {
-                // If 404, try to generate signals instead
-                if (response.status === 404) {
-                    console.warn('Signals API endpoint not found (404). Attempting to generate signals...');
-                    // Try generating signals instead
+            // Determine the date to use - prefer today's date if we have data
+            let targetDate = date;
+            if (!targetDate) {
+                // Use today's date if we have current market data
+                const today = new Date().toISOString().split('T')[0];
+                if (this.lastMarketData && this.lastMarketData.indices && this.lastMarketData.indices.length > 0) {
+                    targetDate = today;
+                    console.log('Using today\'s date for signals:', targetDate);
+                } else {
+                    // Try to get latest available date from API
                     try {
-                        const generateResponse = await fetch('/api/test-generate-signals');
-                        if (generateResponse.ok) {
-                            const generateData = await generateResponse.json();
-                            console.log('Generated signals successfully:', generateData);
-                            // Render the generated signals
-                            if (generateData.signals && generateData.signals.length > 0) {
-                                this.renderSignals(generateData.signals, generateData.run_id, generateData.date || generateData.premarket_date);
-                                return;
+                        const latestDateResponse = await fetch('/api/get-latest-signal-date');
+                        if (latestDateResponse.ok) {
+                            const latestDateData = await latestDateResponse.json();
+                            if (latestDateData.latest_complete_date) {
+                                targetDate = latestDateData.latest_complete_date;
                             } else {
-                                throw new Error('No signals generated');
+                                targetDate = today;
                             }
                         } else {
-                            throw new Error('Failed to generate signals');
+                            targetDate = today;
                         }
-                    } catch (genError) {
-                        console.error('Error generating signals:', genError);
-                        throw new Error('Signals API not available and generation failed. Please check deployment.');
+                    } catch (e) {
+                        targetDate = today;
                     }
-                }
-                // Try to get error message from response
-                let errorText = '';
-                try {
-                    errorText = await response.text();
-                    // If it's HTML (like a 404 page), don't try to parse as JSON
-                    if (errorText.startsWith('<') || errorText.startsWith('The page')) {
-                        throw new Error(`API endpoint returned HTML instead of JSON (${response.status})`);
-                    }
-                } catch (e) {
-                    throw new Error(`Failed to fetch signals: ${response.status} ${response.statusText}`);
                 }
             }
-            
-            let data = await response.json();
-            console.log('Get signals response:', data);
 
-            // If no signals found, generate new ones
-            if (!data.signals || data.signals.length === 0) {
-                console.log('No existing signals found, generating new ones...');
-                // Try to generate signals
-                let generateUrl = '/api/test-generate-signals';
-                if (date) {
-                    generateUrl = `/api/generate-signals?date=${date}`;
-                }
-                
-                console.log('Generating signals from:', generateUrl);
-                response = await fetch(generateUrl);
+            console.log('📅 Target date for signals:', targetDate);
+
+            // First, try to get existing signals for this date
+            let url = '/api/get-signals';
+            if (targetDate) {
+                url = `/api/get-signals?date=${targetDate}`;
+            }
+
+            console.log('🔍 Fetching existing signals from:', url);
+            let response = await fetch(url);
+            let data = null;
+            
+            if (response.ok) {
                 data = await response.json();
-                console.log('Generate signals response:', data);
+                console.log('✅ Found existing signals:', data);
+            } else if (response.status === 404) {
+                // No existing signals, try to generate new ones
+                console.log('⚠️ No existing signals found, generating new ones...');
+                data = await this.generateSignalsForDate(targetDate);
+            } else {
+                // Other error, try generating signals as fallback
+                console.warn('⚠️ Error fetching signals, attempting to generate:', response.status);
+                try {
+                    data = await this.generateSignalsForDate(targetDate);
+                } catch (genError) {
+                    throw new Error(`Failed to load signals: ${response.status} ${response.statusText}`);
+                }
             }
 
             signalsLoading.style.display = 'none';
 
-            if (!response.ok) {
-                throw new Error(data.message || data.error || 'Failed to load signals');
-            }
-
-            if (data.signal_count === 0 || !data.signals || data.signals.length === 0) {
+            // Handle response
+            if (!data || !data.signals || data.signals.length === 0) {
+                // Show empty state
                 signalsEmpty.style.display = 'block';
                 signalsContainer.style.display = 'none';
                 
-                // Update the message in the empty state div (keep the HTML structure)
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
                 const emptyMessage = signalsEmpty.querySelector('div[style*="font-size: 0.95rem"]');
                 
@@ -4419,35 +4387,27 @@ class MarketMoodApp {
                     emptyTitle.textContent = 'No Potential Signals';
                 }
                 if (emptyMessage) {
-                    if (data.message) {
-                        emptyMessage.innerHTML = data.message;
-                    } else {
-                        emptyMessage.innerHTML = 'No trading signals were found for the selected date.<br>This could mean the market conditions don\'t meet the signal criteria.';
-                    }
+                    const message = data?.message || 
+                        `No trading signals were found for ${targetDate}.<br>This could mean the market conditions don't meet the signal criteria.`;
+                    emptyMessage.innerHTML = message;
                 }
                 
-                // Setup generate button in empty state
+                // Setup generate button
                 const generateBtnEmpty = document.getElementById('generateSignalsBtnEmpty');
                 if (generateBtnEmpty) {
-                    generateBtnEmpty.onclick = () => {
-                        this.generateSignals();
-                    };
+                    generateBtnEmpty.onclick = () => this.generateSignals();
                 }
-                
-                console.log('No signals found, showing empty message');
                 return;
             }
             
-            // Hide empty message if we have signals
+            // Display signals
             signalsEmpty.style.display = 'none';
             signalsContainer.style.display = 'block';
-
-            // Display signals
-            console.log('Rendering signals:', data.signals.length);
-            signalsContainer.style.display = 'block';
-            this.renderSignals(data.signals, data.run_id, data.date);
+            console.log('📈 Rendering', data.signals.length, 'signals');
+            this.renderSignals(data.signals, data.run_id || data.runId, data.date || targetDate);
+            
         } catch (error) {
-            console.error('Error loading signals:', error);
+            console.error('❌ Error loading signals:', error);
             signalsLoading.style.display = 'none';
             signalsError.style.display = 'block';
             signalsContainer.style.display = 'none';
@@ -4458,12 +4418,31 @@ class MarketMoodApp {
                 errorMessage = 'Network error: Could not connect to the server. Please check your connection and try again.';
             }
             signalsError.textContent = errorMessage;
-            console.error('Full error details:', {
-                message: error.message,
-                stack: error.stack,
-                name: error.name
-            });
         }
+    }
+
+    async generateSignalsForDate(date) {
+        console.log('🔄 Generating signals for date:', date);
+        
+        let generateUrl = '/api/generate-signals';
+        if (date) {
+            generateUrl = `/api/generate-signals?date=${date}`;
+        }
+        
+        // Try generate-signals first, fallback to test-generate-signals
+        let response = await fetch(generateUrl);
+        if (!response.ok) {
+            console.log('⚠️ generate-signals failed, trying test-generate-signals...');
+            response = await fetch('/api/test-generate-signals');
+        }
+        
+        if (!response.ok) {
+            throw new Error(`Failed to generate signals: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ Generated signals:', data);
+        return data;
     }
 
     async generateSignals() {
