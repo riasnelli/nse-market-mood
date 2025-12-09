@@ -702,92 +702,12 @@
         console.log('🔍 SIGNALS BUTTON TEST SCRIPT LOADED');
         
         // Test function that can be called manually
-        // Removed testSignalsButton - using showSignalsView() directly
         window.testSignalsButton = function() {
             console.log('⚠️ testSignalsButton is deprecated. Use showSignalsView() instead.');
             if (window.marketMoodApp && typeof window.marketMoodApp.showSignalsView === 'function') {
                 window.marketMoodApp.showSignalsView();
             }
         };
-        
-        /* OLD TEST CODE - REMOVED
-        window.testSignalsButton = function() {
-            console.log('═══════════════════════════════════════');
-            console.log('🧪 TESTING SIGNALS BUTTON');
-            console.log('═══════════════════════════════════════');
-            
-            const signalsBtn = document.getElementById('signalsBtn');
-            const signalsBtnLabel = document.getElementById('signalsBtnLabel');
-            const moodPageView = document.getElementById('moodPageView');
-            const signalsPageView = document.getElementById('signalsPageView');
-            
-            console.log('1. Signals button found:', !!signalsBtn);
-            console.log('2. Signals button label found:', !!signalsBtnLabel);
-            console.log('3. Mood page view found:', !!moodPageView);
-            console.log('4. Signals page view found:', !!signalsPageView);
-            
-            if (signalsBtn) {
-                const styles = getComputedStyle(signalsBtn);
-                console.log('5. Button styles:', {
-                    display: styles.display,
-                    visibility: styles.visibility,
-                    pointerEvents: styles.pointerEvents,
-                    zIndex: styles.zIndex,
-                    position: styles.position
-                });
-                
-                // Attach direct click handler - use showSignalsView instead of toggleView
-                signalsBtn.onclick = function(e) {
-                    console.log('🔥🔥🔥 SIGNALS BUTTON CLICKED! 🔥🔥🔥');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    if (window.marketMoodApp) {
-                        console.log('App instance found, calling showSignalsView()');
-                        if (typeof window.marketMoodApp.showSignalsView === 'function') {
-                            window.marketMoodApp.showSignalsView();
-                        } else {
-                            console.error('showSignalsView is not a function!');
-                        }
-                    } else {
-                        console.error('marketMoodApp not found!');
-                    }
-                };
-                
-                console.log('✓ Click handler attached');
-            } else {
-                console.error('✗ Signals button NOT FOUND!');
-            }
-            
-            if (window.marketMoodApp) {
-                console.log('6. App instance exists:', !!window.marketMoodApp);
-                console.log('7. Current view:', window.marketMoodApp.currentView);
-                console.log('8. showSignalsView function:', typeof window.marketMoodApp.showSignalsView);
-            } else {
-                console.error('✗ App instance NOT FOUND!');
-            }
-            
-            console.log('═══════════════════════════════════════');
-        };
-        
-        // Auto-run test after page loads
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                setTimeout(() => window.testSignalsButton(), 500);
-            });
-        } else {
-            setTimeout(() => window.testSignalsButton(), 500);
-        }
-        
-        // Also run on window load as backup
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                console.log('🔄 Running backup test on window.load');
-                window.testSignalsButton();
-            }, 1000);
-        });
-        
-        console.log('💡 Type testSignalsButton() in console to test manually');
     </script>
 </body>
 </html>

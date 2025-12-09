@@ -4372,22 +4372,30 @@ class MarketMoodApp {
             } else if (response.status === 404) {
                 // No existing signals, try to generate new ones
                 console.log('⚠️ No existing signals found, generating new ones...');
-                data = await this.generateSignalsForDate(targetDate);
+                try {
+                    data = await this.generateSignalsForDate(targetDate);
+                } catch (genError) {
+                    // If generation also fails, show strategy recommendation only
+                    console.warn('⚠️ Signal generation failed, showing strategy recommendation only:', genError);
+                    data = null; // Set to null to trigger strategy-only display
+                }
             } else {
                 // Other error, try generating signals as fallback
                 console.warn('⚠️ Error fetching signals, attempting to generate:', response.status);
                 try {
                     data = await this.generateSignalsForDate(targetDate);
                 } catch (genError) {
-                    throw new Error(`Failed to load signals: ${response.status} ${response.statusText}`);
+                    // If generation also fails, show strategy recommendation only
+                    console.warn('⚠️ Signal generation failed, showing strategy recommendation only:', genError);
+                    data = null; // Set to null to trigger strategy-only display
                 }
             }
 
             signalsLoading.style.display = 'none';
 
-            // Handle response
+            // Handle response - show strategy recommendation even if no signals or API failed
             if (!data || !data.signals || data.signals.length === 0) {
-                // Show strategy recommendation even if no signals
+                // Always show strategy recommendation if we have market data
                 if (strategyAnalysis) {
                     this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
                     signalsContainer.style.display = 'block';
