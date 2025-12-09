@@ -343,6 +343,11 @@ class MarketMoodApp {
         // Set up a periodic check to ensure safe area overlay always matches mood-greeting-area
         // This handles cases where the background changes but updateThemeColor isn't called
         this.safeAreaSyncInterval = setInterval(() => {
+            // Only sync if we're on the mood page
+            if (this.currentView !== 'mood') {
+                return;
+            }
+            
             const moodGreetingArea = document.querySelector('.mood-greeting-area');
             if (moodGreetingArea) {
                 const computedStyle = getComputedStyle(moodGreetingArea);
@@ -361,7 +366,10 @@ class MarketMoodApp {
                         const currentBgStr = currentBg ? String(currentBg) : '';
                         
                         if (currentBgStr !== bgGradientStr || currentColor !== bgColor) {
-                            console.log('🔄 Syncing safe area overlay - mismatch detected');
+                            // Only log occasionally to reduce console spam (10% of the time)
+                            if (Math.random() < 0.1) {
+                                console.log('🔄 Syncing safe area overlay - mismatch detected');
+                            }
                             this.ensureSafeAreaOverlay(bgColor, bgGradient);
                         }
                     } else {
@@ -377,7 +385,7 @@ class MarketMoodApp {
                     }
                 }
             }
-        }, 300); // Check every 300ms for more responsive updates
+        }, 2000); // Check every 2 seconds (reduced from 300ms to avoid excessive updates) for more responsive updates
         
         this.updateTimeEl = document.getElementById('updateTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
