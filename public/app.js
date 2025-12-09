@@ -4325,6 +4325,7 @@ class MarketMoodApp {
         try {
             // First, analyze today's market conditions and recommend strategy
             const strategyAnalysis = this.analyzeMarketConditionsAndRecommendStrategy();
+            console.log('📊 Strategy analysis:', strategyAnalysis ? 'Available' : 'Not available');
             
             // Determine the date to use - prefer today's date if we have data
             let targetDate = date;
@@ -4397,11 +4398,15 @@ class MarketMoodApp {
             if (!data || !data.signals || data.signals.length === 0) {
                 // Always show strategy recommendation if we have market data
                 if (strategyAnalysis) {
+                    console.log('✅ Rendering strategy recommendation (no signals available)');
+                    signalsContainer.innerHTML = ''; // Clear any previous content
                     this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
                     signalsContainer.style.display = 'block';
                     signalsEmpty.style.display = 'none';
                     signalsLoading.style.display = 'none';
                     return;
+                } else {
+                    console.warn('⚠️ No strategy analysis available, showing empty state');
                 }
                 
                 // Show empty state
