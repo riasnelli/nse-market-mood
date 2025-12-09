@@ -4,7 +4,15 @@ const {
   getSignalCollection,
   getSignalRunCollection
 } = require('./lib/mongodb');
-const { v4: uuidv4 } = require('uuid');
+
+// Try to load uuid, but don't fail if it's not available
+let uuidv4;
+try {
+  uuidv4 = require('uuid').v4;
+} catch (uuidError) {
+  // uuid not available - will use fallback ID generation
+  uuidv4 = null;
+}
 
 /**
  * Get yesterday's date (skip weekends)
@@ -226,16 +234,13 @@ async function generateSimpleMomentumGapSignals(date) {
     // Save to database (optional - don't fail if DB write fails)
     let runId = null;
     try {
-      // Check if uuid is available
-      let uuidv4;
-      try {
-        uuidv4 = require('uuid').v4;
-      } catch (uuidError) {
-        console.warn('uuid package not available, using timestamp-based ID');
-        uuidv4 = () => `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Generate run ID
+      if (uuidv4) {
+        runId = uuidv4();
+      } else {
+        // Fallback ID generation if uuid is not available
+        runId = `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       }
-
-      runId = uuidv4();
       const signalRunCollection = await getSignalRunCollection();
       const signalCollection = await getSignalCollection();
 
