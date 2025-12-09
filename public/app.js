@@ -1167,13 +1167,15 @@ class MarketMoodApp {
             ? bgGradient 
             : `linear-gradient(135deg, ${bgColor} 0%, ${bgColor} 100%)`;
         
+        // Add 1px extra height to prevent any gap
+        const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
         safeAreaOverlay.style.cssText = `
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             right: 0 !important;
-            height: env(safe-area-inset-top, 0px) !important;
-            min-height: env(safe-area-inset-top, 0px) !important;
+            height: ${safeAreaHeight} !important;
+            min-height: ${safeAreaHeight} !important;
             background-color: ${bgColor} !important;
             background-image: ${finalGradient} !important;
             background: ${finalGradient} !important;
@@ -1182,6 +1184,8 @@ class MarketMoodApp {
             background-repeat: no-repeat !important;
             z-index: 100000 !important;
             pointer-events: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
         `;
     }
 
@@ -2160,13 +2164,15 @@ class MarketMoodApp {
         }
         
         // Force update with !important to override dark mode - always match mood-greeting-area exactly
+        // Add 1px extra height to prevent any gap
+        const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
         safeAreaOverlay.style.cssText = `
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             right: 0 !important;
-            height: env(safe-area-inset-top, 0px) !important;
-            min-height: env(safe-area-inset-top, 0px) !important;
+            height: ${safeAreaHeight} !important;
+            min-height: ${safeAreaHeight} !important;
             background-color: ${bgColor} !important;
             background-image: ${finalGradient} !important;
             background: ${finalGradient} !important;
@@ -2175,6 +2181,8 @@ class MarketMoodApp {
             background-repeat: no-repeat !important;
             z-index: 99999 !important;
             pointer-events: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
         `;
         
         // Force a repaint to ensure updates are visible

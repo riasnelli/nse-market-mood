@@ -184,6 +184,8 @@ header {
     margin-bottom: -84px;
     box-sizing: border-box;
     z-index: 1;
+    /* Extend to top to cover any gap */
+    top: 0;
 }
 
 .mood-greeting-area::before {
@@ -192,10 +194,14 @@ header {
     top: calc(-1 * env(safe-area-inset-top, 0px));
     left: 0;
     right: 0;
-    height: env(safe-area-inset-top, 0px);
+    height: calc(env(safe-area-inset-top, 0px) + 2px);
     background: inherit;
     background-color: inherit;
+    background-image: inherit;
     z-index: -1;
+    /* Ensure it covers any gap */
+    margin: 0;
+    padding: 0;
 }
 
 .greeting-text {
