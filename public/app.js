@@ -2782,24 +2782,38 @@ class MarketMoodApp {
             calendarDays.appendChild(dayEl);
         }
         
+        // Get today's date string for comparison
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        
         // Current month's days
         for (let day = 1; day <= daysInMonth; day++) {
             const dayEl = document.createElement('div');
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isToday = dateStr === todayStr;
             
             dayEl.className = 'calendar-day';
             dayEl.textContent = day;
             dayEl.setAttribute('data-date', dateStr);
             
-            // Check if date has data
-            if (this.availableDates.includes(dateStr)) {
+            let score = null;
+            let hasData = false;
+            
+            // Check if this is today and we have current mood data
+            if (isToday && this.lastMarketData && this.lastMarketData.mood && typeof this.lastMarketData.mood.score === 'number') {
+                // Use current mood score for today
+                score = this.lastMarketData.mood.score;
+                hasData = true;
+                dayEl.classList.add('has-data');
+                console.log('📅 Calendar: Using current mood score for today:', score);
+            } else if (this.availableDates.includes(dateStr)) {
+                // Check if date has uploaded data
+                hasData = true;
                 dayEl.classList.add('has-data');
                 
                 // Add mood color class based on mood string or score
                 const moodData = this.availableDatesData.get(dateStr);
                 if (moodData) {
-                    let score = null;
-                    
                     // Check if moodData is an object with score
                     if (typeof moodData === 'object' && moodData !== null && moodData.score !== undefined) {
                         score = moodData.score;
@@ -2815,37 +2829,34 @@ class MarketMoodApp {
                         else if (moodLower.includes('bearish') && !moodLower.includes('slightly')) score = 25;
                         else if (moodLower.includes('very bearish')) score = 15;
                     }
-                    
-                    if (score !== null) {
-                        if (score >= 70) {
-                            dayEl.classList.add('mood-very-bullish');
-                        } else if (score >= 60) {
-                            dayEl.classList.add('mood-bullish');
-                        } else if (score >= 50) {
-                            dayEl.classList.add('mood-slightly-bullish');
-                        } else if (score >= 40) {
-                            dayEl.classList.add('mood-neutral');
-                        } else if (score >= 30) {
-                            dayEl.classList.add('mood-slightly-bearish');
-                        } else if (score >= 20) {
-                            dayEl.classList.add('mood-bearish');
-                        } else {
-                            dayEl.classList.add('mood-very-bearish');
-                        }
-                    }
                 }
-                
-                // Add click handler
-                dayEl.addEventListener('click', () => {
-                    this.selectCalendarDate(dateStr);
-                });
             } else {
                 dayEl.classList.add('no-data');
-                // Still allow click to load previous date
-                dayEl.addEventListener('click', () => {
-                    this.selectCalendarDate(dateStr);
-                });
             }
+            
+            // Apply mood color class based on score
+            if (score !== null) {
+                if (score >= 70) {
+                    dayEl.classList.add('mood-very-bullish');
+                } else if (score >= 60) {
+                    dayEl.classList.add('mood-bullish');
+                } else if (score >= 50) {
+                    dayEl.classList.add('mood-slightly-bullish');
+                } else if (score >= 40) {
+                    dayEl.classList.add('mood-neutral');
+                } else if (score >= 30) {
+                    dayEl.classList.add('mood-slightly-bearish');
+                } else if (score >= 20) {
+                    dayEl.classList.add('mood-bearish');
+                } else {
+                    dayEl.classList.add('mood-very-bearish');
+                }
+            }
+            
+            // Add click handler
+            dayEl.addEventListener('click', () => {
+                this.selectCalendarDate(dateStr);
+            });
             
             // Mark as selected if it's the selected date
             if (this.selectedCalendarDate === dateStr) {
