@@ -4368,26 +4368,34 @@ class MarketMoodApp {
             let data = null;
             
             if (response.ok) {
-                data = await response.json();
-                console.log('✅ Found existing signals:', data);
-            } else if (response.status === 404) {
-                // No existing signals, try to generate new ones
+                // Check if response is actually JSON before parsing
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    try {
+                        data = await response.json();
+                        console.log('✅ Found existing signals:', data);
+                    } catch (parseError) {
+                        console.warn('⚠️ Failed to parse signals response as JSON:', parseError);
+                        data = null;
+                    }
+                } else {
+                    console.warn('⚠️ Signals response is not JSON, treating as no signals');
+                    data = null;
+                }
+            } else {
+                // Non-OK response - don't try to parse JSON from 404 HTML pages
+                console.warn(`⚠️ Signals API returned ${response.status}, skipping JSON parse`);
+                data = null;
+            }
+            
+            // If no data found, try to generate new ones
+            if (!data || !data.signals || data.signals.length === 0) {
                 console.log('⚠️ No existing signals found, generating new ones...');
                 try {
                     data = await this.generateSignalsForDate(targetDate);
                 } catch (genError) {
                     // If generation also fails, show strategy recommendation only
-                    console.warn('⚠️ Signal generation failed, showing strategy recommendation only:', genError);
-                    data = null; // Set to null to trigger strategy-only display
-                }
-            } else {
-                // Other error, try generating signals as fallback
-                console.warn('⚠️ Error fetching signals, attempting to generate:', response.status);
-                try {
-                    data = await this.generateSignalsForDate(targetDate);
-                } catch (genError) {
-                    // If generation also fails, show strategy recommendation only
-                    console.warn('⚠️ Signal generation failed, showing strategy recommendation only:', genError);
+                    console.warn('⚠️ Signal generation failed, showing strategy recommendation only:', genError.message);
                     data = null; // Set to null to trigger strategy-only display
                 }
             }
@@ -4492,12 +4500,26 @@ class MarketMoodApp {
         }
         
         if (!response.ok) {
-            throw new Error(`Failed to generate signals: ${response.status} ${response.statusText}`);
+            // Don't throw - return null to allow graceful fallback
+            console.warn(`⚠️ Signal generation API returned ${response.status}, returning null`);
+            return null;
         }
         
-        const data = await response.json();
-        console.log('✅ Generated signals:', data);
-        return data;
+        // Check if response is actually JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            try {
+                const data = await response.json();
+                console.log('✅ Generated signals:', data);
+                return data;
+            } catch (parseError) {
+                console.warn('⚠️ Failed to parse generate signals response as JSON:', parseError);
+                return null;
+            }
+        } else {
+            console.warn('⚠️ Generate signals response is not JSON, returning null');
+            return null;
+        }
     }
 
     analyzeMarketConditionsAndRecommendStrategy() {
@@ -4706,12 +4728,38 @@ class MarketMoodApp {
             // Generate signals for the latest date
             console.log('Generating signals for latest date...');
             const response = await fetch('/api/test-generate-signals');
-            const data = await response.json();
-            console.log('Generate signals response:', data);
-
+            
             signalsLoading.style.display = 'none';
 
             if (!response.ok) {
+                // Non-OK response - don't try to parse JSON from 404 HTML pages
+                console.warn(`⚠️ Generate signals API returned ${response.status}`);
+                signalsError.style.display = 'block';
+                signalsError.textContent = 'Signal generation is not available yet.';
+                return;
+            }
+
+            // Check if response is actually JSON before parsing
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                console.warn('⚠️ Generate signals response is not JSON');
+                signalsError.style.display = 'block';
+                signalsError.textContent = 'Signal generation is not available yet.';
+                return;
+            }
+
+            let data;
+            try {
+                data = await response.json();
+                console.log('Generate signals response:', data);
+            } catch (parseError) {
+                console.warn('⚠️ Failed to parse generate signals response as JSON:', parseError);
+                signalsError.style.display = 'block';
+                signalsError.textContent = 'Failed to parse signal generation response.';
+                return;
+            }
+
+            if (data.message || data.error) {
                 throw new Error(data.message || data.error || 'Failed to generate signals');
             }
 
@@ -4892,41 +4940,75 @@ class MarketMoodApp {
                 try {
                     const latestDateResponse = await fetch('/api/get-latest-signal-date');
                     if (!latestDateResponse.ok) {
-                        console.warn('get-latest-signal-date API not available, using default date');
-                        date = '2025-11-28';
+                        console.warn('get-latest-signal-date API not available, using today\'s date');
+                        // Use today's date as fallback
+                        date = new Date().toISOString().split('T')[0];
                     } else {
-                        const latestDateData = await latestDateResponse.json();
-                        if (latestDateData.latest_complete_date) {
-                            date = latestDateData.latest_complete_date;
-                        } else if (latestDateData.dates) {
-                            // Use the latest available date
-                            const dates = [latestDateData.dates.bhavcopy, latestDateData.dates.indices]
-                                .filter(Boolean)
-                                .sort()
-                                .reverse();
-                            date = dates[0] || '2025-11-28';
+                        // Check if response is actually JSON before parsing
+                        const contentType = latestDateResponse.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                            try {
+                                const latestDateData = await latestDateResponse.json();
+                                if (latestDateData.latest_complete_date) {
+                                    date = latestDateData.latest_complete_date;
+                                } else if (latestDateData.dates) {
+                                    // Use the latest available date
+                                    const dates = [latestDateData.dates.bhavcopy, latestDateData.dates.indices]
+                                        .filter(Boolean)
+                                        .sort()
+                                        .reverse();
+                                    date = dates[0] || new Date().toISOString().split('T')[0];
+                                } else {
+                                    date = new Date().toISOString().split('T')[0];
+                                }
+                            } catch (parseError) {
+                                console.warn('Failed to parse latest signal date response:', parseError);
+                                date = new Date().toISOString().split('T')[0];
+                            }
                         } else {
-                            date = '2025-11-28';
+                            console.warn('Latest signal date response is not JSON, using today');
+                            date = new Date().toISOString().split('T')[0];
                         }
                     }
                 } catch (error) {
-                    console.warn('Error fetching latest signal date, using default:', error);
-                    date = '2025-11-28';
+                    console.warn('Error fetching latest signal date, using today:', error);
+                    date = new Date().toISOString().split('T')[0];
                 }
             }
 
             // Fetch data availability
             const response = await fetch(`/api/check-date-data?date=${date}`);
-            const data = await response.json();
-
+            
             dataAvailabilityLoading.style.display = 'none';
 
-            if (!response.ok || !data.success) {
-                throw new Error(data.error || data.message || 'Failed to load data availability');
+            if (!response.ok) {
+                // Non-OK response - don't try to parse JSON from 404 HTML pages
+                console.warn(`⚠️ Data availability API returned ${response.status}, showing error message`);
+                dataAvailabilityError.style.display = 'block';
+                dataAvailabilityError.textContent = 'Data availability check is not available yet.';
+                return;
             }
 
-            // Render data availability
-            this.renderDataAvailability(data);
+            // Check if response is actually JSON before parsing
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    const data = await response.json();
+                    if (!data.success) {
+                        throw new Error(data.error || data.message || 'Failed to load data availability');
+                    }
+                    // Render data availability
+                    this.renderDataAvailability(data);
+                } catch (parseError) {
+                    console.warn('⚠️ Failed to parse data availability response as JSON:', parseError);
+                    dataAvailabilityError.style.display = 'block';
+                    dataAvailabilityError.textContent = 'Failed to parse data availability response.';
+                }
+            } else {
+                console.warn('⚠️ Data availability response is not JSON');
+                dataAvailabilityError.style.display = 'block';
+                dataAvailabilityError.textContent = 'Data availability check is not available yet.';
+            }
         } catch (error) {
             console.error('Error loading data availability:', error);
             dataAvailabilityLoading.style.display = 'none';
