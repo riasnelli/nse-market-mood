@@ -337,6 +337,9 @@ class MarketMoodApp {
         
         this.updateThemeColor(initialColor, initialGradient);
         
+        // Also create safe area overlay immediately to prevent black inset
+        this.ensureSafeAreaOverlay(initialColor, initialGradient);
+        
         this.updateTimeEl = document.getElementById('updateTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
         this.greetingNameEl = document.getElementById('greetingName');
@@ -1251,6 +1254,21 @@ class MarketMoodApp {
             // Update background color based on mood score
             console.log('🎨 Calling updateBackgroundColor with score:', data.mood.score);
             this.updateBackgroundColor(data.mood.score);
+            
+            // Immediately update safe area overlay to match mood color
+            // This ensures the inset area updates right away
+            setTimeout(() => {
+                const moodGreetingArea = document.querySelector('.mood-greeting-area');
+                if (moodGreetingArea) {
+                    const computedStyle = getComputedStyle(moodGreetingArea);
+                    const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+                    const bgColor = computedStyle.backgroundColor;
+                    
+                    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                        this.updateThemeColor(bgColor, bgGradient);
+                    }
+                }
+            }, 100);
         }
 
         // Update indices display (only on Mood page)
@@ -2096,6 +2114,53 @@ class MarketMoodApp {
         // Update PWA theme-color meta tag for mobile browser inset
         // Pass both color and gradient to ensure safe area matches greeting area
         this.updateThemeColor(themeColor, gradient);
+        
+        // Force update safe area overlay again after a short delay to ensure it matches
+        // This is needed because the greeting area background might not be computed yet
+        setTimeout(() => {
+            const updatedGreetingArea = document.querySelector('.mood-greeting-area');
+            if (updatedGreetingArea) {
+                const computedStyle = getComputedStyle(updatedGreetingArea);
+                const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+                const bgColor = computedStyle.backgroundColor;
+                
+                if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                    this.updateThemeColor(bgColor, bgGradient);
+                }
+            }
+        }, 200);
+    }
+
+    ensureSafeAreaOverlay(color, gradient = null) {
+        // Ensure safe area overlay exists and has correct color immediately
+        let safeAreaOverlay = document.getElementById('safeAreaOverlay');
+        if (!safeAreaOverlay) {
+            safeAreaOverlay = document.createElement('div');
+            safeAreaOverlay.id = 'safeAreaOverlay';
+            document.body.appendChild(safeAreaOverlay);
+        }
+        
+        const finalGradient = gradient || `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
+        const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
+        
+        safeAreaOverlay.style.cssText = `
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: ${safeAreaHeight} !important;
+            min-height: ${safeAreaHeight} !important;
+            background-color: ${color} !important;
+            background-image: ${finalGradient} !important;
+            background: ${finalGradient} !important;
+            background-attachment: fixed !important;
+            background-size: cover !important;
+            background-repeat: no-repeat !important;
+            z-index: 99999 !important;
+            pointer-events: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        `;
     }
 
     updateThemeColor(color, gradient = null) {
@@ -2107,17 +2172,12 @@ class MarketMoodApp {
             themeColorMeta.setAttribute('name', 'theme-color');
             document.head.appendChild(themeColorMeta);
         }
-        // Remove and re-add to force update in PWA mode
-        const oldContent = themeColorMeta.getAttribute('content');
-        if (oldContent !== color) {
-            themeColorMeta.remove();
-            themeColorMeta = document.createElement('meta');
-            themeColorMeta.setAttribute('name', 'theme-color');
-            themeColorMeta.setAttribute('content', color);
-            document.head.insertBefore(themeColorMeta, document.head.firstChild);
-        } else {
-            themeColorMeta.setAttribute('content', color);
-        }
+        // Always remove and re-add to force update in PWA mode (iOS requires this)
+        themeColorMeta.remove();
+        themeColorMeta = document.createElement('meta');
+        themeColorMeta.setAttribute('name', 'theme-color');
+        themeColorMeta.setAttribute('content', color);
+        document.head.insertBefore(themeColorMeta, document.head.firstChild);
         
         // Also update iOS Safari status bar style - black-translucent allows background to show
         let appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
@@ -2156,34 +2216,8 @@ class MarketMoodApp {
             }
         }
         
-        let safeAreaOverlay = document.getElementById('safeAreaOverlay');
-        if (!safeAreaOverlay) {
-            safeAreaOverlay = document.createElement('div');
-            safeAreaOverlay.id = 'safeAreaOverlay';
-            document.body.appendChild(safeAreaOverlay);
-        }
-        
-        // Force update with !important to override dark mode - always match mood-greeting-area exactly
-        // Add 1px extra height to prevent any gap
-        const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
-        safeAreaOverlay.style.cssText = `
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            height: ${safeAreaHeight} !important;
-            min-height: ${safeAreaHeight} !important;
-            background-color: ${bgColor} !important;
-            background-image: ${finalGradient} !important;
-            background: ${finalGradient} !important;
-            background-attachment: fixed !important;
-            background-size: cover !important;
-            background-repeat: no-repeat !important;
-            z-index: 99999 !important;
-            pointer-events: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        `;
+        // Use ensureSafeAreaOverlay to update the overlay
+        this.ensureSafeAreaOverlay(bgColor, finalGradient);
         
         // Force a repaint to ensure updates are visible
         void body.offsetHeight;
