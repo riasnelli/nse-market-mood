@@ -1363,7 +1363,7 @@ header h1 {
 
 .data-source-info {
     text-align: center;
-    color: white;
+    color: #666666;
     margin-top: 0px;
     margin-bottom: calc(120px + env(safe-area-inset-bottom));
     padding-bottom: 20px;
