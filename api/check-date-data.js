@@ -1,7 +1,9 @@
 const { 
   getDailyBhavcopyCollection, 
   getDailyIndicesCollection, 
-  getPreMarketDataCollection 
+  getPreMarketDataCollection,
+  getSignalCollection,
+  getSignalRunCollection
 } = require('./lib/mongodb');
 
 module.exports = async (req, res) => {
