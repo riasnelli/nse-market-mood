@@ -7,6 +7,7 @@
 :root {
     --mood-bg-color: #667eea;
     --mood-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --mood-solid-color: #667eea;
 }
 
 html {
@@ -19,6 +20,8 @@ html {
     background-repeat: no-repeat;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: auto;
+    margin: 0;
+    padding: 0;
 }
 
 body {
@@ -129,6 +132,7 @@ body.scroll-at-bottom::after {
 }
 
 /* Dynamic Island / Safe Area Top Background - Fixed overlay */
+/* Note: Now handled by .mood-header-safe, but keeping for backward compatibility */
 body::before {
     content: '';
     position: fixed;
@@ -138,7 +142,7 @@ body::before {
     height: env(safe-area-inset-top, 0px);
     min-height: env(safe-area-inset-top, 0px);
     background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-    background-color: var(--mood-bg-color, #667eea) !important;
+    background-color: var(--mood-solid-color, #667eea) !important;
     background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
     z-index: 9999;
     pointer-events: none;
@@ -164,45 +168,42 @@ header {
     background: transparent;
 }
 
+/* Safe Area Header - covers notch/Dynamic Island area */
+.mood-header-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    background-color: var(--mood-solid-color, #667eea);
+    transition: background 0.5s ease, background-color 0.5s ease;
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    box-sizing: border-box;
+    z-index: 1;
+}
+
 /* Greeting Area */
 .mood-greeting-area {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
     padding: 0 20px 104px 20px;
-    padding-top: calc(env(safe-area-inset-top, 0px));
+    padding-top: 0;
     color: white;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    background-color: #667eea;
+    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    background-color: var(--mood-solid-color, #667eea);
     transition: background 0.5s ease, background-color 0.5s ease;
     border-radius: 0 0 30px 30px;
-    width: 100vw;
+    width: 100%;
     position: relative;
-    left: 50%;
-    transform: translateX(-50%);
     margin-top: 0;
     margin-bottom: -84px;
     box-sizing: border-box;
     z-index: 1;
-    /* Extend to top to cover any gap */
-    top: 0;
 }
 
-.mood-greeting-area::before {
-    content: '';
-    position: absolute;
-    top: calc(-1 * env(safe-area-inset-top, 0px));
-    left: 0;
-    right: 0;
-    height: calc(env(safe-area-inset-top, 0px) + 2px);
-    background: inherit;
-    background-color: inherit;
-    background-image: inherit;
-    z-index: -1;
-    /* Ensure it covers any gap */
-    margin: 0;
-    padding: 0;
-}
+/* Removed ::before pseudo-element - safe area now handled by .mood-header-safe */
 
 .greeting-text {
     flex: 1;

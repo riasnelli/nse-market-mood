@@ -2064,9 +2064,36 @@ class MarketMoodApp {
         }
     }
 
+    applyMoodTheme(gradient, solidColor) {
+        // 1. Update CSS variable for header + greeting
+        document.documentElement.style.setProperty('--mood-gradient', gradient);
+        document.documentElement.style.setProperty('--mood-solid-color', solidColor);
+        
+        // 2. Update theme-color so iOS PWA toolbar/status area blends better
+        let meta = document.querySelector('meta[name="theme-color"]');
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('name', 'theme-color');
+            document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', solidColor);
+        
+        // 3. Update apple-mobile-web-app-status-bar-style
+        let appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (!appleStatusBar) {
+            appleStatusBar = document.createElement('meta');
+            appleStatusBar.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
+            document.head.appendChild(appleStatusBar);
+        }
+        appleStatusBar.setAttribute('content', 'black-translucent');
+        
+        console.log('✅ Applied mood theme - gradient:', gradient, 'solid:', solidColor);
+    }
+
     updateBackgroundColor(score) {
         // Update greeting area background based on mood score
         const moodGreetingArea = document.querySelector('.mood-greeting-area');
+        const moodHeaderSafe = document.querySelector('.mood-header-safe');
         console.log('🎨 updateBackgroundColor called with score:', score);
 
         let gradient;
@@ -2102,10 +2129,19 @@ class MarketMoodApp {
             themeColor = '#dc2626'; // Dark red
         }
 
-        // Update greeting area background
+        // Apply mood theme via CSS variables (this updates both header and greeting area)
+        this.applyMoodTheme(gradient, themeColor);
+
+        // Update greeting area background (for backward compatibility and direct style updates)
         if (moodGreetingArea) {
             moodGreetingArea.style.setProperty('background', gradient, 'important');
             moodGreetingArea.style.setProperty('background-color', themeColor, 'important');
+        }
+        
+        // Update safe area header background
+        if (moodHeaderSafe) {
+            moodHeaderSafe.style.setProperty('background', gradient, 'important');
+            moodHeaderSafe.style.setProperty('background-color', themeColor, 'important');
         }
         
         console.log('✅ Updated greeting area with gradient:', gradient, 'themeColor:', themeColor);
