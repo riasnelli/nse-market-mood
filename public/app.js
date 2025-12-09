@@ -315,8 +315,27 @@ class MarketMoodApp {
         
         // Immediately update theme color on init for PWA mode
         // This ensures Dynamic Island area has correct color from start
-        const initialColor = getComputedStyle(document.documentElement).getPropertyValue('--mood-bg-color').trim() || '#667eea';
-        this.updateThemeColor(initialColor);
+        // Try to get color from mood-greeting-area if it exists, otherwise use CSS variable
+        const moodGreetingArea = document.querySelector('.mood-greeting-area');
+        let initialColor = '#667eea';
+        let initialGradient = null;
+        
+        if (moodGreetingArea) {
+            const computedStyle = getComputedStyle(moodGreetingArea);
+            const bgColor = computedStyle.backgroundColor;
+            const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+            
+            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                initialColor = bgColor;
+            }
+            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial') {
+                initialGradient = bgGradient;
+            }
+        } else {
+            initialColor = getComputedStyle(document.documentElement).getPropertyValue('--mood-bg-color').trim() || '#667eea';
+        }
+        
+        this.updateThemeColor(initialColor, initialGradient);
         
         this.updateTimeEl = document.getElementById('updateTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
@@ -1906,10 +1925,11 @@ class MarketMoodApp {
         console.log('✅ Updated greeting area with gradient:', gradient, 'themeColor:', themeColor);
         
         // Update PWA theme-color meta tag for mobile browser inset
-        this.updateThemeColor(themeColor);
+        // Pass both color and gradient to ensure safe area matches greeting area
+        this.updateThemeColor(themeColor, gradient);
     }
 
-    updateThemeColor(color) {
+    updateThemeColor(color, gradient = null) {
         // Update or create theme-color meta tag for PWA inset
         // This is CRITICAL for iOS PWA Dynamic Island/notch area
         let themeColorMeta = document.querySelector('meta[name="theme-color"]');
@@ -1947,9 +1967,25 @@ class MarketMoodApp {
         body.style.setProperty('background-color', '#ffffff', 'important');
         
         // Create or update a fixed overlay div for Dynamic Island area (more reliable than ::before)
-        // Get current gradient from CSS variable
-        const gradient = getComputedStyle(document.documentElement).getPropertyValue('--mood-gradient').trim() || 
-                        `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
+        // Always get gradient and color from mood-greeting-area to ensure perfect match
+        const moodGreetingArea = document.querySelector('.mood-greeting-area');
+        let finalGradient = gradient || `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
+        let bgColor = color;
+        
+        // Always read from mood-greeting-area to ensure safe area matches exactly
+        if (moodGreetingArea) {
+            const computedStyle = getComputedStyle(moodGreetingArea);
+            const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+            const bgColorStyle = computedStyle.backgroundColor;
+            
+            // Use the actual computed background from greeting area
+            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial') {
+                finalGradient = bgGradient;
+            }
+            if (bgColorStyle && bgColorStyle !== 'rgba(0, 0, 0, 0)' && bgColorStyle !== 'transparent') {
+                bgColor = bgColorStyle;
+            }
+        }
         
         let safeAreaOverlay = document.getElementById('safeAreaOverlay');
         if (!safeAreaOverlay) {
@@ -1958,7 +1994,7 @@ class MarketMoodApp {
             document.body.appendChild(safeAreaOverlay);
         }
         
-        // Force update with !important to override dark mode
+        // Force update with !important to override dark mode - always match mood-greeting-area exactly
         safeAreaOverlay.style.cssText = `
             position: fixed !important;
             top: 0 !important;
@@ -1966,9 +2002,9 @@ class MarketMoodApp {
             right: 0 !important;
             height: env(safe-area-inset-top, 0px) !important;
             min-height: env(safe-area-inset-top, 0px) !important;
-            background-color: ${color} !important;
-            background-image: ${gradient} !important;
-            background: ${gradient} !important;
+            background-color: ${bgColor} !important;
+            background-image: ${finalGradient} !important;
+            background: ${finalGradient} !important;
             background-attachment: fixed !important;
             background-size: cover !important;
             background-repeat: no-repeat !important;
@@ -1979,7 +2015,7 @@ class MarketMoodApp {
         // Force a repaint to ensure updates are visible
         void body.offsetHeight;
         
-        console.log('Updated PWA theme color to:', color);
+        console.log('Updated PWA theme color to:', color, 'with gradient:', finalGradient);
     }
 
     setLoading(isLoading) {
