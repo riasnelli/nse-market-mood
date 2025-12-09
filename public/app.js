@@ -315,30 +315,15 @@ class MarketMoodApp {
         
         // Immediately update theme color on init for PWA mode
         // This ensures Dynamic Island area has correct color from start
-        // Try to get color from mood-greeting-area if it exists, otherwise use CSS variable
-        const moodGreetingArea = document.querySelector('.mood-greeting-area');
-        let initialColor = '#667eea';
-        let initialGradient = null;
+        // Use default gradient and color, will be updated when mood data loads
+        const defaultGradient = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        const defaultColor = '#667eea';
         
-        if (moodGreetingArea) {
-            const computedStyle = getComputedStyle(moodGreetingArea);
-            const bgColor = computedStyle.backgroundColor;
-            const bgGradient = computedStyle.backgroundImage || computedStyle.background;
-            
-            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
-                initialColor = bgColor;
-            }
-            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial') {
-                initialGradient = bgGradient;
-            }
-        } else {
-            initialColor = getComputedStyle(document.documentElement).getPropertyValue('--mood-bg-color').trim() || '#667eea';
-        }
-        
-        this.updateThemeColor(initialColor, initialGradient);
+        // Apply initial mood theme using CSS variables
+        this.applyMoodTheme(defaultGradient, defaultColor);
         
         // Also create safe area overlay immediately to prevent black inset
-        this.ensureSafeAreaOverlay(initialColor, initialGradient);
+        this.ensureSafeAreaOverlay(defaultColor, defaultGradient);
         
         this.updateTimeEl = document.getElementById('updateTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
