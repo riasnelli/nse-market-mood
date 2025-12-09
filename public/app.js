@@ -1269,6 +1269,13 @@ class MarketMoodApp {
                     }
                 }
             }, 100);
+            
+            // Re-render calendar if it's open to update today's color to match current mood
+            if (this.calendarModal && this.calendarModal.classList.contains('show')) {
+                setTimeout(() => {
+                    this.renderCalendar();
+                }, 150);
+            }
         }
 
         // Update indices display (only on Mood page)
