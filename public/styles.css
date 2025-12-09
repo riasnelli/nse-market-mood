@@ -1088,7 +1088,7 @@ header h1 {
 .table-container {
     background: white;
     border-radius: 15px;
-    padding: 15px;
+    padding: 0;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     overflow-x: hidden;
     width: 100%;
@@ -1101,14 +1101,19 @@ header h1 {
     border-collapse: collapse;
     table-layout: fixed;
     font-size: 0.8rem;
+    margin: 0;
 }
 
 .indices-table thead {
     background: #f8f9fa;
+    margin: 0;
+    padding: 0;
 }
 
 .indices-table th {
-    padding: 8px 6px;
+    padding: 8px 0;
+    padding-top: 8px;
+    padding-bottom: 8px;
     text-align: left;
     font-weight: 600;
     color: #333;
@@ -1116,6 +1121,17 @@ header h1 {
     font-size: 0.75rem;
     overflow: hidden;
     text-overflow: ellipsis;
+    margin: 0;
+}
+
+/* First column touches left edge */
+.indices-table th:first-child {
+    padding-left: 15px;
+}
+
+/* Last column touches right edge */
+.indices-table th:last-child {
+    padding-right: 15px;
 }
 
 .indices-table th:nth-child(1) {
@@ -1146,11 +1162,21 @@ header h1 {
 }
 
 .indices-table td {
-    padding: 8px 6px;
+    padding: 8px 0;
     border-bottom: 1px solid #f0f0f0;
     font-size: 0.8rem;
     height: 36px;
     vertical-align: middle;
+}
+
+/* First column touches left edge */
+.indices-table td:first-child {
+    padding-left: 15px;
+}
+
+/* Last column touches right edge */
+.indices-table td:last-child {
+    padding-right: 15px;
 }
 
 .indices-table td:nth-child(1) {
