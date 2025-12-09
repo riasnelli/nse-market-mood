@@ -22,37 +22,70 @@ function getYesterdayDate(todayDate) {
 /**
  * Simple Momentum Gap signal generator
  * Filters EQ series stocks, finds gap-up near high candidates
+ * Never throws - always returns a result object
  */
 async function generateSimpleMomentumGapSignals(date) {
   try {
     const yesterdayDate = getYesterdayDate(date);
     console.log(`📊 Generating signals: Premarket date=${date}, Bhavcopy date=${yesterdayDate}`);
 
-    // Get collections
-    const bhavcopyCollection = await getDailyBhavcopyCollection();
-    const premarketCollection = await getPreMarketDataCollection();
+    // Get collections with error handling
+    let bhavcopyCollection, premarketCollection;
+    try {
+      bhavcopyCollection = await getDailyBhavcopyCollection();
+      premarketCollection = await getPreMarketDataCollection();
+    } catch (dbError) {
+      console.error('Error connecting to MongoDB collections:', dbError);
+      return {
+        success: false,
+        date: date,
+        signals: [],
+        signal_count: 0,
+        message: 'Database connection failed. Please check MongoDB configuration.'
+      };
+    }
 
     // Get yesterday's bhavcopy data (EQ series only)
-    const bhavcopyData = await bhavcopyCollection
-      .find({ 
-        date: yesterdayDate,
-        series: 'EQ' // Only EQ series stocks
-      })
-      .toArray();
+    let bhavcopyData = [];
+    try {
+      bhavcopyData = await bhavcopyCollection
+        .find({ 
+          date: yesterdayDate,
+          series: 'EQ' // Only EQ series stocks
+        })
+        .toArray();
+    } catch (queryError) {
+      console.error('Error querying bhavcopy data:', queryError);
+      return {
+        success: false,
+        date: date,
+        signals: [],
+        signal_count: 0,
+        message: `Error querying bhavcopy data for ${yesterdayDate}`
+      };
+    }
 
     if (bhavcopyData.length === 0) {
       return {
         success: true,
         date: date,
         signals: [],
+        signal_count: 0,
         message: `No bhavcopy data found for ${yesterdayDate}`
       };
     }
 
     // Get today's premarket data
-    const premarketData = await premarketCollection
-      .find({ date: date })
-      .toArray();
+    let premarketData = [];
+    try {
+      premarketData = await premarketCollection
+        .find({ date: date })
+        .toArray();
+    } catch (queryError) {
+      console.error('Error querying premarket data:', queryError);
+      // Continue with empty premarket data - we can still process bhavcopy-only signals
+      premarketData = [];
+    }
 
     // Create lookup maps
     const bhavcopyMap = new Map();
@@ -92,9 +125,12 @@ async function generateSimpleMomentumGapSignals(date) {
       // Check if premarket price is near yesterday's high (momentum indicator)
       // This indicates the stock is continuing its upward momentum
       const yesterdayHigh = bhavcopy.high || yesterdayClose;
-      const nearHighPercent = ((yesterdayHigh - premarketPrice) / yesterdayHigh) * 100;
-      // Near high if premarket price is within 2% of yesterday's high (above or below)
-      const nearHigh = Math.abs(nearHighPercent) <= 2.0;
+      let nearHigh = false;
+      if (yesterdayHigh > 0) {
+        const nearHighPercent = ((yesterdayHigh - premarketPrice) / yesterdayHigh) * 100;
+        // Near high if premarket price is within 2% of yesterday's high (above or below)
+        nearHigh = Math.abs(nearHighPercent) <= 2.0;
+      }
 
       // Optional: Filter by volume (minimum volume threshold)
       const volume = bhavcopy.volume || 0;
@@ -182,48 +218,65 @@ async function generateSimpleMomentumGapSignals(date) {
         success: true,
         date: date,
         signals: [],
+        signal_count: 0,
         message: `No signals generated for ${date} (no stocks met criteria)`
       };
     }
 
-    // Save to database
-    const runId = uuidv4();
-    const signalRunCollection = await getSignalRunCollection();
-    const signalCollection = await getSignalCollection();
+    // Save to database (optional - don't fail if DB write fails)
+    let runId = null;
+    try {
+      // Check if uuid is available
+      let uuidv4;
+      try {
+        uuidv4 = require('uuid').v4;
+      } catch (uuidError) {
+        console.warn('uuid package not available, using timestamp-based ID');
+        uuidv4 = () => `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      }
 
-    // Create signal run
-    const signalRun = {
-      run_id: runId,
-      date: date,
-      bhavcopy_date: yesterdayDate,
-      strategy: 'momentum_gap',
-      signal_count: topSignals.length,
-      created_at: new Date()
-    };
+      runId = uuidv4();
+      const signalRunCollection = await getSignalRunCollection();
+      const signalCollection = await getSignalCollection();
 
-    await signalRunCollection.insertOne(signalRun);
+      // Create signal run
+      const signalRun = {
+        run_id: runId,
+        date: date,
+        bhavcopy_date: yesterdayDate,
+        strategy: 'momentum_gap',
+        signal_count: topSignals.length,
+        created_at: new Date()
+      };
 
-    // Create signal documents
-    const signalDocs = topSignals.map(signal => ({
-      run_id: runId,
-      date: date,
-      symbol: signal.symbol,
-      side: signal.side,
-      score: signal.score,
-      entry_price: signal.entry_price,
-      stop_loss: signal.stop_loss,
-      target_price: signal.target_price,
-      confidence_score: signal.confidence_score,
-      feature_fields: {
-        gap_percent: signal.gap_percent,
-        near_high: signal.near_high,
-        volume: signal.volume,
-        delivery_percent: signal.delivery_percent
-      },
-      reason: signal.reason
-    }));
+      await signalRunCollection.insertOne(signalRun);
 
-    await signalCollection.insertMany(signalDocs);
+      // Create signal documents
+      const signalDocs = topSignals.map(signal => ({
+        run_id: runId,
+        date: date,
+        symbol: signal.symbol,
+        side: signal.side,
+        score: signal.score,
+        entry_price: signal.entry_price,
+        stop_loss: signal.stop_loss,
+        target_price: signal.target_price,
+        confidence_score: signal.confidence_score,
+        feature_fields: {
+          gap_percent: signal.gap_percent,
+          near_high: signal.near_high,
+          volume: signal.volume,
+          delivery_percent: signal.delivery_percent
+        },
+        reason: signal.reason
+      }));
+
+      await signalCollection.insertMany(signalDocs);
+      console.log(`✅ Saved ${topSignals.length} signals to database with run_id: ${runId}`);
+    } catch (dbWriteError) {
+      console.warn('⚠️ Failed to save signals to database (continuing anyway):', dbWriteError.message);
+      // Continue - signals are still valid even if DB write fails
+    }
 
     return {
       success: true,
@@ -235,8 +288,16 @@ async function generateSimpleMomentumGapSignals(date) {
     };
 
   } catch (error) {
+    // Never throw - always return an error response object
     console.error('Error generating signals:', error);
-    throw error;
+    return {
+      success: false,
+      date: date || new Date().toISOString().split('T')[0],
+      signals: [],
+      signal_count: 0,
+      message: `Signal generation failed: ${error.message || 'Unknown error'}`,
+      error: error.message
+    };
   }
 }
 
@@ -264,33 +325,39 @@ module.exports = async (req, res) => {
     
     if (!mongoUri) {
       return res.status(200).json({
-        success: true,
+        success: false,
         date: date,
+        run_id: null,
+        signal_count: 0,
         signals: [],
         message: 'Signal generation requires MongoDB configuration.'
       });
     }
 
-    // Generate signals
+    // Generate signals (this function never throws)
     const result = await generateSimpleMomentumGapSignals(date);
     
+    // Ensure response matches expected format (like test-generate-signals)
     res.status(200).json({
-      success: result.success,
-      date: result.date,
+      success: result.success !== false, // Default to true if not explicitly false
+      date: result.date || date,
       run_id: result.run_id || null,
-      signal_count: result.signal_count || result.signals.length,
+      signal_count: result.signal_count || (result.signals ? result.signals.length : 0),
       signals: result.signals || [],
       message: result.message || 'Signals generated successfully'
     });
 
   } catch (error) {
-    console.error('Error in generate-signals:', error);
+    // Final safety net - should never reach here, but just in case
+    console.error('Unexpected error in generate-signals handler:', error);
     const date = req.query.date || new Date().toISOString().split('T')[0];
     res.status(200).json({
       success: false,
       date: date,
+      run_id: null,
+      signal_count: 0,
       signals: [],
-      message: 'Error generating signals',
+      message: 'Signal generation is temporarily unavailable. Please try again later.',
       error: error.message
     });
   }
