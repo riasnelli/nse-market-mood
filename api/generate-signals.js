@@ -2,7 +2,8 @@ const {
   getDailyBhavcopyCollection, 
   getPreMarketDataCollection,
   getSignalCollection,
-  getSignalRunCollection
+  getSignalRunCollection,
+  getUploadedDataCollection
 } = require('./lib/mongodb');
 
 // Try to load uuid, but don't fail if it's not available
@@ -53,15 +54,35 @@ async function generateSimpleMomentumGapSignals(date) {
       };
     }
 
-    // Get yesterday's bhavcopy data (EQ series only)
+    // Get yesterday's bhavcopy data from both daily_bhavcopy AND uploadedBhav collections
     let bhavcopyData = [];
     try {
+      // First, try daily_bhavcopy collection
       bhavcopyData = await bhavcopyCollection
         .find({ 
           date: yesterdayDate,
           series: 'EQ' // Only EQ series stocks
         })
         .toArray();
+      
+      // If no data in daily_bhavcopy, check uploadedBhav collection
+      if (bhavcopyData.length === 0) {
+        console.log(`No data in daily_bhavcopy for ${yesterdayDate}, checking uploadedBhav...`);
+        const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+        const uploadedBhavDocs = await uploadedBhavCollection
+          .find({ date: yesterdayDate })
+          .toArray();
+        
+        // Extract indices array from uploaded documents
+        for (const doc of uploadedBhavDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            // Filter for EQ series and add to bhavcopyData
+            const eqStocks = doc.indices.filter(item => item.series === 'EQ');
+            bhavcopyData = bhavcopyData.concat(eqStocks);
+          }
+        }
+        console.log(`Found ${bhavcopyData.length} EQ stocks in uploadedBhav for ${yesterdayDate}`);
+      }
     } catch (queryError) {
       console.error('Error querying bhavcopy data:', queryError);
       return {
@@ -79,16 +100,34 @@ async function generateSimpleMomentumGapSignals(date) {
         date: date,
         signals: [],
         signal_count: 0,
-        message: `No bhavcopy data found for ${yesterdayDate}`
+        message: `No bhavcopy data found for ${yesterdayDate} in daily_bhavcopy or uploadedBhav collections`
       };
     }
 
-    // Get today's premarket data
+    // Get today's premarket data from both premarket_data AND uploadedPreMarket collections
     let premarketData = [];
     try {
+      // First, try premarket_data collection
       premarketData = await premarketCollection
         .find({ date: date })
         .toArray();
+      
+      // If no data in premarket_data, check uploadedPreMarket collection
+      if (premarketData.length === 0) {
+        console.log(`No data in premarket_data for ${date}, checking uploadedPreMarket...`);
+        const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
+        const uploadedPremarketDocs = await uploadedPremarketCollection
+          .find({ date: date })
+          .toArray();
+        
+        // Extract indices array from uploaded documents
+        for (const doc of uploadedPremarketDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            premarketData = premarketData.concat(doc.indices);
+          }
+        }
+        console.log(`Found ${premarketData.length} items in uploadedPreMarket for ${date}`);
+      }
     } catch (queryError) {
       console.error('Error querying premarket data:', queryError);
       // Continue with empty premarket data - we can still process bhavcopy-only signals
