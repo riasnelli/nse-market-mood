@@ -340,6 +340,33 @@ class MarketMoodApp {
         // Also create safe area overlay immediately to prevent black inset
         this.ensureSafeAreaOverlay(initialColor, initialGradient);
         
+        // Set up a periodic check to ensure safe area overlay always matches mood-greeting-area
+        // This handles cases where the background changes but updateThemeColor isn't called
+        this.safeAreaSyncInterval = setInterval(() => {
+            const moodGreetingArea = document.querySelector('.mood-greeting-area');
+            if (moodGreetingArea) {
+                const computedStyle = getComputedStyle(moodGreetingArea);
+                const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+                const bgColor = computedStyle.backgroundColor;
+                
+                if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                    const safeAreaOverlay = document.getElementById('safeAreaOverlay');
+                    if (safeAreaOverlay) {
+                        const currentBg = safeAreaOverlay.style.background || safeAreaOverlay.style.backgroundImage;
+                        const currentColor = safeAreaOverlay.style.backgroundColor;
+                        
+                        // Only update if there's a mismatch to avoid unnecessary repaints
+                        if (currentBg !== bgGradient || currentColor !== bgColor) {
+                            this.ensureSafeAreaOverlay(bgColor, bgGradient);
+                        }
+                    } else {
+                        // Recreate if missing
+                        this.ensureSafeAreaOverlay(bgColor, bgGradient);
+                    }
+                }
+            }
+        }, 500); // Check every 500ms
+        
         this.updateTimeEl = document.getElementById('updateTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
         this.greetingNameEl = document.getElementById('greetingName');
@@ -1029,6 +1056,8 @@ class MarketMoodApp {
             clearInterval(this.timerId);
             this.timerId = null;
         }
+        // Keep safe area sync interval running even when polling stops
+        // This ensures the overlay always matches the mood-greeting-area
     }
 
     handleManualRefresh() {
@@ -2148,23 +2177,21 @@ class MarketMoodApp {
         if (!safeAreaOverlay) {
             safeAreaOverlay = document.createElement('div');
             safeAreaOverlay.id = 'safeAreaOverlay';
-            document.body.appendChild(safeAreaOverlay);
+            document.body.insertBefore(safeAreaOverlay, document.body.firstChild);
             console.log('✅ Created safeAreaOverlay element');
         }
         
-        const finalGradient = gradient || `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
-        const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
-        
-        // Always read from mood-greeting-area if available to ensure perfect match
+        // ALWAYS read from mood-greeting-area as the source of truth
         const moodGreetingArea = document.querySelector('.mood-greeting-area');
         let finalColor = color;
-        let finalGrad = finalGradient;
+        let finalGrad = gradient || `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
         
         if (moodGreetingArea) {
             const computedStyle = getComputedStyle(moodGreetingArea);
             const bgGradient = computedStyle.backgroundImage || computedStyle.background;
             const bgColor = computedStyle.backgroundColor;
             
+            // Use the actual computed background from greeting area - this is the source of truth
             if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' && bgGradient !== 'rgba(0, 0, 0, 0)') {
                 finalGrad = bgGradient;
             }
@@ -2173,29 +2200,37 @@ class MarketMoodApp {
             }
         }
         
+        const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
+        
+        // Apply styles with maximum specificity to override any other styles
         safeAreaOverlay.style.cssText = `
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             right: 0 !important;
+            width: 100% !important;
             height: ${safeAreaHeight} !important;
             min-height: ${safeAreaHeight} !important;
+            max-height: ${safeAreaHeight} !important;
             background-color: ${finalColor} !important;
             background-image: ${finalGrad} !important;
             background: ${finalGrad} !important;
             background-attachment: fixed !important;
             background-size: cover !important;
+            background-position: center top !important;
             background-repeat: no-repeat !important;
             z-index: 99999 !important;
             pointer-events: none !important;
             margin: 0 !important;
             padding: 0 !important;
+            border: none !important;
             display: block !important;
             visibility: visible !important;
             opacity: 1 !important;
+            transform: none !important;
         `;
         
-        console.log('✅ Updated safeAreaOverlay with color:', finalColor, 'gradient:', finalGrad);
+        console.log('✅ Updated safeAreaOverlay to match mood-greeting-area:', finalColor, finalGrad);
     }
 
     updateThemeColor(color, gradient = null) {
