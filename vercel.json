@@ -30,6 +30,30 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/get-latest-signal-date.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/get-signals.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/generate-signals.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/check-date-data.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/test-generate-signals.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/index-history.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
@@ -58,6 +82,30 @@
     {
       "src": "/api/get-uploaded-dates",
       "dest": "/api/get-uploaded-dates.js"
+    },
+    {
+      "src": "/api/get-latest-signal-date",
+      "dest": "/api/get-latest-signal-date.js"
+    },
+    {
+      "src": "/api/get-signals",
+      "dest": "/api/get-signals.js"
+    },
+    {
+      "src": "/api/generate-signals",
+      "dest": "/api/generate-signals.js"
+    },
+    {
+      "src": "/api/check-date-data",
+      "dest": "/api/check-date-data.js"
+    },
+    {
+      "src": "/api/test-generate-signals",
+      "dest": "/api/test-generate-signals.js"
+    },
+    {
+      "src": "/api/index-history",
+      "dest": "/api/index-history.js"
     },
     {
       "src": "/(.*)",
