@@ -4478,6 +4478,183 @@ class MarketMoodApp {
         return data;
     }
 
+    analyzeMarketConditionsAndRecommendStrategy() {
+        // Analyze today's market conditions based on available data
+        if (!this.lastMarketData) {
+            console.log('No market data available for analysis');
+            return null;
+        }
+
+        const { indices, vix, mood, advanceDecline } = this.lastMarketData;
+        
+        if (!indices || indices.length === 0) {
+            console.log('No indices data available for analysis');
+            return null;
+        }
+
+        // Get key indices
+        const nifty50 = indices.find(idx => idx.symbol && idx.symbol.toUpperCase().includes('NIFTY 50'));
+        const niftyBank = indices.find(idx => idx.symbol && idx.symbol.toUpperCase().includes('NIFTY BANK'));
+        const niftyIT = indices.find(idx => idx.symbol && idx.symbol.toUpperCase().includes('NIFTY IT'));
+        const vixValue = vix?.last || (indices.find(idx => idx.symbol && idx.symbol.toUpperCase().includes('VIX'))?.last);
+
+        // Calculate market metrics
+        const moodScore = mood?.score || 50;
+        const niftyChange = nifty50?.pChange || 0;
+        const bankChange = niftyBank?.pChange || 0;
+        const advances = advanceDecline?.advances || 0;
+        const declines = advanceDecline?.declines || 0;
+        const advanceDeclineRatio = advances > 0 && declines > 0 ? advances / declines : 1;
+
+        // Analyze conditions
+        const isBullish = moodScore >= 60;
+        const isBearish = moodScore <= 40;
+        const isNeutral = moodScore >= 40 && moodScore < 60;
+        const isVolatile = vixValue && vixValue > 18;
+        const isLowVolatility = vixValue && vixValue < 12;
+        const strongBreadth = advanceDeclineRatio > 1.5;
+        const weakBreadth = advanceDeclineRatio < 0.67;
+        const positiveMomentum = niftyChange > 0.5 && bankChange > 0.5;
+        const negativeMomentum = niftyChange < -0.5 && bankChange < -0.5;
+
+        // Determine strategy
+        let strategy = 'Momentum Gap';
+        let strategyDescription = 'Look for stocks with positive gaps and strong momentum.';
+        let reasoning = [];
+
+        if (isBullish && positiveMomentum && strongBreadth && !isVolatile) {
+            // Strong bullish conditions - Momentum Gap strategy
+            strategy = 'Momentum Gap';
+            strategyDescription = 'Market is showing strong bullish momentum with broad participation. Focus on stocks with positive gaps and strong relative strength.';
+            reasoning = [
+                `Market mood: ${moodScore}/100 (Bullish)`,
+                `NIFTY 50: ${niftyChange > 0 ? '+' : ''}${niftyChange.toFixed(2)}%`,
+                `Market breadth: ${advances} advances vs ${declines} declines`,
+                `Volatility: ${vixValue ? vixValue.toFixed(2) : 'N/A'} (${isVolatile ? 'High' : 'Normal'})`
+            ];
+        } else if (isBullish && isVolatile) {
+            // Bullish but volatile - Breakout strategy
+            strategy = 'Breakout';
+            strategyDescription = 'Market is bullish but volatile. Look for stocks breaking out of consolidation patterns with high volume.';
+            reasoning = [
+                `Market mood: ${moodScore}/100 (Bullish)`,
+                `High volatility: VIX at ${vixValue?.toFixed(2) || 'N/A'}`,
+                `Focus on breakouts with volume confirmation`
+            ];
+        } else if (isNeutral && isLowVolatility) {
+            // Neutral, low volatility - Mean Reversion
+            strategy = 'Mean Reversion';
+            strategyDescription = 'Market is neutral with low volatility. Look for oversold stocks that may revert to mean.';
+            reasoning = [
+                `Market mood: ${moodScore}/100 (Neutral)`,
+                `Low volatility: VIX at ${vixValue?.toFixed(2) || 'N/A'}`,
+                `Suitable for mean reversion trades`
+            ];
+        } else if (isBearish && negativeMomentum) {
+            // Bearish conditions - Short or Wait
+            strategy = 'Defensive / Wait';
+            strategyDescription = 'Market is showing bearish pressure. Consider defensive positions or wait for better entry points.';
+            reasoning = [
+                `Market mood: ${moodScore}/100 (Bearish)`,
+                `NIFTY 50: ${niftyChange.toFixed(2)}%`,
+                `Weak market breadth: ${advances} advances vs ${declines} declines`,
+                `Consider defensive strategies or wait for reversal signals`
+            ];
+        } else if (isVolatile && (isBullish || isNeutral)) {
+            // High volatility - Volatility Play
+            strategy = 'Volatility Play';
+            strategyDescription = 'High volatility environment. Look for stocks with strong momentum that can benefit from volatility.';
+            reasoning = [
+                `Market mood: ${moodScore}/100`,
+                `High volatility: VIX at ${vixValue?.toFixed(2) || 'N/A'}`,
+                `Focus on high-beta stocks with strong momentum`
+            ];
+        }
+
+        return {
+            strategy,
+            strategyDescription,
+            reasoning,
+            recommendedStocks: [], // Will be populated from signals
+            marketConditions: {
+                moodScore,
+                niftyChange,
+                bankChange,
+                vix: vixValue,
+                advanceDeclineRatio,
+                advances,
+                declines
+            }
+        };
+    }
+
+    renderStrategyRecommendation(analysis, container) {
+        if (!analysis || !container) return;
+
+        const strategyCard = document.createElement('div');
+        strategyCard.style.cssText = `
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        `;
+
+        strategyCard.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                <div style="font-size: 2rem;">📊</div>
+                <div>
+                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 4px;">Recommended Strategy for Tomorrow</div>
+                    <div style="font-size: 1.4rem; font-weight: 700;">${analysis.strategy}</div>
+                </div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); border-radius: 12px; padding: 15px; margin-bottom: 15px; backdrop-filter: blur(10px);">
+                <div style="font-size: 0.95rem; line-height: 1.6; opacity: 0.95;">
+                    ${analysis.strategyDescription}
+                </div>
+            </div>
+            <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; opacity: 0.9;">Market Analysis:</div>
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.85rem; line-height: 1.8; opacity: 0.9;">
+                    ${analysis.reasoning.map(r => `<li>${r}</li>`).join('')}
+                </ul>
+            </div>
+            ${analysis.recommendedStocks && analysis.recommendedStocks.length > 0 ? `
+                <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 15px;">
+                    <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; opacity: 0.9;">Top Recommended Stocks:</div>
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+                        ${analysis.recommendedStocks.map((stock, idx) => `
+                            <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;">${idx + 1}. ${typeof stock === 'string' ? stock : stock.symbol}</div>
+                                    ${typeof stock === 'object' && stock.score ? `
+                                        <div style="font-size: 0.8rem; opacity: 0.85;">
+                                            Score: <strong>${stock.score}/100</strong>
+                                            ${stock.entryPrice ? ` • Entry: ₹${stock.entryPrice.toFixed(2)}` : ''}
+                                            ${stock.targetPrice ? ` • Target: ₹${stock.targetPrice.toFixed(2)}` : ''}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                ${typeof stock === 'object' && stock.score ? `
+                                    <div style="background: rgba(255,255,255,0.25); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">
+                                        ${stock.score}/100
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : `
+                <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; text-align: center; font-size: 0.85rem; opacity: 0.9;">
+                    Stock recommendations will be generated based on the selected strategy.
+                </div>
+            `}
+        `;
+
+        container.appendChild(strategyCard);
+    }
+
     async generateSignals() {
         console.log('Generate Signals button clicked');
         
