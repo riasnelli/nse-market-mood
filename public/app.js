@@ -315,15 +315,30 @@ class MarketMoodApp {
         
         // Immediately update theme color on init for PWA mode
         // This ensures Dynamic Island area has correct color from start
-        // Use default gradient and color, will be updated when mood data loads
-        const defaultGradient = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-        const defaultColor = '#667eea';
+        // Try to get color from mood-greeting-area if it exists, otherwise use CSS variable
+        const moodGreetingArea = document.querySelector('.mood-greeting-area');
+        let initialColor = '#667eea';
+        let initialGradient = null;
         
-        // Apply initial mood theme using CSS variables
-        this.applyMoodTheme(defaultGradient, defaultColor);
+        if (moodGreetingArea) {
+            const computedStyle = getComputedStyle(moodGreetingArea);
+            const bgColor = computedStyle.backgroundColor;
+            const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+            
+            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                initialColor = bgColor;
+            }
+            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial') {
+                initialGradient = bgGradient;
+            }
+        } else {
+            initialColor = getComputedStyle(document.documentElement).getPropertyValue('--mood-bg-color').trim() || '#667eea';
+        }
+        
+        this.updateThemeColor(initialColor, initialGradient);
         
         // Also create safe area overlay immediately to prevent black inset
-        this.ensureSafeAreaOverlay(defaultColor, defaultGradient);
+        this.ensureSafeAreaOverlay(initialColor, initialGradient);
         
         this.updateTimeEl = document.getElementById('updateTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
@@ -1254,13 +1269,6 @@ class MarketMoodApp {
                     }
                 }
             }, 100);
-            
-            // Re-render calendar if it's open to update today's color to match current mood
-            if (this.calendarModal && this.calendarModal.classList.contains('show')) {
-                setTimeout(() => {
-                    this.renderCalendar();
-                }, 150);
-            }
         }
 
         // Update indices display (only on Mood page)
@@ -2049,36 +2057,9 @@ class MarketMoodApp {
         }
     }
 
-    applyMoodTheme(gradient, solidColor) {
-        // 1. Update CSS variable for header + greeting
-        document.documentElement.style.setProperty('--mood-gradient', gradient);
-        document.documentElement.style.setProperty('--mood-solid-color', solidColor);
-        
-        // 2. Update theme-color so iOS PWA toolbar/status area blends better
-        let meta = document.querySelector('meta[name="theme-color"]');
-        if (!meta) {
-            meta = document.createElement('meta');
-            meta.setAttribute('name', 'theme-color');
-            document.head.appendChild(meta);
-        }
-        meta.setAttribute('content', solidColor);
-        
-        // 3. Update apple-mobile-web-app-status-bar-style
-        let appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-        if (!appleStatusBar) {
-            appleStatusBar = document.createElement('meta');
-            appleStatusBar.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
-            document.head.appendChild(appleStatusBar);
-        }
-        appleStatusBar.setAttribute('content', 'black-translucent');
-        
-        console.log('✅ Applied mood theme - gradient:', gradient, 'solid:', solidColor);
-    }
-
     updateBackgroundColor(score) {
         // Update greeting area background based on mood score
         const moodGreetingArea = document.querySelector('.mood-greeting-area');
-        const moodHeaderSafe = document.querySelector('.mood-header-safe');
         console.log('🎨 updateBackgroundColor called with score:', score);
 
         let gradient;
@@ -2114,19 +2095,10 @@ class MarketMoodApp {
             themeColor = '#dc2626'; // Dark red
         }
 
-        // Apply mood theme via CSS variables (this updates both header and greeting area)
-        this.applyMoodTheme(gradient, themeColor);
-
-        // Update greeting area background (for backward compatibility and direct style updates)
+        // Update greeting area background
         if (moodGreetingArea) {
             moodGreetingArea.style.setProperty('background', gradient, 'important');
             moodGreetingArea.style.setProperty('background-color', themeColor, 'important');
-        }
-        
-        // Update safe area header background
-        if (moodHeaderSafe) {
-            moodHeaderSafe.style.setProperty('background', gradient, 'important');
-            moodHeaderSafe.style.setProperty('background-color', themeColor, 'important');
         }
         
         console.log('✅ Updated greeting area with gradient:', gradient, 'themeColor:', themeColor);
@@ -2143,33 +2115,56 @@ class MarketMoodApp {
         // Pass both color and gradient to ensure safe area matches greeting area
         this.updateThemeColor(themeColor, gradient);
         
-        // Force update safe area overlay again after a short delay to ensure it matches
-        // This is needed because the greeting area background might not be computed yet
-        setTimeout(() => {
-            const updatedGreetingArea = document.querySelector('.mood-greeting-area');
-            if (updatedGreetingArea) {
-                const computedStyle = getComputedStyle(updatedGreetingArea);
-                const bgGradient = computedStyle.backgroundImage || computedStyle.background;
-                const bgColor = computedStyle.backgroundColor;
-                
-                if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
-                    this.updateThemeColor(bgColor, bgGradient);
+        // Force update safe area overlay again after DOM update to ensure perfect match
+        // Use requestAnimationFrame to ensure greeting area styles are applied
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const updatedGreetingArea = document.querySelector('.mood-greeting-area');
+                if (updatedGreetingArea) {
+                    const computedStyle = getComputedStyle(updatedGreetingArea);
+                    const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+                    const bgColor = computedStyle.backgroundColor;
+                    
+                    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                        // Force update to ensure perfect match
+                        this.updateThemeColor(bgColor, bgGradient);
+                    }
                 }
-            }
-        }, 200);
+            });
+        });
     }
 
     ensureSafeAreaOverlay(color, gradient = null) {
         // Ensure safe area overlay exists and has correct color immediately
+        // This is CRITICAL for iOS PWA to show mood color in the notch/Dynamic Island area
         let safeAreaOverlay = document.getElementById('safeAreaOverlay');
         if (!safeAreaOverlay) {
             safeAreaOverlay = document.createElement('div');
             safeAreaOverlay.id = 'safeAreaOverlay';
             document.body.appendChild(safeAreaOverlay);
+            console.log('✅ Created safeAreaOverlay element');
         }
         
         const finalGradient = gradient || `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
         const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
+        
+        // Always read from mood-greeting-area if available to ensure perfect match
+        const moodGreetingArea = document.querySelector('.mood-greeting-area');
+        let finalColor = color;
+        let finalGrad = finalGradient;
+        
+        if (moodGreetingArea) {
+            const computedStyle = getComputedStyle(moodGreetingArea);
+            const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+            const bgColor = computedStyle.backgroundColor;
+            
+            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' && bgGradient !== 'rgba(0, 0, 0, 0)') {
+                finalGrad = bgGradient;
+            }
+            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                finalColor = bgColor;
+            }
+        }
         
         safeAreaOverlay.style.cssText = `
             position: fixed !important;
@@ -2178,9 +2173,9 @@ class MarketMoodApp {
             right: 0 !important;
             height: ${safeAreaHeight} !important;
             min-height: ${safeAreaHeight} !important;
-            background-color: ${color} !important;
-            background-image: ${finalGradient} !important;
-            background: ${finalGradient} !important;
+            background-color: ${finalColor} !important;
+            background-image: ${finalGrad} !important;
+            background: ${finalGrad} !important;
             background-attachment: fixed !important;
             background-size: cover !important;
             background-repeat: no-repeat !important;
@@ -2188,7 +2183,12 @@ class MarketMoodApp {
             pointer-events: none !important;
             margin: 0 !important;
             padding: 0 !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
         `;
+        
+        console.log('✅ Updated safeAreaOverlay with color:', finalColor, 'gradient:', finalGrad);
     }
 
     updateThemeColor(color, gradient = null) {
@@ -2201,11 +2201,11 @@ class MarketMoodApp {
             document.head.appendChild(themeColorMeta);
         }
         // Always remove and re-add to force update in PWA mode (iOS requires this)
-        themeColorMeta.remove();
-        themeColorMeta = document.createElement('meta');
-        themeColorMeta.setAttribute('name', 'theme-color');
-        themeColorMeta.setAttribute('content', color);
-        document.head.insertBefore(themeColorMeta, document.head.firstChild);
+            themeColorMeta.remove();
+            themeColorMeta = document.createElement('meta');
+            themeColorMeta.setAttribute('name', 'theme-color');
+            themeColorMeta.setAttribute('content', color);
+            document.head.insertBefore(themeColorMeta, document.head.firstChild);
         
         // Also update iOS Safari status bar style - black-translucent allows background to show
         let appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
@@ -2223,20 +2223,19 @@ class MarketMoodApp {
         html.style.setProperty('background-color', '#ffffff', 'important');
         body.style.setProperty('background-color', '#ffffff', 'important');
         
-        // Create or update a fixed overlay div for Dynamic Island area (more reliable than ::before)
-        // Always get gradient and color from mood-greeting-area to ensure perfect match
+        // CRITICAL: Always read from mood-greeting-area to ensure safe area matches exactly
+        // This ensures the inset area matches the greeting area background on iOS
         const moodGreetingArea = document.querySelector('.mood-greeting-area');
         let finalGradient = gradient || `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
         let bgColor = color;
         
-        // Always read from mood-greeting-area to ensure safe area matches exactly
         if (moodGreetingArea) {
             const computedStyle = getComputedStyle(moodGreetingArea);
             const bgGradient = computedStyle.backgroundImage || computedStyle.background;
             const bgColorStyle = computedStyle.backgroundColor;
             
-            // Use the actual computed background from greeting area
-            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial') {
+            // Use the actual computed background from greeting area - this is the source of truth
+            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' && bgGradient !== 'rgba(0, 0, 0, 0)') {
                 finalGradient = bgGradient;
             }
             if (bgColorStyle && bgColorStyle !== 'rgba(0, 0, 0, 0)' && bgColorStyle !== 'transparent') {
@@ -2244,13 +2243,13 @@ class MarketMoodApp {
             }
         }
         
-        // Use ensureSafeAreaOverlay to update the overlay
+        // Update safe area overlay to match mood-greeting-area exactly
         this.ensureSafeAreaOverlay(bgColor, finalGradient);
         
-        // Force a repaint to ensure updates are visible
+        // Force a repaint to ensure updates are visible on iOS
         void body.offsetHeight;
         
-        console.log('Updated PWA theme color to:', color, 'with gradient:', finalGradient);
+        console.log('✅ Updated safe area overlay to match mood-greeting-area:', bgColor, finalGradient);
     }
 
     setLoading(isLoading) {
@@ -2810,38 +2809,24 @@ class MarketMoodApp {
             calendarDays.appendChild(dayEl);
         }
         
-        // Get today's date string for comparison
-        const today = new Date();
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        
         // Current month's days
         for (let day = 1; day <= daysInMonth; day++) {
             const dayEl = document.createElement('div');
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isToday = dateStr === todayStr;
             
             dayEl.className = 'calendar-day';
             dayEl.textContent = day;
             dayEl.setAttribute('data-date', dateStr);
             
-            let score = null;
-            let hasData = false;
-            
-            // Check if this is today and we have current mood data
-            if (isToday && this.lastMarketData && this.lastMarketData.mood && typeof this.lastMarketData.mood.score === 'number') {
-                // Use current mood score for today
-                score = this.lastMarketData.mood.score;
-                hasData = true;
-                dayEl.classList.add('has-data');
-                console.log('📅 Calendar: Using current mood score for today:', score);
-            } else if (this.availableDates.includes(dateStr)) {
-                // Check if date has uploaded data
-                hasData = true;
+            // Check if date has data
+            if (this.availableDates.includes(dateStr)) {
                 dayEl.classList.add('has-data');
                 
                 // Add mood color class based on mood string or score
                 const moodData = this.availableDatesData.get(dateStr);
                 if (moodData) {
+                    let score = null;
+                    
                     // Check if moodData is an object with score
                     if (typeof moodData === 'object' && moodData !== null && moodData.score !== undefined) {
                         score = moodData.score;
@@ -2857,34 +2842,37 @@ class MarketMoodApp {
                         else if (moodLower.includes('bearish') && !moodLower.includes('slightly')) score = 25;
                         else if (moodLower.includes('very bearish')) score = 15;
                     }
+                    
+                    if (score !== null) {
+                        if (score >= 70) {
+                            dayEl.classList.add('mood-very-bullish');
+                        } else if (score >= 60) {
+                            dayEl.classList.add('mood-bullish');
+                        } else if (score >= 50) {
+                            dayEl.classList.add('mood-slightly-bullish');
+                        } else if (score >= 40) {
+                            dayEl.classList.add('mood-neutral');
+                        } else if (score >= 30) {
+                            dayEl.classList.add('mood-slightly-bearish');
+                        } else if (score >= 20) {
+                            dayEl.classList.add('mood-bearish');
+                        } else {
+                            dayEl.classList.add('mood-very-bearish');
+                        }
+                    }
                 }
+                
+                // Add click handler
+                dayEl.addEventListener('click', () => {
+                    this.selectCalendarDate(dateStr);
+                });
             } else {
                 dayEl.classList.add('no-data');
+                // Still allow click to load previous date
+                dayEl.addEventListener('click', () => {
+                    this.selectCalendarDate(dateStr);
+                });
             }
-            
-            // Apply mood color class based on score
-            if (score !== null) {
-                if (score >= 70) {
-                    dayEl.classList.add('mood-very-bullish');
-                } else if (score >= 60) {
-                    dayEl.classList.add('mood-bullish');
-                } else if (score >= 50) {
-                    dayEl.classList.add('mood-slightly-bullish');
-                } else if (score >= 40) {
-                    dayEl.classList.add('mood-neutral');
-                } else if (score >= 30) {
-                    dayEl.classList.add('mood-slightly-bearish');
-                } else if (score >= 20) {
-                    dayEl.classList.add('mood-bearish');
-                } else {
-                    dayEl.classList.add('mood-very-bearish');
-                }
-            }
-            
-            // Add click handler
-            dayEl.addEventListener('click', () => {
-                this.selectCalendarDate(dateStr);
-            });
             
             // Mark as selected if it's the selected date
             if (this.selectedCalendarDate === dateStr) {

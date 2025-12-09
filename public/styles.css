@@ -7,7 +7,6 @@
 :root {
     --mood-bg-color: #667eea;
     --mood-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --mood-solid-color: #667eea;
 }
 
 html {
@@ -20,8 +19,6 @@ html {
     background-repeat: no-repeat;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: auto;
-    margin: 0;
-    padding: 0;
 }
 
 body {
@@ -131,27 +128,25 @@ body.scroll-at-bottom::after {
     pointer-events: none;
 }
 
-/* Dynamic Island / Safe Area Top Background - Fixed overlay */
-/* Note: Now handled by .mood-header-safe, but keeping for backward compatibility */
-body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: env(safe-area-inset-top, 0px);
-    min-height: env(safe-area-inset-top, 0px);
-    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-    background-color: var(--mood-solid-color, #667eea) !important;
-    background-image: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
-    z-index: 9999;
-    pointer-events: none;
-    background-attachment: fixed;
-    background-size: cover;
-    background-repeat: no-repeat;
-}
+/* Safe area overlay for iOS notch/Dynamic Island - managed by JavaScript */
+/* Removed body::before to avoid conflicts - JavaScript overlay takes precedence */
 
-/* Safe area overlay removed - using mood header section instead */
+/* Safe area overlay for iOS notch/Dynamic Island */
+#safeAreaOverlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
+    min-height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-attachment: fixed !important;
+    background-size: cover !important;
+    background-repeat: no-repeat !important;
+}
 
 .container {
     max-width: 400px;
@@ -168,42 +163,45 @@ header {
     background: transparent;
 }
 
-/* Safe Area Header - covers notch/Dynamic Island area */
-.mood-header-safe {
-    padding-top: env(safe-area-inset-top, 0px);
-    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    background-color: var(--mood-solid-color, #667eea);
-    transition: background 0.5s ease, background-color 0.5s ease;
-    width: 100vw;
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
-    margin: 0;
-    box-sizing: border-box;
-    z-index: 1;
-}
-
 /* Greeting Area */
 .mood-greeting-area {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
     padding: 0 20px 104px 20px;
-    padding-top: 0;
+    padding-top: calc(env(safe-area-inset-top, 0px));
     color: white;
-    background: var(--mood-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    background-color: var(--mood-solid-color, #667eea);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-color: #667eea;
     transition: background 0.5s ease, background-color 0.5s ease;
     border-radius: 0 0 30px 30px;
-    width: 100%;
+    width: 100vw;
     position: relative;
+    left: 50%;
+    transform: translateX(-50%);
     margin-top: 0;
     margin-bottom: -84px;
     box-sizing: border-box;
     z-index: 1;
+    /* Extend to top to cover any gap */
+    top: 0;
 }
 
-/* Removed ::before pseudo-element - safe area now handled by .mood-header-safe */
+.mood-greeting-area::before {
+    content: '';
+    position: absolute;
+    top: calc(-1 * env(safe-area-inset-top, 0px));
+    left: 0;
+    right: 0;
+    height: calc(env(safe-area-inset-top, 0px) + 2px);
+    background: inherit;
+    background-color: inherit;
+    background-image: inherit;
+    z-index: -1;
+    /* Ensure it covers any gap */
+    margin: 0;
+    padding: 0;
+}
 
 .greeting-text {
     flex: 1;
