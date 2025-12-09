@@ -603,7 +603,7 @@ header h1 {
 }
 
 .section-title {
-    color: white;
+    color: #333333;
     font-size: 1.2rem;
     margin: 0;
     text-align: left;
@@ -630,7 +630,7 @@ header h1 {
 .chart-toggle-btn {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: #666666;
     cursor: pointer;
     padding: 6px;
     border-radius: 6px;
@@ -644,12 +644,12 @@ header h1 {
 
 .chart-toggle-btn:hover {
     opacity: 1;
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.8);
+    background: rgba(0, 0, 0, 0.05);
+    color: #333333;
 }
 
 .chart-toggle-btn.active {
-    color: white;
+    color: #333333;
     opacity: 1;
 }
 
@@ -661,7 +661,7 @@ header h1 {
     display: none; /* Hidden by default, shown when data is available */
     background: none;
     border: none;
-    color: white;
+    color: #666666;
     cursor: pointer;
     padding: 6px;
     border-radius: 6px;
@@ -672,7 +672,8 @@ header h1 {
 
 .calendar-icon-btn:hover {
     opacity: 1;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.05);
+    color: #333333;
 }
 
 .calendar-icon-btn svg {
@@ -690,7 +691,7 @@ header h1 {
 .view-toggle-btn {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: #666666;
     cursor: pointer;
     padding: 6px;
     border-radius: 6px;
@@ -702,12 +703,12 @@ header h1 {
 }
 
 .view-toggle-btn:hover {
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(255, 255, 255, 0.1);
+    color: #333333;
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .view-toggle-btn.active {
-    color: white;
+    color: #333333;
     opacity: 1;
 }
 
@@ -1366,7 +1367,6 @@ header h1 {
     color: #666666;
     margin-top: 0px;
     margin-bottom: calc(120px + env(safe-area-inset-bottom));
-    padding-bottom: 20px;
     font-size: 0.75rem;
     opacity: 0.9;
 }
