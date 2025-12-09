@@ -4611,7 +4611,11 @@ class MarketMoodApp {
     }
 
     renderStrategyRecommendation(analysis, container) {
-        if (!analysis || !container) return;
+        if (!analysis || !container) {
+            console.warn('⚠️ Cannot render strategy recommendation:', { analysis: !!analysis, container: !!container });
+            return;
+        }
+        console.log('📊 Rendering strategy recommendation:', analysis.strategy);
 
         const strategyCard = document.createElement('div');
         strategyCard.style.cssText = `
