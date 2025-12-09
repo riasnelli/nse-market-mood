@@ -702,6 +702,15 @@
         console.log('🔍 SIGNALS BUTTON TEST SCRIPT LOADED');
         
         // Test function that can be called manually
+        // Removed testSignalsButton - using showSignalsView() directly
+        window.testSignalsButton = function() {
+            console.log('⚠️ testSignalsButton is deprecated. Use showSignalsView() instead.');
+            if (window.marketMoodApp && typeof window.marketMoodApp.showSignalsView === 'function') {
+                window.marketMoodApp.showSignalsView();
+            }
+        };
+        
+        /* OLD TEST CODE - REMOVED
         window.testSignalsButton = function() {
             console.log('═══════════════════════════════════════');
             console.log('🧪 TESTING SIGNALS BUTTON');
@@ -727,18 +736,18 @@
                     position: styles.position
                 });
                 
-                // Attach direct click handler
+                // Attach direct click handler - use showSignalsView instead of toggleView
                 signalsBtn.onclick = function(e) {
                     console.log('🔥🔥🔥 SIGNALS BUTTON CLICKED! 🔥🔥🔥');
                     e.preventDefault();
                     e.stopPropagation();
                     
                     if (window.marketMoodApp) {
-                        console.log('App instance found, calling toggleView()');
-                        if (typeof window.marketMoodApp.toggleView === 'function') {
-                            window.marketMoodApp.toggleView();
+                        console.log('App instance found, calling showSignalsView()');
+                        if (typeof window.marketMoodApp.showSignalsView === 'function') {
+                            window.marketMoodApp.showSignalsView();
                         } else {
-                            console.error('toggleView is not a function!');
+                            console.error('showSignalsView is not a function!');
                         }
                     } else {
                         console.error('marketMoodApp not found!');
@@ -753,7 +762,7 @@
             if (window.marketMoodApp) {
                 console.log('6. App instance exists:', !!window.marketMoodApp);
                 console.log('7. Current view:', window.marketMoodApp.currentView);
-                console.log('8. toggleView function:', typeof window.marketMoodApp.toggleView);
+                console.log('8. showSignalsView function:', typeof window.marketMoodApp.showSignalsView);
             } else {
                 console.error('✗ App instance NOT FOUND!');
             }

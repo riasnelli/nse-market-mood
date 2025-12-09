@@ -4384,6 +4384,7 @@ class MarketMoodApp {
                     this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
                     signalsContainer.style.display = 'block';
                     signalsEmpty.style.display = 'none';
+                    signalsLoading.style.display = 'none';
                     return;
                 }
                 
