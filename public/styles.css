@@ -143,7 +143,7 @@ body.scroll-at-bottom::after {
     height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
     min-height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
     max-height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
-    z-index: 99999 !important;
+    z-index: 999999 !important; /* Very high z-index to ensure it's on top */
     pointer-events: none !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -158,6 +158,8 @@ body.scroll-at-bottom::after {
     transform: none !important;
     /* Ensure it's always on top and visible */
     will-change: background-color, background-image;
+    /* Prevent any other styles from overriding */
+    box-sizing: border-box !important;
 }
 
 .container {

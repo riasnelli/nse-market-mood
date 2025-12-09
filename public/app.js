@@ -352,20 +352,32 @@ class MarketMoodApp {
                 if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
                     const safeAreaOverlay = document.getElementById('safeAreaOverlay');
                     if (safeAreaOverlay) {
-                        const currentBg = safeAreaOverlay.style.background || safeAreaOverlay.style.backgroundImage;
-                        const currentColor = safeAreaOverlay.style.backgroundColor;
+                        const currentBg = safeAreaOverlay.style.background || safeAreaOverlay.style.backgroundImage || '';
+                        const currentColor = safeAreaOverlay.style.backgroundColor || '';
                         
-                        // Only update if there's a mismatch to avoid unnecessary repaints
-                        if (currentBg !== bgGradient || currentColor !== bgColor) {
+                        // Always update to ensure perfect match (iOS can be finicky)
+                        // Convert to string for comparison
+                        const bgGradientStr = bgGradient ? String(bgGradient) : '';
+                        const currentBgStr = currentBg ? String(currentBg) : '';
+                        
+                        if (currentBgStr !== bgGradientStr || currentColor !== bgColor) {
+                            console.log('🔄 Syncing safe area overlay - mismatch detected');
                             this.ensureSafeAreaOverlay(bgColor, bgGradient);
                         }
                     } else {
                         // Recreate if missing
+                        console.log('⚠️ Safe area overlay missing, recreating...');
                         this.ensureSafeAreaOverlay(bgColor, bgGradient);
+                    }
+                } else {
+                    // If mood-greeting-area doesn't have a color yet, ensure overlay exists with default
+                    const safeAreaOverlay = document.getElementById('safeAreaOverlay');
+                    if (!safeAreaOverlay) {
+                        this.ensureSafeAreaOverlay('#667eea', null);
                     }
                 }
             }
-        }, 500); // Check every 500ms
+        }, 300); // Check every 300ms for more responsive updates
         
         this.updateTimeEl = document.getElementById('updateTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
@@ -2177,7 +2189,12 @@ class MarketMoodApp {
         if (!safeAreaOverlay) {
             safeAreaOverlay = document.createElement('div');
             safeAreaOverlay.id = 'safeAreaOverlay';
-            document.body.insertBefore(safeAreaOverlay, document.body.firstChild);
+            // Insert at the very beginning of body to ensure it's on top
+            if (document.body.firstChild) {
+                document.body.insertBefore(safeAreaOverlay, document.body.firstChild);
+            } else {
+                document.body.appendChild(safeAreaOverlay);
+            }
             console.log('✅ Created safeAreaOverlay element');
         }
         
@@ -2203,32 +2220,34 @@ class MarketMoodApp {
         const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
         
         // Apply styles with maximum specificity to override any other styles
-        safeAreaOverlay.style.cssText = `
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            width: 100% !important;
-            height: ${safeAreaHeight} !important;
-            min-height: ${safeAreaHeight} !important;
-            max-height: ${safeAreaHeight} !important;
-            background-color: ${finalColor} !important;
-            background-image: ${finalGrad} !important;
-            background: ${finalGrad} !important;
-            background-attachment: fixed !important;
-            background-size: cover !important;
-            background-position: center top !important;
-            background-repeat: no-repeat !important;
-            z-index: 99999 !important;
-            pointer-events: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border: none !important;
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            transform: none !important;
-        `;
+        // Use setProperty for each style to ensure they're applied
+        safeAreaOverlay.style.setProperty('position', 'fixed', 'important');
+        safeAreaOverlay.style.setProperty('top', '0', 'important');
+        safeAreaOverlay.style.setProperty('left', '0', 'important');
+        safeAreaOverlay.style.setProperty('right', '0', 'important');
+        safeAreaOverlay.style.setProperty('width', '100%', 'important');
+        safeAreaOverlay.style.setProperty('height', safeAreaHeight, 'important');
+        safeAreaOverlay.style.setProperty('min-height', safeAreaHeight, 'important');
+        safeAreaOverlay.style.setProperty('max-height', safeAreaHeight, 'important');
+        safeAreaOverlay.style.setProperty('background-color', finalColor, 'important');
+        safeAreaOverlay.style.setProperty('background-image', finalGrad, 'important');
+        safeAreaOverlay.style.setProperty('background', finalGrad, 'important');
+        safeAreaOverlay.style.setProperty('background-attachment', 'fixed', 'important');
+        safeAreaOverlay.style.setProperty('background-size', 'cover', 'important');
+        safeAreaOverlay.style.setProperty('background-position', 'center top', 'important');
+        safeAreaOverlay.style.setProperty('background-repeat', 'no-repeat', 'important');
+        safeAreaOverlay.style.setProperty('z-index', '999999', 'important'); // Even higher z-index
+        safeAreaOverlay.style.setProperty('pointer-events', 'none', 'important');
+        safeAreaOverlay.style.setProperty('margin', '0', 'important');
+        safeAreaOverlay.style.setProperty('padding', '0', 'important');
+        safeAreaOverlay.style.setProperty('border', 'none', 'important');
+        safeAreaOverlay.style.setProperty('display', 'block', 'important');
+        safeAreaOverlay.style.setProperty('visibility', 'visible', 'important');
+        safeAreaOverlay.style.setProperty('opacity', '1', 'important');
+        safeAreaOverlay.style.setProperty('transform', 'none', 'important');
+        
+        // Force a repaint
+        void safeAreaOverlay.offsetHeight;
         
         console.log('✅ Updated safeAreaOverlay to match mood-greeting-area:', finalColor, finalGrad);
     }
@@ -2901,31 +2920,31 @@ class MarketMoodApp {
                 }
             } else {
                 dayEl.classList.add('no-data');
-            }
-            
+                    }
+                    
             // Apply mood color class based on score
-            if (score !== null) {
-                if (score >= 70) {
-                    dayEl.classList.add('mood-very-bullish');
-                } else if (score >= 60) {
-                    dayEl.classList.add('mood-bullish');
-                } else if (score >= 50) {
-                    dayEl.classList.add('mood-slightly-bullish');
-                } else if (score >= 40) {
-                    dayEl.classList.add('mood-neutral');
-                } else if (score >= 30) {
-                    dayEl.classList.add('mood-slightly-bearish');
-                } else if (score >= 20) {
-                    dayEl.classList.add('mood-bearish');
-                } else {
-                    dayEl.classList.add('mood-very-bearish');
+                    if (score !== null) {
+                        if (score >= 70) {
+                            dayEl.classList.add('mood-very-bullish');
+                        } else if (score >= 60) {
+                            dayEl.classList.add('mood-bullish');
+                        } else if (score >= 50) {
+                            dayEl.classList.add('mood-slightly-bullish');
+                        } else if (score >= 40) {
+                            dayEl.classList.add('mood-neutral');
+                        } else if (score >= 30) {
+                            dayEl.classList.add('mood-slightly-bearish');
+                        } else if (score >= 20) {
+                            dayEl.classList.add('mood-bearish');
+                        } else {
+                            dayEl.classList.add('mood-very-bearish');
+                    }
                 }
-            }
-            
-            // Add click handler
-            dayEl.addEventListener('click', () => {
-                this.selectCalendarDate(dateStr);
-            });
+                
+                // Add click handler
+                dayEl.addEventListener('click', () => {
+                    this.selectCalendarDate(dateStr);
+                });
             
             // Mark as selected if it's the selected date
             if (this.selectedCalendarDate === dateStr) {
