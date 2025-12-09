@@ -35,7 +35,7 @@ module.exports = async (req, res) => {
     const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
     
     if (!mongoUri) {
-      // MongoDB not configured - return stub data
+      // MongoDB not configured - return stub data with all required fields
       return res.status(200).json({
         success: true,
         date: date,
@@ -52,6 +52,14 @@ module.exports = async (req, res) => {
           premarket: {
             available: false,
             count: 0
+          },
+          signals: {
+            available: false,
+            count: 0
+          },
+          signalRuns: {
+            count: 0,
+            runs: []
           }
         },
         hasBhav: false,
@@ -66,15 +74,31 @@ module.exports = async (req, res) => {
       const bhavcopyCollection = await getDailyBhavcopyCollection();
       const indicesCollection = await getDailyIndicesCollection();
       const premarketCollection = await getPreMarketDataCollection();
+      const signalCollection = await getSignalCollection();
+      const signalRunCollection = await getSignalRunCollection();
 
       // Count documents for each collection for the given date
       const bhavcopyCount = await bhavcopyCollection.countDocuments({ date: date });
       const indicesCount = await indicesCollection.countDocuments({ date: date });
       const premarketCount = await premarketCollection.countDocuments({ date: date });
 
+      // Check for signals - find signal run for this date
+      const signalRun = await signalRunCollection.findOne({ date: date });
+      let signalsCount = 0;
+      if (signalRun && signalRun.run_id) {
+        signalsCount = await signalCollection.countDocuments({ run_id: signalRun.run_id });
+      }
+
+      // Get signal runs for this date
+      const signalRuns = await signalRunCollection
+        .find({ date: date })
+        .sort({ created_at: -1 })
+        .toArray();
+
       const hasBhav = bhavcopyCount > 0;
       const hasIndices = indicesCount > 0;
       const hasPremarket = premarketCount > 0;
+      const hasSignals = signalsCount > 0;
       
       // Can generate signals if we have both bhavcopy and indices (premarket is optional)
       const canGenerateSignals = hasBhav && hasIndices;
@@ -95,6 +119,18 @@ module.exports = async (req, res) => {
           premarket: {
             available: hasPremarket,
             count: premarketCount
+          },
+          signals: {
+            available: hasSignals,
+            count: signalsCount
+          },
+          signalRuns: {
+            count: signalRuns.length,
+            runs: signalRuns.map(run => ({
+              run_id: run.run_id,
+              regime_code: run.regime_code,
+              strategies_used: run.strategies_used
+            }))
           }
         },
         hasBhav: hasBhav,
@@ -123,6 +159,14 @@ module.exports = async (req, res) => {
           premarket: {
             available: false,
             count: 0
+          },
+          signals: {
+            available: false,
+            count: 0
+          },
+          signalRuns: {
+            count: 0,
+            runs: []
           }
         },
         hasBhav: false,
@@ -141,7 +185,9 @@ module.exports = async (req, res) => {
       data: {
         bhavcopy: { available: false, count: 0 },
         indices: { available: false, count: 0 },
-        premarket: { available: false, count: 0 }
+        premarket: { available: false, count: 0 },
+        signals: { available: false, count: 0 },
+        signalRuns: { count: 0, runs: [] }
       },
       hasBhav: false,
       hasPremarket: false,

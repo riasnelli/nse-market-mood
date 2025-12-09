@@ -4216,7 +4216,7 @@ class MarketMoodApp {
             if (!this.moodPageView) {
                 this.moodPageView = document.getElementById('moodPageView');
             }
-            if (!this.signalsPageView) {
+        if (!this.signalsPageView) {
                 this.signalsPageView = document.getElementById('signalsPageView');
             }
             
@@ -4224,12 +4224,12 @@ class MarketMoodApp {
             if (!this.signalsPageView) {
                 console.error('signalsPageView element not found');
                 this._switchingView = false;
-                return;
-            }
-            
+            return;
+        }
+        
             // Update state first
-            this.currentView = 'signals';
-            
+        this.currentView = 'signals';
+        
             // Stop polling when switching to Signals page
             this.stopPolling();
             
@@ -4241,21 +4241,21 @@ class MarketMoodApp {
             
             // Hide mood page cleanly
             if (this.moodPageView) {
-                this.moodPageView.style.setProperty('display', 'none', 'important');
-                this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
-                this.moodPageView.classList.add('hidden');
+        this.moodPageView.style.setProperty('display', 'none', 'important');
+        this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
+        this.moodPageView.classList.add('hidden');
             }
             
             // Show signals page - use simple, reliable method
             this.signalsPageView.style.removeProperty('display');
             this.signalsPageView.style.removeProperty('visibility');
-            this.signalsPageView.style.setProperty('display', 'block', 'important');
-            this.signalsPageView.style.setProperty('visibility', 'visible', 'important');
+        this.signalsPageView.style.setProperty('display', 'block', 'important');
+        this.signalsPageView.style.setProperty('visibility', 'visible', 'important');
             this.signalsPageView.style.setProperty('background', '#ffffff', 'important');
-            this.signalsPageView.classList.remove('hidden');
-            
+        this.signalsPageView.classList.remove('hidden');
+        
             // Force reflow
-            void this.signalsPageView.offsetHeight;
+        void this.signalsPageView.offsetHeight;
             
             // Scroll to top immediately (before any async operations)
             window.scrollTo({ top: 0, behavior: 'instant' });
@@ -4276,7 +4276,7 @@ class MarketMoodApp {
                 
                 if (window.requestIdleCallback) {
                     requestIdleCallback(loadData, { timeout: 100 });
-                } else {
+            } else {
                     setTimeout(loadData, 50);
                 }
             });
@@ -4348,8 +4348,8 @@ class MarketMoodApp {
                             }
                         } else {
                             targetDate = today;
-                        }
-                    } catch (e) {
+                    }
+                } catch (e) {
                         targetDate = today;
                     }
                 }
@@ -4372,7 +4372,7 @@ class MarketMoodApp {
                 const contentType = response.headers.get('content-type');
                 if (contentType && contentType.includes('application/json')) {
                     try {
-                        data = await response.json();
+                data = await response.json();
                         console.log('✅ Found existing signals:', data);
                     } catch (parseError) {
                         console.warn('⚠️ Failed to parse signals response as JSON:', parseError);
@@ -4464,7 +4464,7 @@ class MarketMoodApp {
             if (strategyAnalysis) {
                 this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
             }
-            
+
             // Display signals
             console.log('📈 Rendering', data.signals.length, 'signals');
             this.renderSignals(data.signals, data.run_id || data.runId, data.date || targetDate, signalsContainer);
@@ -4728,7 +4728,7 @@ class MarketMoodApp {
             // Generate signals for the latest date
             console.log('Generating signals for latest date...');
             const response = await fetch('/api/test-generate-signals');
-            
+
             signalsLoading.style.display = 'none';
 
             if (!response.ok) {
@@ -4809,22 +4809,22 @@ class MarketMoodApp {
 
         // Create header info (only if not appending to existing content)
         if (!container) {
-            const headerInfo = document.createElement('div');
-            headerInfo.style.cssText = 'padding: 15px; background: #f3f4f6; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem;';
-            headerInfo.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div>
+        const headerInfo = document.createElement('div');
+        headerInfo.style.cssText = 'padding: 15px; background: #f3f4f6; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem;';
+        headerInfo.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
                         <strong>Run ID:</strong> <span style="font-family: monospace; font-size: 0.85rem;">${runId || 'N/A'}</span>
-                    </div>
-                    <div>
-                        <strong>Date:</strong> ${date}
-                    </div>
-                    <div>
-                        <strong>Signals:</strong> ${signals.length}
-                    </div>
                 </div>
-            `;
-            signalsContainer.appendChild(headerInfo);
+                <div>
+                    <strong>Date:</strong> ${date}
+                </div>
+                <div>
+                    <strong>Signals:</strong> ${signals.length}
+                </div>
+            </div>
+        `;
+        signalsContainer.appendChild(headerInfo);
         } else {
             // Add a separator if appending
             const separator = document.createElement('div');
@@ -4948,17 +4948,17 @@ class MarketMoodApp {
                         const contentType = latestDateResponse.headers.get('content-type');
                         if (contentType && contentType.includes('application/json')) {
                             try {
-                                const latestDateData = await latestDateResponse.json();
-                                if (latestDateData.latest_complete_date) {
-                                    date = latestDateData.latest_complete_date;
-                                } else if (latestDateData.dates) {
-                                    // Use the latest available date
-                                    const dates = [latestDateData.dates.bhavcopy, latestDateData.dates.indices]
-                                        .filter(Boolean)
-                                        .sort()
-                                        .reverse();
+                        const latestDateData = await latestDateResponse.json();
+                        if (latestDateData.latest_complete_date) {
+                            date = latestDateData.latest_complete_date;
+                        } else if (latestDateData.dates) {
+                            // Use the latest available date
+                            const dates = [latestDateData.dates.bhavcopy, latestDateData.dates.indices]
+                                .filter(Boolean)
+                                .sort()
+                                .reverse();
                                     date = dates[0] || new Date().toISOString().split('T')[0];
-                                } else {
+                        } else {
                                     date = new Date().toISOString().split('T')[0];
                                 }
                             } catch (parseError) {
@@ -4978,7 +4978,7 @@ class MarketMoodApp {
 
             // Fetch data availability
             const response = await fetch(`/api/check-date-data?date=${date}`);
-            
+
             dataAvailabilityLoading.style.display = 'none';
 
             if (!response.ok) {
@@ -4997,8 +4997,8 @@ class MarketMoodApp {
                     if (!data.success) {
                         throw new Error(data.error || data.message || 'Failed to load data availability');
                     }
-                    // Render data availability
-                    this.renderDataAvailability(data);
+            // Render data availability
+            this.renderDataAvailability(data);
                 } catch (parseError) {
                     console.warn('⚠️ Failed to parse data availability response as JSON:', parseError);
                     dataAvailabilityError.style.display = 'block';
@@ -5021,7 +5021,36 @@ class MarketMoodApp {
         const dataAvailabilityContent = document.getElementById('dataAvailabilityContent');
         if (!dataAvailabilityContent) return;
 
+        // Defensive check: ensure data and dataInfo exist
+        if (!data || typeof data !== 'object') {
+            console.warn('⚠️ renderDataAvailability: Invalid data object', data);
+            dataAvailabilityContent.innerHTML = `
+                <div style="background: rgba(255, 255, 255, 0.95); border-radius: 12px; padding: 20px; text-align: center; color: #666;">
+                    <div style="font-size: 0.95rem;">No data availability information available.</div>
+                </div>
+            `;
+            return;
+        }
+
         const { data: dataInfo, date, canGenerateSignals } = data;
+
+        // Defensive check: ensure dataInfo exists and is an object
+        if (!dataInfo || typeof dataInfo !== 'object') {
+            console.warn('⚠️ renderDataAvailability: dataInfo is missing or invalid', dataInfo);
+            dataAvailabilityContent.innerHTML = `
+                <div style="background: rgba(255, 255, 255, 0.95); border-radius: 12px; padding: 20px; text-align: center; color: #666;">
+                    <div style="font-size: 0.95rem;">No data availability information available.</div>
+                </div>
+            `;
+            return;
+        }
+
+        // Default missing fields to safe values before accessing properties
+        const bhavcopy = dataInfo.bhavcopy || { available: false, count: 0 };
+        const indices = dataInfo.indices || { available: false, count: 0 };
+        const premarket = dataInfo.premarket || { available: false, count: 0 };
+        const signals = dataInfo.signals || { available: false, count: 0 };
+        const signalRuns = dataInfo.signalRuns || { count: 0, runs: [] };
 
         dataAvailabilityContent.innerHTML = `
             <div style="background: rgba(255, 255, 255, 0.95); border-radius: 12px; padding: 20px; margin-bottom: 15px;">
@@ -5039,53 +5068,53 @@ class MarketMoodApp {
                 </div>
 
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 15px;">
-                    <div style="padding: 12px; background: ${dataInfo.bhavcopy.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
+                    <div style="padding: 12px; background: ${bhavcopy.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                            <span style="font-size: 1.2rem;">${dataInfo.bhavcopy.available ? '✅' : '❌'}</span>
+                            <span style="font-size: 1.2rem;">${bhavcopy.available ? '✅' : '❌'}</span>
                             <span style="font-weight: 600; color: #333;">Bhavcopy</span>
                         </div>
                         <div style="font-size: 0.85rem; color: #666;">
-                            ${dataInfo.bhavcopy.count} stocks
+                            ${bhavcopy.count || 0} stocks
                         </div>
                     </div>
 
-                    <div style="padding: 12px; background: ${dataInfo.indices.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
+                    <div style="padding: 12px; background: ${indices.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                            <span style="font-size: 1.2rem;">${dataInfo.indices.available ? '✅' : '❌'}</span>
+                            <span style="font-size: 1.2rem;">${indices.available ? '✅' : '❌'}</span>
                             <span style="font-weight: 600; color: #333;">Indices</span>
                         </div>
                         <div style="font-size: 0.85rem; color: #666;">
-                            ${dataInfo.indices.count} indices
+                            ${indices.count || 0} indices
                         </div>
                     </div>
 
-                    <div style="padding: 12px; background: ${dataInfo.premarket.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
+                    <div style="padding: 12px; background: ${premarket.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                            <span style="font-size: 1.2rem;">${dataInfo.premarket.available ? '✅' : '❌'}</span>
+                            <span style="font-size: 1.2rem;">${premarket.available ? '✅' : '❌'}</span>
                             <span style="font-weight: 600; color: #333;">Pre-market</span>
                         </div>
                         <div style="font-size: 0.85rem; color: #666;">
-                            ${dataInfo.premarket.count} items
+                            ${premarket.count || 0} items
                         </div>
                     </div>
 
-                    <div style="padding: 12px; background: ${dataInfo.signals.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
+                    <div style="padding: 12px; background: ${signals.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                            <span style="font-size: 1.2rem;">${dataInfo.signals.available ? '✅' : '❌'}</span>
+                            <span style="font-size: 1.2rem;">${signals.available ? '✅' : '❌'}</span>
                             <span style="font-weight: 600; color: #333;">Signals</span>
                         </div>
                         <div style="font-size: 0.85rem; color: #666;">
-                            ${dataInfo.signals.count} signals
+                            ${signals.count || 0} signals
                         </div>
                     </div>
                 </div>
 
-                ${dataInfo.signalRuns.count > 0 ? `
+                ${signalRuns.count > 0 && signalRuns.runs && signalRuns.runs.length > 0 ? `
                     <div style="padding: 12px; background: #f3f4f6; border-radius: 8px; margin-top: 10px;">
-                        <div style="font-weight: 600; color: #333; margin-bottom: 8px;">Signal Runs (${dataInfo.signalRuns.count})</div>
-                        ${dataInfo.signalRuns.runs.map((run, idx) => `
-                            <div style="font-size: 0.85rem; color: #666; margin-bottom: ${idx < dataInfo.signalRuns.runs.length - 1 ? '5px' : '0'};">
-                                Run ${idx + 1}: ${run.run_id} • ${run.regime_code || 'N/A'} • ${run.strategies_used?.join(', ') || 'N/A'}
+                        <div style="font-weight: 600; color: #333; margin-bottom: 8px;">Signal Runs (${signalRuns.count})</div>
+                        ${signalRuns.runs.map((run, idx) => `
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: ${idx < signalRuns.runs.length - 1 ? '5px' : '0'};">
+                                Run ${idx + 1}: ${run.run_id || 'N/A'} • ${run.regime_code || 'N/A'} • ${run.strategies_used?.join(', ') || 'N/A'}
                             </div>
                         `).join('')}
                     </div>
