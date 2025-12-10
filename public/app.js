@@ -3126,14 +3126,54 @@ class MarketMoodApp {
         try {
             // Fetch all uploaded files from all 3 collections
             const [indicesResponse, bhavResponse, premarketResponse] = await Promise.all([
-                fetch('/api/save-uploaded-data?type=indices'),
-                fetch('/api/save-uploaded-data?type=bhav'),
-                fetch('/api/save-uploaded-data?type=premarket')
+                fetch('/api/save-uploaded-data?type=indices').catch(err => {
+                    console.error('Error fetching indices data:', err);
+                    return { ok: false, json: async () => ({ success: false, data: [] }) };
+                }),
+                fetch('/api/save-uploaded-data?type=bhav').catch(err => {
+                    console.error('Error fetching bhav data:', err);
+                    return { ok: false, json: async () => ({ success: false, data: [] }) };
+                }),
+                fetch('/api/save-uploaded-data?type=premarket').catch(err => {
+                    console.error('Error fetching premarket data:', err);
+                    return { ok: false, json: async () => ({ success: false, data: [] }) };
+                })
             ]);
 
-            const indicesResult = await indicesResponse.json();
-            const bhavResult = await bhavResponse.json();
-            const premarketResult = await premarketResponse.json();
+            // Parse responses with error handling
+            let indicesResult = { success: false, data: [] };
+            let bhavResult = { success: false, data: [] };
+            let premarketResult = { success: false, data: [] };
+
+            try {
+                if (indicesResponse.ok) {
+                    indicesResult = await indicesResponse.json();
+                } else {
+                    console.warn('Indices API returned non-OK status:', indicesResponse.status);
+                }
+            } catch (err) {
+                console.error('Error parsing indices response:', err);
+            }
+
+            try {
+                if (bhavResponse.ok) {
+                    bhavResult = await bhavResponse.json();
+                } else {
+                    console.warn('Bhav API returned non-OK status:', bhavResponse.status);
+                }
+            } catch (err) {
+                console.error('Error parsing bhav response:', err);
+            }
+
+            try {
+                if (premarketResponse.ok) {
+                    premarketResult = await premarketResponse.json();
+                } else {
+                    console.warn('Premarket API returned non-OK status:', premarketResponse.status);
+                }
+            } catch (err) {
+                console.error('Error parsing premarket response:', err);
+            }
 
             // Debug: Log API responses
             console.log('📥 API Responses:', {
