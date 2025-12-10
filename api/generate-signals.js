@@ -56,6 +56,9 @@ async function generateSimpleMomentumGapSignals(date) {
 
     // Get yesterday's bhavcopy data from both daily_bhavcopy AND uploadedBhav collections
     let bhavcopyData = [];
+    let bhavCountDaily = 0;
+    let bhavCountUploaded = 0;
+    
     try {
       // First, try daily_bhavcopy collection
       bhavcopyData = await bhavcopyCollection
@@ -64,6 +67,9 @@ async function generateSimpleMomentumGapSignals(date) {
           series: 'EQ' // Only EQ series stocks
         })
         .toArray();
+      
+      bhavCountDaily = bhavcopyData.length;
+      console.log(`📊 BHAVCOPY COUNT for ${yesterdayDate}: daily_bhavcopy = ${bhavCountDaily}`);
       
       // If no data in daily_bhavcopy, check uploadedBhav collection
       if (bhavcopyData.length === 0) {
@@ -90,6 +96,7 @@ async function generateSimpleMomentumGapSignals(date) {
               
               console.log(`Extracted ${eqStocks.length} stocks from uploadedBhav doc (total indices: ${doc.indices.length})`);
               bhavcopyData = bhavcopyData.concat(eqStocks);
+              bhavCountUploaded += eqStocks.length;
             } else {
               console.warn(`uploadedBhav doc has no indices array or empty array:`, {
                 hasIndices: !!doc.indices,
@@ -104,6 +111,8 @@ async function generateSimpleMomentumGapSignals(date) {
           // Continue - we'll return empty if no data found
         }
       }
+      
+      console.log(`📊 FINAL BHAVCOPY COUNT for ${yesterdayDate}: total = ${bhavcopyData.length} (daily: ${bhavCountDaily}, uploaded: ${bhavCountUploaded})`);
     } catch (queryError) {
       console.error('Error querying bhavcopy data:', queryError);
       return {
@@ -127,13 +136,17 @@ async function generateSimpleMomentumGapSignals(date) {
 
     // Get today's premarket data from both premarket_data AND uploadedPreMarket collections
     let premarketData = [];
+    let premarketCountDaily = 0;
+    let premarketCountUploaded = 0;
+    
     try {
       // First, try premarket_data collection
       premarketData = await premarketCollection
         .find({ date: date })
         .toArray();
       
-      console.log(`Found ${premarketData.length} items in premarket_data for ${date}`);
+      premarketCountDaily = premarketData.length;
+      console.log(`📊 PREMARKET COUNT for ${date}: premarket_data = ${premarketCountDaily}`);
       
       // If no data in premarket_data, check uploadedPreMarket collection
       if (premarketData.length === 0) {
@@ -150,6 +163,7 @@ async function generateSimpleMomentumGapSignals(date) {
           if (doc.indices && Array.isArray(doc.indices)) {
             console.log(`Extracting ${doc.indices.length} items from uploadedPreMarket doc: ${doc.fileName || 'unknown'}`);
             premarketData = premarketData.concat(doc.indices);
+            premarketCountUploaded += doc.indices.length;
           } else {
             console.warn(`uploadedPreMarket doc has no indices array:`, {
               hasIndices: !!doc.indices,
@@ -160,6 +174,8 @@ async function generateSimpleMomentumGapSignals(date) {
         }
         console.log(`Total: Found ${premarketData.length} items in uploadedPreMarket for ${date}`);
       }
+      
+      console.log(`📊 FINAL PREMARKET COUNT for ${date}: total = ${premarketData.length} (daily: ${premarketCountDaily}, uploaded: ${premarketCountUploaded})`);
     } catch (queryError) {
       console.error('Error querying premarket data:', queryError);
       // Continue with empty premarket data - we can still process bhavcopy-only signals
@@ -168,6 +184,16 @@ async function generateSimpleMomentumGapSignals(date) {
     
     if (premarketData.length === 0) {
       console.warn(`⚠️ No premarket data found for ${date} in premarket_data or uploadedPreMarket`);
+    }
+    
+    // Also check indices count for both dates
+    try {
+      const indicesCollection = await getDailyIndicesCollection();
+      const indicesCountToday = await indicesCollection.countDocuments({ date: date });
+      const indicesCountYesterday = await indicesCollection.countDocuments({ date: yesterdayDate });
+      console.log(`📊 INDICES COUNT: ${date} = ${indicesCountToday}, ${yesterdayDate} = ${indicesCountYesterday}`);
+    } catch (indicesError) {
+      console.warn('Error checking indices count:', indicesError.message);
     }
 
     // Create lookup maps
