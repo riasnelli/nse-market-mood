@@ -68,20 +68,41 @@ async function generateSimpleMomentumGapSignals(date) {
       // If no data in daily_bhavcopy, check uploadedBhav collection
       if (bhavcopyData.length === 0) {
         console.log(`No data in daily_bhavcopy for ${yesterdayDate}, checking uploadedBhav...`);
-        const uploadedBhavCollection = await getUploadedDataCollection('bhav');
-        const uploadedBhavDocs = await uploadedBhavCollection
-          .find({ date: yesterdayDate })
-          .toArray();
-        
-        // Extract indices array from uploaded documents
-        for (const doc of uploadedBhavDocs) {
-          if (doc.indices && Array.isArray(doc.indices)) {
-            // Filter for EQ series and add to bhavcopyData
-            const eqStocks = doc.indices.filter(item => item.series === 'EQ');
-            bhavcopyData = bhavcopyData.concat(eqStocks);
+        try {
+          const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+          const uploadedBhavDocs = await uploadedBhavCollection
+            .find({ date: yesterdayDate })
+            .toArray();
+          
+          console.log(`Found ${uploadedBhavDocs.length} uploadedBhav documents for ${yesterdayDate}`);
+          
+          // Extract indices array from uploaded documents
+          for (const doc of uploadedBhavDocs) {
+            console.log(`Processing uploadedBhav doc: fileName=${doc.fileName}, indices array length=${doc.indices?.length || 0}`);
+            
+            if (doc.indices && Array.isArray(doc.indices) && doc.indices.length > 0) {
+              // Filter for EQ series and add to bhavcopyData
+              // Also handle cases where series might be missing (default to EQ for bhavcopy)
+              const eqStocks = doc.indices.filter(item => {
+                // If series field exists, filter by EQ; otherwise include all (bhavcopy is typically EQ)
+                return !item.series || item.series === 'EQ';
+              });
+              
+              console.log(`Extracted ${eqStocks.length} stocks from uploadedBhav doc (total indices: ${doc.indices.length})`);
+              bhavcopyData = bhavcopyData.concat(eqStocks);
+            } else {
+              console.warn(`uploadedBhav doc has no indices array or empty array:`, {
+                hasIndices: !!doc.indices,
+                isArray: Array.isArray(doc.indices),
+                length: doc.indices?.length || 0
+              });
+            }
           }
+          console.log(`Total: Found ${bhavcopyData.length} EQ stocks in uploadedBhav for ${yesterdayDate}`);
+        } catch (uploadedError) {
+          console.error('Error querying uploadedBhav collection:', uploadedError);
+          // Continue - we'll return empty if no data found
         }
-        console.log(`Found ${bhavcopyData.length} EQ stocks in uploadedBhav for ${yesterdayDate}`);
       }
     } catch (queryError) {
       console.error('Error querying bhavcopy data:', queryError);
