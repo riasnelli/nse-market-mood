@@ -344,7 +344,13 @@ class MarketMoodApp {
         this.updateThemeColor(initialColor, initialGradient);
         
         // Also create safe area overlay immediately to prevent black inset
+        // Create safe area overlay immediately on init
         this.ensureSafeAreaOverlay(initialColor, initialGradient);
+        
+        // Also ensure it's created even if mood-greeting-area doesn't exist yet
+        if (!document.getElementById('safeAreaOverlay')) {
+            this.ensureSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
+        }
         
         // Set up a periodic check to ensure safe area overlay always matches mood-greeting-area
         // This handles cases where the background changes but updateThemeColor isn't called
@@ -2222,8 +2228,8 @@ class MarketMoodApp {
         
         // ALWAYS read from mood-greeting-area as the source of truth
         const moodGreetingArea = document.querySelector('.mood-greeting-area');
-        let finalColor = color;
-        let finalGrad = gradient || `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
+        let finalColor = color || '#667eea';
+        let finalGrad = gradient || `linear-gradient(135deg, ${finalColor} 0%, ${finalColor} 100%)`;
         
         if (moodGreetingArea) {
             const computedStyle = getComputedStyle(moodGreetingArea);
@@ -2231,12 +2237,22 @@ class MarketMoodApp {
             const bgColor = computedStyle.backgroundColor;
             
             // Use the actual computed background from greeting area - this is the source of truth
-            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' && bgGradient !== 'rgba(0, 0, 0, 0)') {
+            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' && bgGradient !== 'rgba(0, 0, 0, 0)' && !bgGradient.includes('url(')) {
                 finalGrad = bgGradient;
             }
-            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent' && bgColor !== 'rgb(0, 0, 0)' && bgColor !== '#000000') {
                 finalColor = bgColor;
+                // If we have a color but no gradient, create a simple gradient
+                if (!finalGrad || finalGrad === 'none' || finalGrad === 'initial') {
+                    finalGrad = `linear-gradient(135deg, ${finalColor} 0%, ${finalColor} 100%)`;
+                }
             }
+        }
+        
+        // Fallback: ensure we never use black
+        if (!finalColor || finalColor === 'rgba(0, 0, 0, 0)' || finalColor === 'transparent' || finalColor === 'rgb(0, 0, 0)' || finalColor === '#000000') {
+            finalColor = '#667eea';
+            finalGrad = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
         }
         
         const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;

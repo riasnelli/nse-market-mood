@@ -183,7 +183,7 @@ header {
     justify-content: space-between;
     align-items: flex-end;
     padding: 0 20px 104px 20px;
-    padding-top: calc(env(safe-area-inset-top, 0px));
+    padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
     color: white;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     background-color: #667eea;
@@ -197,24 +197,33 @@ header {
     margin-bottom: -84px;
     box-sizing: border-box;
     z-index: 1;
-    /* Extend to top to cover any gap */
+    /* Extend to top edge of screen - no gap */
     top: 0;
+    /* Ensure background extends to top edge */
+    background-attachment: fixed;
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
 }
 
 .mood-greeting-area::before {
     content: '';
     position: absolute;
-    top: calc(-1 * env(safe-area-inset-top, 0px));
+    top: calc(-1 * env(safe-area-inset-top, 0px) - 1px);
     left: 0;
     right: 0;
-    height: calc(env(safe-area-inset-top, 0px) + 2px);
+    height: calc(env(safe-area-inset-top, 0px) + 4px);
     background: inherit;
     background-color: inherit;
     background-image: inherit;
     z-index: -1;
-    /* Ensure it covers any gap */
+    /* Ensure it covers safe area inset and extends to absolute top */
     margin: 0;
     padding: 0;
+    background-attachment: fixed;
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
 }
 
 .greeting-text {
