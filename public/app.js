@@ -4554,6 +4554,17 @@ class MarketMoodApp {
                 strategyAnalysis.recommendedStocks = topStocks;
             }
             
+            // Update status with final signals info
+            this.updateSignalsStatus({
+                signalsInfo: {
+                    hasSignals: true,
+                    signals: data.signals || [],
+                    success: true,
+                    message: `Found ${data.signals.length} signals`
+                },
+                strategy: strategyAnalysis ? strategyAnalysis.strategy : null
+            });
+
             // Render strategy recommendation
             if (strategyAnalysis) {
                 this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
@@ -4569,6 +4580,16 @@ class MarketMoodApp {
             signalsError.style.display = 'block';
             signalsContainer.style.display = 'none';
             signalsEmpty.style.display = 'none';
+            
+            // Update status to show error
+            this.updateSignalsStatus({
+                signalsInfo: {
+                    hasSignals: false,
+                    signals: [],
+                    success: false,
+                    message: 'Error loading signals'
+                }
+            });
             
             let errorMessage = error.message || 'Failed to load signals. Please try again.';
             if (error.message && error.message.includes('fetch')) {
