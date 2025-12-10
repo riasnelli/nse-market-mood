@@ -96,9 +96,14 @@ module.exports = async (req, res) => {
       const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
 
       // For signal generation:
-      // - Bhavcopy is needed for YESTERDAY (previous trading day)
-      // - Premarket is needed for TODAY (target date)
-      // - Indices can be for today or yesterday (we'll check both)
+      // Data availability timeline:
+      // - Indices & Bhavcopy: Only available AFTER market hours (end of day data)
+      // - Premarket: Available BEFORE market opens (pre-open prices)
+      // 
+      // For signals on DATE (today):
+      // - Bhavcopy: Needed for YESTERDAY (previous trading day's EOD data)
+      // - Premarket: Needed for TODAY (target date's pre-open data)
+      // - Indices: Needed for YESTERDAY (previous trading day's EOD data, used for context)
       const yesterdayDate = getYesterdayDate(date);
       
       // Count bhavcopy data (yesterday's date)

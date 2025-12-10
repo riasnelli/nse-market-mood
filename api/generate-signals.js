@@ -31,12 +31,24 @@ function getYesterdayDate(todayDate) {
 /**
  * Simple Momentum Gap signal generator
  * Filters EQ series stocks, finds gap-up near high candidates
+ * 
+ * Data availability timeline:
+ * - Indices & Bhavcopy: Only available AFTER market hours (end of day data)
+ * - Premarket: Available BEFORE market opens (today's pre-open prices)
+ * 
+ * For signals on DATE (today):
+ * - Uses: Yesterday's indices + Yesterday's bhavcopy + Today's premarket
+ * - This allows us to calculate gap % (today's premarket vs yesterday's close)
+ * 
  * Never throws - always returns a result object
  */
 async function generateSimpleMomentumGapSignals(date) {
   try {
     const yesterdayDate = getYesterdayDate(date);
-    console.log(`📊 Generating signals: Premarket date=${date}, Bhavcopy date=${yesterdayDate}`);
+    console.log(`📊 Generating signals for ${date}:`);
+    console.log(`   - Premarket data: ${date} (today's pre-open)`);
+    console.log(`   - Bhavcopy data: ${yesterdayDate} (yesterday's EOD)`);
+    console.log(`   - Indices data: ${yesterdayDate} (yesterday's EOD)`);
 
     // Get collections with error handling
     let bhavcopyCollection, premarketCollection;
