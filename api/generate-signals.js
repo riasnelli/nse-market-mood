@@ -176,7 +176,8 @@ async function generateSimpleMomentumGapSignals(date) {
       const bhavcopy = bhavcopyMap.get(symbol);
 
       if (!bhavcopy || processedSymbols.has(symbol)) continue;
-      if (bhavcopy.series !== 'EQ') continue; // Double-check EQ series
+      // Check EQ series - handle both direct series field and items from uploadedBhav
+      if (bhavcopy.series && bhavcopy.series !== 'EQ') continue;
 
       // Calculate gap %
       const yesterdayClose = bhavcopy.close || bhavcopy.prev_close || 0;

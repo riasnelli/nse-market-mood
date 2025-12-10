@@ -1,4 +1,5 @@
 const { getSignalCollection, getSignalRunCollection } = require('./lib/mongodb');
+const { generateSimpleMomentumGapSignals } = require('./generate-signals');
 
 module.exports = async (req, res) => {
   // Enable CORS
@@ -75,8 +76,53 @@ module.exports = async (req, res) => {
         });
       }
 
-      // No signals in DB - return empty (frontend can call generate-signals if needed)
-      // We don't auto-generate here to avoid circular dependencies
+      // No signals in DB - try to generate them
+      console.log(`No signals found in DB for ${date}, attempting to generate...`);
+      try {
+        const generatedResult = await generateSimpleMomentumGapSignals(date);
+        
+        if (generatedResult.signals && generatedResult.signals.length > 0) {
+          // Transform signals to match frontend expectations
+          const transformedSignals = generatedResult.signals.map(signal => ({
+            symbol: signal.symbol,
+            score: signal.score,
+            entry_price: signal.entry || signal.entry_price,
+            target_price: signal.target || signal.target_price,
+            stop_loss: signal.sl || signal.stop_loss,
+            side: signal.direction || signal.side || 'BUY',
+            confidence_score: signal.confidence_score || (signal.score / 100),
+            feature_fields: {
+              gap_percent: signal.gap_percent,
+              near_high: signal.near_high,
+              volume: signal.volume,
+              delivery_percent: signal.delivery_percent
+            },
+            reason: signal.reason
+          }));
+
+          return res.status(200).json({
+            date: date,
+            run_id: generatedResult.run_id || null,
+            signal_count: transformedSignals.length,
+            signals: transformedSignals,
+            hasSignals: true,
+            message: `Generated ${transformedSignals.length} signals for ${date}`
+          });
+        } else {
+          // Generation returned empty signals
+          return res.status(200).json({
+            date: date,
+            run_id: null,
+            signal_count: 0,
+            signals: [],
+            hasSignals: false,
+            message: generatedResult.message || 'No signals available for this date yet. Signals will be generated when data is available.'
+          });
+        }
+      } catch (genError) {
+        console.warn('Error generating signals in get-signals:', genError.message);
+        // Fall through to return empty response
+      }
     } catch (dbError) {
       console.warn('Error querying database for signals, returning empty:', dbError.message);
     }

@@ -3,8 +3,22 @@ const {
   getDailyIndicesCollection, 
   getPreMarketDataCollection,
   getSignalCollection,
-  getSignalRunCollection
+  getSignalRunCollection,
+  getUploadedDataCollection
 } = require('./lib/mongodb');
+
+/**
+ * Get yesterday's date (skip weekends)
+ */
+function getYesterdayDate(todayDate) {
+  const date = new Date(todayDate);
+  date.setDate(date.getDate() - 1);
+  // Skip weekends - go back to Friday if today is Monday
+  while (date.getDay() === 0 || date.getDay() === 6) {
+    date.setDate(date.getDate() - 1);
+  }
+  return date.toISOString().split('T')[0];
+}
 
 module.exports = async (req, res) => {
   // Enable CORS
@@ -78,11 +92,58 @@ module.exports = async (req, res) => {
       const premarketCollection = await getPreMarketDataCollection();
       const signalCollection = await getSignalCollection();
       const signalRunCollection = await getSignalRunCollection();
+      const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+      const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
 
-      // Count documents for each collection for the given date
-      const bhavcopyCount = await bhavcopyCollection.countDocuments({ date: date });
-      const indicesCount = await indicesCollection.countDocuments({ date: date });
-      const premarketCount = await premarketCollection.countDocuments({ date: date });
+      // For signal generation:
+      // - Bhavcopy is needed for YESTERDAY (previous trading day)
+      // - Premarket is needed for TODAY (target date)
+      // - Indices can be for today or yesterday (we'll check both)
+      const yesterdayDate = getYesterdayDate(date);
+      
+      // Count bhavcopy data (yesterday's date)
+      let bhavcopyCount = await bhavcopyCollection.countDocuments({ 
+        date: yesterdayDate,
+        series: 'EQ' 
+      });
+      
+      // Also check uploadedBhav for yesterday
+      if (bhavcopyCount === 0) {
+        const uploadedBhavDocs = await uploadedBhavCollection
+          .find({ date: yesterdayDate })
+          .toArray();
+        
+        // Count EQ stocks in uploaded bhav
+        for (const doc of uploadedBhavDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            const eqCount = doc.indices.filter(item => !item.series || item.series === 'EQ').length;
+            bhavcopyCount += eqCount;
+          }
+        }
+      }
+      
+      // Count indices data (check both today and yesterday)
+      let indicesCount = await indicesCollection.countDocuments({ date: date });
+      if (indicesCount === 0) {
+        indicesCount = await indicesCollection.countDocuments({ date: yesterdayDate });
+      }
+      
+      // Count premarket data (today's date)
+      let premarketCount = await premarketCollection.countDocuments({ date: date });
+      
+      // Also check uploadedPreMarket for today
+      if (premarketCount === 0) {
+        const uploadedPremarketDocs = await uploadedPremarketCollection
+          .find({ date: date })
+          .toArray();
+        
+        // Count items in uploaded premarket
+        for (const doc of uploadedPremarketDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            premarketCount += doc.indices.length;
+          }
+        }
+      }
 
       // Check for signals - find signal run for this date
       const signalRun = await signalRunCollection.findOne({ date: date });
@@ -102,8 +163,11 @@ module.exports = async (req, res) => {
       const hasPremarket = premarketCount > 0;
       const hasSignals = signalsCount > 0;
       
-      // Can generate signals if we have both bhavcopy and indices (premarket is optional)
-      const canGenerateSignals = hasBhav && hasIndices;
+      // Can generate signals if we have:
+      // - Bhavcopy (yesterday) - REQUIRED
+      // - Premarket (today) - REQUIRED for momentum gap strategy
+      // - Indices (today or yesterday) - OPTIONAL but helpful
+      const canGenerateSignals = hasBhav && hasPremarket;
 
       res.status(200).json({
         success: true,
@@ -139,8 +203,8 @@ module.exports = async (req, res) => {
         hasPremarket: hasPremarket,
         hasIndices: hasIndices,
         message: canGenerateSignals 
-          ? `Data available for ${date}. Signals can be generated.`
-          : `Incomplete data for ${date}. Need bhavcopy and indices to generate signals.`
+          ? `Data available for ${date}. Signals can be generated (bhavcopy: ${yesterdayDate}, premarket: ${date}).`
+          : `Incomplete data for ${date}. Need bhavcopy (${yesterdayDate}) and premarket (${date}) to generate signals.`
       });
     } catch (dbError) {
       console.warn('Error querying database for data availability:', dbError.message);
