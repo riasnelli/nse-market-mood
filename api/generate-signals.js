@@ -271,7 +271,10 @@ async function generateSimpleMomentumGapSignals(date) {
       }
 
       // Optional: Filter by volume (minimum volume threshold)
-      const volume = bhavcopy.volume || 0;
+      // Try multiple field name variations for volume
+      const volume = bhavcopy.volume || bhavcopy.VOLUME || 
+                    bhavcopy.tottrdqty || bhavcopy.TOTTRDQTY || 
+                    bhavcopy.traded_quantity || bhavcopy.TRADED_QUANTITY || 0;
       const minVolume = 100000; // Minimum 1 lakh shares
       if (volume < minVolume) continue;
 
