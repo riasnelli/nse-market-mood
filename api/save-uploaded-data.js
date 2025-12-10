@@ -96,11 +96,34 @@ module.exports = async (req, res) => {
       // Retrieve uploaded data from database
       const { id, date, type } = req.query;
 
+      // Check if MongoDB is configured
+      const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
+      if (!mongoUri) {
+        // MongoDB not configured - return empty array
+        return res.status(200).json({
+          success: true,
+          data: [],
+          count: 0,
+          message: 'MongoDB not configured. No uploaded data available.'
+        });
+      }
+
       // Get type from query parameter, default to 'indices'
       const uploadType = type || 'indices';
       
       // Get the correct collection based on type
-      const collection = await getUploadedDataCollection(uploadType);
+      let collection;
+      try {
+        collection = await getUploadedDataCollection(uploadType);
+      } catch (error) {
+        console.error('Error getting collection:', error);
+        return res.status(200).json({
+          success: false,
+          data: [],
+          count: 0,
+          error: error.message
+        });
+      }
 
       let query = {};
       
@@ -121,10 +144,21 @@ module.exports = async (req, res) => {
 
       // Find documents, sort by most recent first
       // No limit - fetch all documents to show all dates including last week
-      const documents = await collection
-        .find(query)
-        .sort({ uploadedAt: -1 })
-        .toArray();
+      let documents = [];
+      try {
+        documents = await collection
+          .find(query)
+          .sort({ uploadedAt: -1 })
+          .toArray();
+      } catch (error) {
+        console.error('Error querying collection:', error);
+        return res.status(200).json({
+          success: false,
+          data: [],
+          count: 0,
+          error: error.message
+        });
+      }
       
       console.log(`Found ${documents.length} documents for type: ${uploadType}`);
 
