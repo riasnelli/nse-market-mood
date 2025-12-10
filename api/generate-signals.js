@@ -133,6 +133,8 @@ async function generateSimpleMomentumGapSignals(date) {
         .find({ date: date })
         .toArray();
       
+      console.log(`Found ${premarketData.length} items in premarket_data for ${date}`);
+      
       // If no data in premarket_data, check uploadedPreMarket collection
       if (premarketData.length === 0) {
         console.log(`No data in premarket_data for ${date}, checking uploadedPreMarket...`);
@@ -141,30 +143,51 @@ async function generateSimpleMomentumGapSignals(date) {
           .find({ date: date })
           .toArray();
         
+        console.log(`Found ${uploadedPremarketDocs.length} uploadedPreMarket documents for ${date}`);
+        
         // Extract indices array from uploaded documents
         for (const doc of uploadedPremarketDocs) {
           if (doc.indices && Array.isArray(doc.indices)) {
+            console.log(`Extracting ${doc.indices.length} items from uploadedPreMarket doc: ${doc.fileName || 'unknown'}`);
             premarketData = premarketData.concat(doc.indices);
+          } else {
+            console.warn(`uploadedPreMarket doc has no indices array:`, {
+              hasIndices: !!doc.indices,
+              isArray: Array.isArray(doc.indices),
+              fileName: doc.fileName
+            });
           }
         }
-        console.log(`Found ${premarketData.length} items in uploadedPreMarket for ${date}`);
+        console.log(`Total: Found ${premarketData.length} items in uploadedPreMarket for ${date}`);
       }
     } catch (queryError) {
       console.error('Error querying premarket data:', queryError);
       // Continue with empty premarket data - we can still process bhavcopy-only signals
       premarketData = [];
     }
+    
+    if (premarketData.length === 0) {
+      console.warn(`⚠️ No premarket data found for ${date} in premarket_data or uploadedPreMarket`);
+    }
 
     // Create lookup maps
     const bhavcopyMap = new Map();
     bhavcopyData.forEach(item => {
-      bhavcopyMap.set(item.symbol, item);
+      const symbol = item.symbol || item.SYMBOL || item.Symbol;
+      if (symbol) {
+        bhavcopyMap.set(symbol.toUpperCase(), item);
+      }
     });
 
     const premarketMap = new Map();
     premarketData.forEach(item => {
-      premarketMap.set(item.symbol, item);
+      const symbol = item.symbol || item.SYMBOL || item.Symbol;
+      if (symbol) {
+        premarketMap.set(symbol.toUpperCase(), item);
+      }
     });
+
+    console.log(`📊 Created maps: ${bhavcopyMap.size} bhavcopy symbols, ${premarketMap.size} premarket symbols`);
 
     // Generate signals
     const signals = [];
@@ -172,18 +195,26 @@ async function generateSimpleMomentumGapSignals(date) {
 
     // Process stocks with premarket data
     for (const premarket of premarketData) {
-      const symbol = premarket.symbol;
+      const symbol = (premarket.symbol || premarket.SYMBOL || premarket.Symbol || '').toUpperCase();
+      if (!symbol || processedSymbols.has(symbol)) continue;
+      
       const bhavcopy = bhavcopyMap.get(symbol);
-
-      if (!bhavcopy || processedSymbols.has(symbol)) continue;
+      if (!bhavcopy) continue;
+      
       // Check EQ series - handle both direct series field and items from uploadedBhav
       if (bhavcopy.series && bhavcopy.series !== 'EQ') continue;
 
       // Calculate gap %
-      const yesterdayClose = bhavcopy.close || bhavcopy.prev_close || 0;
+      // Try multiple field name variations for close price
+      const yesterdayClose = bhavcopy.close || bhavcopy.CLOSE || bhavcopy.prev_close || bhavcopy.PREV_CLOSE || 
+                            bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
       if (yesterdayClose <= 0) continue;
 
-      const premarketPrice = premarket.pre_open_price || premarket.price || 0;
+      // Try multiple field name variations for premarket price
+      const premarketPrice = premarket.pre_open_price || premarket.PRE_OPEN_PRICE || 
+                            premarket.price || premarket.PRICE ||
+                            premarket.last_price || premarket.LAST_PRICE ||
+                            premarket.open || premarket.OPEN || 0;
       if (premarketPrice <= 0) continue;
 
       const gapPercent = ((premarketPrice - yesterdayClose) / yesterdayClose) * 100;
