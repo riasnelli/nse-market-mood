@@ -4463,39 +4463,70 @@ class MarketMoodApp {
                         console.warn('⚠️ Failed to parse signals response as JSON:', parseError);
                         data = null;
                     }
-                } else {
+                            } else {
                     console.warn('⚠️ Signals response is not JSON, treating as no signals');
                     data = null;
-                }
-            } else {
+                            }
+                        } else {
                 // Non-OK response - don't try to parse JSON from 404 HTML pages
                 console.warn(`⚠️ Signals API returned ${response.status}, skipping JSON parse`);
                 data = null;
             }
             
-            // If no data found, try to generate new ones
-            if (!data || !data.signals || data.signals.length === 0) {
+            // Extract signals array from data with safe defaults
+            let signalsArray = [];
+            let hasSignals = false;
+            let signalsMessage = '';
+            let signalsSuccess = true;
+            
+            if (data && Array.isArray(data.signals)) {
+                signalsArray = data.signals;
+                hasSignals = signalsArray.length > 0;
+                signalsMessage = data.message || '';
+                signalsSuccess = data.success !== false;
+            } else if (data) {
+                // Data exists but signals might be missing - log warning
+                console.warn('⚠️ Unexpected response shape: data exists but signals array is missing or invalid', data);
+                signalsArray = [];
+                hasSignals = false;
+                signalsMessage = data.message || 'No signals available';
+                signalsSuccess = data.success !== false;
+            }
+            
+            // If no data found or no signals, try to generate new ones
+            if (!data || !hasSignals) {
                 console.log('⚠️ No existing signals found, generating new ones...');
                 try {
-                    data = await this.generateSignalsForDate(targetDate);
+                    const generatedData = await this.generateSignalsForDate(targetDate);
                     
-                    // Update status with generated signals info
-                    if (data) {
+                    // Update data and signals array from generated response
+                    if (generatedData) {
+                        data = generatedData;
+                        signalsArray = Array.isArray(generatedData.signals) ? generatedData.signals : [];
+                        hasSignals = signalsArray.length > 0;
+                        signalsMessage = generatedData.message || '';
+                        signalsSuccess = generatedData.success !== false;
+                        
+                        // Update status with generated signals info
                         this.updateSignalsStatus({
                             signalsInfo: {
-                                hasSignals: (data.signals && data.signals.length > 0) || false,
-                                signals: data.signals || [],
-                                success: data.success !== false,
-                                message: data.message
+                                hasSignals: hasSignals,
+                                signals: signalsArray,
+                                success: signalsSuccess,
+                                message: signalsMessage
                             },
-                            backendMessage: data.message,
-                            mode: (data.signals && data.signals.length > 0) ? 'signals' : 'strategy-only'
+                            backendMessage: signalsMessage,
+                            mode: hasSignals ? 'signals' : 'strategy-only'
                         });
                     }
                 } catch (genError) {
                     // If generation also fails, show strategy recommendation only
                     console.warn('⚠️ Signal generation failed, showing strategy recommendation only:', genError.message);
                     data = null; // Set to null to trigger strategy-only display
+                    signalsArray = [];
+                    hasSignals = false;
+                    signalsMessage = genError.message || 'Signal generation failed';
+                    signalsSuccess = false;
                     
                     // Update status to show unavailable
                     this.updateSignalsStatus({
@@ -4503,9 +4534,9 @@ class MarketMoodApp {
                             hasSignals: false,
                             signals: [],
                             success: false,
-                            message: genError.message || 'Signal generation failed'
+                            message: signalsMessage
                         },
-                        backendMessage: genError.message || 'Signal generation failed',
+                        backendMessage: signalsMessage,
                         mode: 'strategy-only'
                     });
                 }
@@ -4515,29 +4546,28 @@ class MarketMoodApp {
 
             // Update status with strategy
             if (strategyAnalysis) {
-                const signalCount = data?.signals ? data.signals.length : 0;
                 this.updateSignalsStatus({ 
                     strategy: strategyAnalysis,
-                    mode: signalCount > 0 ? 'signals' : 'strategy-only'
+                    mode: hasSignals ? 'signals' : 'strategy-only'
                 });
             }
 
             // Handle response - show strategy recommendation even if no signals or API failed
-            if (!data || !data.signals || data.signals.length === 0) {
+            if (!hasSignals) {
                 // Always show strategy recommendation if we have market data
                 if (strategyAnalysis) {
                     console.log('✅ Rendering strategy recommendation (no signals available)');
                     
                     // Update status with strategy and no signals info
                     this.updateSignalsStatus({
-                        signalsInfo: signals || {
+                        signalsInfo: {
                             hasSignals: false,
-                            signals: [],
-                            success: data?.success !== false,
-                            message: data?.message || 'No signals available'
+                            signals: signalsArray,
+                            success: signalsSuccess,
+                            message: signalsMessage || 'No signals available'
                         },
                         strategy: strategyAnalysis,
-                        backendMessage: data?.message || 'No signals available for this date',
+                        backendMessage: signalsMessage || 'No signals available for this date',
                         mode: 'strategy-only'
                     });
                     
@@ -4545,20 +4575,20 @@ class MarketMoodApp {
                     this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
                     signalsContainer.style.display = 'block';
                     signalsEmpty.style.display = 'none';
-                    signalsLoading.style.display = 'none';
+            signalsLoading.style.display = 'none';
                     return;
                 } else {
                     console.warn('⚠️ No strategy analysis available, showing empty state');
                     
                     // Update status even without strategy
                     this.updateSignalsStatus({
-                        signalsInfo: signals || {
+                        signalsInfo: {
                             hasSignals: false,
-                            signals: [],
-                            success: data?.success !== false,
-                            message: data?.message || 'No signals available'
+                            signals: signalsArray,
+                            success: signalsSuccess,
+                            message: signalsMessage || 'No signals available'
                         },
-                        backendMessage: data?.message || 'No signals available for this date',
+                        backendMessage: signalsMessage || 'No signals available for this date',
                         mode: 'strategy-only'
                     });
                 }
@@ -4593,9 +4623,9 @@ class MarketMoodApp {
             signalsContainer.innerHTML = '';
             
             // Update strategy analysis with actual stock recommendations from signals
-            if (strategyAnalysis && data.signals && data.signals.length > 0) {
+            if (strategyAnalysis && hasSignals && signalsArray.length > 0) {
                 // Extract top stocks from signals
-                const topStocks = data.signals
+                const topStocks = signalsArray
                     .slice(0, 5) // Top 5 stocks
                     .map(signal => ({
                         symbol: signal.symbol,
@@ -4609,13 +4639,13 @@ class MarketMoodApp {
             // Update status with final signals info
             this.updateSignalsStatus({
                 signalsInfo: {
-                    hasSignals: true,
-                    signals: data.signals || [],
-                    success: true,
-                    message: data.message || `Found ${data.signals.length} signals`
+                    hasSignals: hasSignals,
+                    signals: signalsArray,
+                    success: signalsSuccess,
+                    message: signalsMessage || `Found ${signalsArray.length} signals`
                 },
                 strategy: strategyAnalysis || null,
-                backendMessage: data.message,
+                backendMessage: signalsMessage,
                 mode: 'signals'
             });
 
@@ -4625,8 +4655,10 @@ class MarketMoodApp {
             }
 
             // Display signals
-            console.log('📈 Rendering', data.signals.length, 'signals');
-            this.renderSignals(data.signals, data.run_id || data.runId, data.date || targetDate, signalsContainer);
+            console.log('📈 Rendering', signalsArray.length, 'signals');
+            const runId = data?.run_id || data?.runId || null;
+            const signalDate = data?.date || targetDate;
+            this.renderSignals(signalsArray, runId, signalDate, signalsContainer);
             
         } catch (error) {
             console.error('❌ Error loading signals:', error);
