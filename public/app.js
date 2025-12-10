@@ -4455,7 +4455,9 @@ class MarketMoodApp {
                                 signals: data.signals || [],
                                 success: data.success !== false,
                                 message: data.message
-                            }
+                            },
+                            backendMessage: data.message,
+                            mode: (data.signals && data.signals.length > 0) ? 'signals' : 'strategy-only'
                         });
                     } catch (parseError) {
                         console.warn('⚠️ Failed to parse signals response as JSON:', parseError);
@@ -4485,7 +4487,9 @@ class MarketMoodApp {
                                 signals: data.signals || [],
                                 success: data.success !== false,
                                 message: data.message
-                            }
+                            },
+                            backendMessage: data.message,
+                            mode: (data.signals && data.signals.length > 0) ? 'signals' : 'strategy-only'
                         });
                     }
                 } catch (genError) {
@@ -4499,8 +4503,10 @@ class MarketMoodApp {
                             hasSignals: false,
                             signals: [],
                             success: false,
-                            message: 'Signal generation failed'
-                        }
+                            message: genError.message || 'Signal generation failed'
+                        },
+                        backendMessage: genError.message || 'Signal generation failed',
+                        mode: 'strategy-only'
                     });
                 }
             }
@@ -4509,7 +4515,11 @@ class MarketMoodApp {
 
             // Update status with strategy
             if (strategyAnalysis) {
-                this.updateSignalsStatus({ strategy: strategyAnalysis.strategy });
+                const signalCount = data?.signals ? data.signals.length : 0;
+                this.updateSignalsStatus({ 
+                    strategy: strategyAnalysis,
+                    mode: signalCount > 0 ? 'signals' : 'strategy-only'
+                });
             }
 
             // Handle response - show strategy recommendation even if no signals or API failed
@@ -4576,9 +4586,11 @@ class MarketMoodApp {
                     hasSignals: true,
                     signals: data.signals || [],
                     success: true,
-                    message: `Found ${data.signals.length} signals`
+                    message: data.message || `Found ${data.signals.length} signals`
                 },
-                strategy: strategyAnalysis ? strategyAnalysis.strategy : null
+                strategy: strategyAnalysis || null,
+                backendMessage: data.message,
+                mode: 'signals'
             });
 
             // Render strategy recommendation
@@ -5140,7 +5152,7 @@ class MarketMoodApp {
                         throw new Error(data.error || data.message || 'Failed to load data availability');
                     }
             // Render data availability
-                    this.renderDataAvailability(data);
+            this.renderDataAvailability(data);
                     
                     // Update signals status with data availability
                     this.updateSignalsStatus({ dataAvailability: data });
@@ -5173,7 +5185,7 @@ class MarketMoodApp {
         }
     }
 
-    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy }) {
+    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode }) {
         const statusPanel = document.getElementById('signalsStatusPanel');
         if (!statusPanel) {
             console.warn('Signals status panel not found');
@@ -5185,52 +5197,81 @@ class MarketMoodApp {
         if (signalsInfo !== undefined) this._signalsStatusData.signalsInfo = signalsInfo;
         if (dataAvailability !== undefined) this._signalsStatusData.dataAvailability = dataAvailability;
         if (strategy !== undefined) this._signalsStatusData.strategy = strategy;
+        if (backendMessage !== undefined) this._signalsStatusData.backendMessage = backendMessage;
+        if (mode !== undefined) this._signalsStatusData.mode = mode;
 
         // Use stored data with fallbacks
         const targetDate = this._signalsStatusData.date || date || new Date().toISOString().split('T')[0];
         const signals = this._signalsStatusData.signalsInfo || signalsInfo;
         const dataAvail = this._signalsStatusData.dataAvailability || dataAvailability;
         const strategyInfo = this._signalsStatusData.strategy || strategy;
+        const message = this._signalsStatusData.backendMessage || backendMessage || signals?.message || '';
+        const currentMode = this._signalsStatusData.mode || mode || 'unknown';
 
-        // Determine signals engine status
+        // Determine signals engine status with detailed messages
         let engineStatus = 'Temporarily unavailable — showing strategy only.';
         let engineStatusColor = '#ef4444';
         
         if (signals) {
-            if (signals.hasSignals === true && signals.signals && signals.signals.length > 0) {
-                engineStatus = `Active — ${signals.signals.length} signal${signals.signals.length !== 1 ? 's' : ''} available.`;
+            const signalCount = signals.signals ? signals.signals.length : 0;
+            const hasSignals = signals.hasSignals === true && signalCount > 0;
+            const success = signals.success !== false && signals.success !== undefined;
+            
+            if (hasSignals) {
+                // Active with signals
+                engineStatus = `Active — ${signalCount} signal${signalCount !== 1 ? 's' : ''} generated.`;
                 engineStatusColor = '#10b981';
-            } else if (signals.success !== false && signals.message && !signals.message.includes('unavailable') && !signals.message.includes('failed')) {
-                engineStatus = 'Connected — no signals generated yet for this date.';
-                engineStatusColor = '#f59e0b';
+            } else if (success || (signals.success === undefined && message)) {
+                // Request succeeded but no signals - use backend message
+                if (message) {
+                    // Clean up the message for display
+                    let cleanMessage = message;
+                    // Remove redundant prefixes
+                    if (cleanMessage.includes('No signals available')) {
+                        cleanMessage = cleanMessage.replace('No signals available for this date yet. ', '');
+                    }
+                    // Show the reason from backend
+                    engineStatus = `No signals — ${cleanMessage}`;
+                    engineStatusColor = '#f59e0b';
+                } else {
+                    engineStatus = 'Connected — no signals generated yet for this date.';
+                    engineStatusColor = '#f59e0b';
+                }
+            } else if (signals.success === false) {
+                // Generation failed
+                if (message) {
+                    engineStatus = `Temporarily unavailable — ${message}`;
+                } else {
+                    engineStatus = 'Temporarily unavailable — showing strategy only.';
+                }
+                engineStatusColor = '#ef4444';
             }
+        } else if (message) {
+            // No signals object but we have a message
+            engineStatus = `No signals — ${message}`;
+            engineStatusColor = '#f59e0b';
         }
 
-        // Build data availability summary
-        let dataSummary = 'Data: Indices ❓ · Bhav ❓ · Premarket ❓';
-        if (dataAvail && dataAvail.data) {
-            const indices = dataAvail.data.indices || { available: false, count: 0 };
-            const bhav = dataAvail.data.bhavcopy || dataAvail.data.bhav || { available: false, count: 0 };
-            const premarket = dataAvail.data.premarket || { available: false, count: 0 };
-            
-            const indicesIcon = indices.available ? '✅' : '❌';
-            const bhavIcon = bhav.available ? '✅' : '❌';
-            const premarketIcon = premarket.available ? '✅' : '❌';
-            
-            const indicesCount = indices.count || 0;
-            const bhavCount = bhav.count || 0;
-            const premarketCount = premarket.count || 0;
-            
-            dataSummary = `Data: Indices ${indicesIcon}${indicesCount > 0 ? ` (${indicesCount})` : ''} · Bhav ${bhavIcon}${bhavCount > 0 ? ` (${bhavCount})` : ''} · Premarket ${premarketIcon}${premarketCount > 0 ? ` (${premarketCount})` : ''}`;
-        }
-
-        // Get strategy name
+        // Get strategy name with mode indicator
         let strategyText = 'Strategy: Not available';
         if (strategyInfo) {
+            let strategyName = '';
             if (typeof strategyInfo === 'string') {
-                strategyText = `Strategy: ${strategyInfo}`;
+                strategyName = strategyInfo;
             } else if (strategyInfo.strategy) {
-                strategyText = `Strategy: ${strategyInfo.strategy}`;
+                strategyName = strategyInfo.strategy;
+            }
+            
+            if (strategyName) {
+                // Determine if we're in strategy-only mode (no signals)
+                const signalCount = signals?.signals ? signals.signals.length : 0;
+                const hasSignals = signals?.hasSignals === true && signalCount > 0;
+                
+                if (!hasSignals && signalCount === 0) {
+                    strategyText = `Strategy: ${strategyName} (strategy-only mode, no entry list)`;
+                } else {
+                    strategyText = `Strategy: ${strategyName}`;
+                }
             }
         }
 
@@ -5238,20 +5279,17 @@ class MarketMoodApp {
         statusPanel.innerHTML = `
             <div style="background: rgba(255, 255, 255, 0.95); border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                 <div style="font-size: 0.85rem; font-weight: 600; color: #667eea; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
-                <div style="display: grid; grid-template-columns: 1fr; gap: 10px; font-size: 0.9rem;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="color: #666; min-width: 60px;">Date:</span>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 12px; font-size: 0.9rem;">
+                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                        <span style="color: #666; min-width: 60px; font-weight: 500;">Date:</span>
                         <span style="color: #333; font-weight: 500;">${targetDate}</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="color: #666; min-width: 60px;">Engine:</span>
-                        <span style="color: ${engineStatusColor}; font-weight: 500;">${engineStatus}</span>
+                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                        <span style="color: #666; min-width: 60px; font-weight: 500;">Engine:</span>
+                        <span style="color: ${engineStatusColor}; font-weight: 500; flex: 1; line-height: 1.4;">${engineStatus}</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                        <span style="color: #666; min-width: 60px;">${dataSummary}</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="color: #666; min-width: 60px;">${strategyText}</span>
+                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                        <span style="color: #666; min-width: 60px; font-weight: 500;">${strategyText}</span>
                     </div>
                 </div>
             </div>
