@@ -5101,6 +5101,17 @@ class MarketMoodApp {
                 console.warn(`⚠️ Data availability API returned ${response.status}, showing error message`);
                 dataAvailabilityError.style.display = 'block';
                 dataAvailabilityError.textContent = 'Data availability check is not available yet.';
+                
+                // Update status with unavailable data
+                this.updateSignalsStatus({
+                    dataAvailability: {
+                        data: {
+                            indices: { available: false, count: 0 },
+                            bhavcopy: { available: false, count: 0 },
+                            premarket: { available: false, count: 0 }
+                        }
+                    }
+                });
                 return;
             }
 
@@ -5132,6 +5143,17 @@ class MarketMoodApp {
             dataAvailabilityLoading.style.display = 'none';
             dataAvailabilityError.style.display = 'block';
             dataAvailabilityError.textContent = error.message || 'Failed to load data availability';
+            
+            // Update status with error state
+            this.updateSignalsStatus({
+                dataAvailability: {
+                    data: {
+                        indices: { available: false, count: 0 },
+                        bhavcopy: { available: false, count: 0 },
+                        premarket: { available: false, count: 0 }
+                    }
+                }
+            });
         }
     }
 
