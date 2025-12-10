@@ -1,6 +1,12 @@
 class MarketMoodApp {
     constructor() {
         this.timerId = null;
+        this._signalsStatusData = {
+            date: null,
+            signalsInfo: null,
+            dataAvailability: null,
+            strategy: null
+        };
         this.lastMarketStatus = null; // Store last known market status
         this.lastSuccessfulStatus = null; // Store last successful market status
         this.consecutiveFailures = 0; // Track consecutive API failures
@@ -4300,6 +4306,14 @@ class MarketMoodApp {
             // Scroll to top immediately (before any async operations)
             window.scrollTo({ top: 0, behavior: 'instant' });
             
+            // Show initial status panel
+            this.updateSignalsStatus({
+                date: new Date().toISOString().split('T')[0],
+                signalsInfo: null,
+                dataAvailability: null,
+                strategy: null
+            });
+            
             // Load signals data asynchronously to prevent iPhone freeze
             requestAnimationFrame(() => {
                 // Use requestIdleCallback if available for better performance on iPhone
@@ -4397,6 +4411,9 @@ class MarketMoodApp {
 
             console.log('📅 Target date for signals:', targetDate);
 
+            // Update status with target date
+            this.updateSignalsStatus({ date: targetDate });
+
             // First, try to get existing signals for this date
             let url = '/api/get-signals';
             if (targetDate) {
@@ -4414,6 +4431,16 @@ class MarketMoodApp {
                     try {
                 data = await response.json();
                         console.log('✅ Found existing signals:', data);
+                        
+                        // Update status with signals info
+                        this.updateSignalsStatus({
+                            signalsInfo: {
+                                hasSignals: data.hasSignals || false,
+                                signals: data.signals || [],
+                                success: data.success !== false,
+                                message: data.message
+                            }
+                        });
                     } catch (parseError) {
                         console.warn('⚠️ Failed to parse signals response as JSON:', parseError);
                         data = null;
@@ -4433,14 +4460,41 @@ class MarketMoodApp {
                 console.log('⚠️ No existing signals found, generating new ones...');
                 try {
                     data = await this.generateSignalsForDate(targetDate);
+                    
+                    // Update status with generated signals info
+                    if (data) {
+                        this.updateSignalsStatus({
+                            signalsInfo: {
+                                hasSignals: (data.signals && data.signals.length > 0) || false,
+                                signals: data.signals || [],
+                                success: data.success !== false,
+                                message: data.message
+                            }
+                        });
+                    }
                 } catch (genError) {
                     // If generation also fails, show strategy recommendation only
                     console.warn('⚠️ Signal generation failed, showing strategy recommendation only:', genError.message);
                     data = null; // Set to null to trigger strategy-only display
+                    
+                    // Update status to show unavailable
+                    this.updateSignalsStatus({
+                        signalsInfo: {
+                            hasSignals: false,
+                            signals: [],
+                            success: false,
+                            message: 'Signal generation failed'
+                        }
+                    });
                 }
             }
 
             signalsLoading.style.display = 'none';
+
+            // Update status with strategy
+            if (strategyAnalysis) {
+                this.updateSignalsStatus({ strategy: strategyAnalysis.strategy });
+            }
 
             // Handle response - show strategy recommendation even if no signals or API failed
             if (!data || !data.signals || data.signals.length === 0) {
@@ -5038,7 +5092,10 @@ class MarketMoodApp {
                         throw new Error(data.error || data.message || 'Failed to load data availability');
                     }
             // Render data availability
-            this.renderDataAvailability(data);
+                    this.renderDataAvailability(data);
+                    
+                    // Update signals status with data availability
+                    this.updateSignalsStatus({ dataAvailability: data });
                 } catch (parseError) {
                     console.warn('⚠️ Failed to parse data availability response as JSON:', parseError);
                     dataAvailabilityError.style.display = 'block';
@@ -5055,6 +5112,94 @@ class MarketMoodApp {
             dataAvailabilityError.style.display = 'block';
             dataAvailabilityError.textContent = error.message || 'Failed to load data availability';
         }
+    }
+
+    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy }) {
+        const statusPanel = document.getElementById('signalsStatusPanel');
+        if (!statusPanel) {
+            console.warn('Signals status panel not found');
+            return;
+        }
+
+        // Update stored data
+        if (date !== undefined) this._signalsStatusData.date = date;
+        if (signalsInfo !== undefined) this._signalsStatusData.signalsInfo = signalsInfo;
+        if (dataAvailability !== undefined) this._signalsStatusData.dataAvailability = dataAvailability;
+        if (strategy !== undefined) this._signalsStatusData.strategy = strategy;
+
+        // Use stored data with fallbacks
+        const targetDate = this._signalsStatusData.date || date || new Date().toISOString().split('T')[0];
+        const signals = this._signalsStatusData.signalsInfo || signalsInfo;
+        const dataAvail = this._signalsStatusData.dataAvailability || dataAvailability;
+        const strategyInfo = this._signalsStatusData.strategy || strategy;
+
+        // Determine signals engine status
+        let engineStatus = 'Temporarily unavailable — showing strategy only.';
+        let engineStatusColor = '#ef4444';
+        
+        if (signals) {
+            if (signals.hasSignals === true && signals.signals && signals.signals.length > 0) {
+                engineStatus = `Active — ${signals.signals.length} signal${signals.signals.length !== 1 ? 's' : ''} available.`;
+                engineStatusColor = '#10b981';
+            } else if (signals.success !== false && signals.message && !signals.message.includes('unavailable') && !signals.message.includes('failed')) {
+                engineStatus = 'Connected — no signals generated yet for this date.';
+                engineStatusColor = '#f59e0b';
+            }
+        }
+
+        // Build data availability summary
+        let dataSummary = 'Data: Indices ❓ · Bhav ❓ · Premarket ❓';
+        if (dataAvail && dataAvail.data) {
+            const indices = dataAvail.data.indices || { available: false, count: 0 };
+            const bhav = dataAvail.data.bhavcopy || dataAvail.data.bhav || { available: false, count: 0 };
+            const premarket = dataAvail.data.premarket || { available: false, count: 0 };
+            
+            const indicesIcon = indices.available ? '✅' : '❌';
+            const bhavIcon = bhav.available ? '✅' : '❌';
+            const premarketIcon = premarket.available ? '✅' : '❌';
+            
+            const indicesCount = indices.count || 0;
+            const bhavCount = bhav.count || 0;
+            const premarketCount = premarket.count || 0;
+            
+            dataSummary = `Data: Indices ${indicesIcon}${indicesCount > 0 ? ` (${indicesCount})` : ''} · Bhav ${bhavIcon}${bhavCount > 0 ? ` (${bhavCount})` : ''} · Premarket ${premarketIcon}${premarketCount > 0 ? ` (${premarketCount})` : ''}`;
+        }
+
+        // Get strategy name
+        let strategyText = 'Strategy: Not available';
+        if (strategyInfo) {
+            if (typeof strategyInfo === 'string') {
+                strategyText = `Strategy: ${strategyInfo}`;
+            } else if (strategyInfo.strategy) {
+                strategyText = `Strategy: ${strategyInfo.strategy}`;
+            }
+        }
+
+        // Render status panel
+        statusPanel.innerHTML = `
+            <div style="background: rgba(255, 255, 255, 0.95); border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="font-size: 0.85rem; font-weight: 600; color: #667eea; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 10px; font-size: 0.9rem;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: #666; min-width: 60px;">Date:</span>
+                        <span style="color: #333; font-weight: 500;">${targetDate}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: #666; min-width: 60px;">Engine:</span>
+                        <span style="color: ${engineStatusColor}; font-weight: 500;">${engineStatus}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="color: #666; min-width: 60px;">${dataSummary}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: #666; min-width: 60px;">${strategyText}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Show the panel
+        statusPanel.style.display = 'block';
     }
 
     renderDataAvailability(data) {
