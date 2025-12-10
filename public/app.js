@@ -4527,6 +4527,20 @@ class MarketMoodApp {
                 // Always show strategy recommendation if we have market data
                 if (strategyAnalysis) {
                     console.log('✅ Rendering strategy recommendation (no signals available)');
+                    
+                    // Update status with strategy and no signals info
+                    this.updateSignalsStatus({
+                        signalsInfo: signals || {
+                            hasSignals: false,
+                            signals: [],
+                            success: data?.success !== false,
+                            message: data?.message || 'No signals available'
+                        },
+                        strategy: strategyAnalysis,
+                        backendMessage: data?.message || 'No signals available for this date',
+                        mode: 'strategy-only'
+                    });
+                    
                     signalsContainer.innerHTML = ''; // Clear any previous content
                     this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
                     signalsContainer.style.display = 'block';
@@ -4535,6 +4549,18 @@ class MarketMoodApp {
                     return;
                 } else {
                     console.warn('⚠️ No strategy analysis available, showing empty state');
+                    
+                    // Update status even without strategy
+                    this.updateSignalsStatus({
+                        signalsInfo: signals || {
+                            hasSignals: false,
+                            signals: [],
+                            success: data?.success !== false,
+                            message: data?.message || 'No signals available'
+                        },
+                        backendMessage: data?.message || 'No signals available for this date',
+                        mode: 'strategy-only'
+                    });
                 }
                 
                 // Show empty state
