@@ -220,13 +220,39 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
     let premarketCountUploaded = 0;
     
     try {
-      // First, try premarket_data collection
+      // First, try premarket_data collection (includes data inserted from uploads)
       premarketData = await premarketCollection
         .find({ date: date })
         .toArray();
       
       premarketCountDaily = premarketData.length;
       console.log(`📊 PREMARKET COUNT for ${date}: premarket_data = ${premarketCountDaily}`);
+      
+      // If no exact date match, try to find the most recent date before or equal to today
+      if (premarketData.length === 0) {
+        console.log(`No exact date match in premarket_data for ${date}, searching for closest date...`);
+        const allPremarketDaily = await premarketCollection
+          .find({})
+          .sort({ date: -1 })
+          .limit(50)
+          .toArray();
+        
+        // Get unique dates and find closest
+        const uniqueDates = [...new Set(allPremarketDaily.map(d => d.date))].sort().reverse();
+        console.log(`📅 Available dates in premarket_data:`, uniqueDates.slice(0, 10).join(', '));
+        
+        // Find closest date <= date
+        for (const dateStr of uniqueDates) {
+          if (dateStr && dateStr <= date) {
+            console.log(`✅ Found closest date in premarket_data: ${dateStr} (looking for ${date})`);
+            premarketData = await premarketCollection
+              .find({ date: dateStr })
+              .toArray();
+            premarketCountDaily = premarketData.length;
+            break;
+          }
+        }
+      }
       
       // If no data in premarket_data, check uploadedPreMarket collection
       if (premarketData.length === 0) {
