@@ -4141,10 +4141,9 @@ class MarketMoodApp {
                     // If count is 0, it means the file was uploaded but parsing failed (empty indices array)
                     const hasBhav = (dateData.bhav?.count || 0) > 0;
                     
-                    // For PREM: Show marker if file exists (has ID) OR count > 0
-                    const hasPremarket = !!dateData.premarket?.id || 
-                                       (dateData.premarket?.count || 0) > 0 || 
-                                       (dateData.dateDataPremarketCount || 0) > 0;
+                    // For PREM: Show marker ONLY if count > 0 (actual data exists)
+                    // Don't show marker just because a file ID exists - we need actual parsed data
+                    const hasPremarket = (dateData.premarket?.count || 0) > 0;
                     
                     // Debug log for rendering
                     console.log(
