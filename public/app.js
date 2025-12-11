@@ -2647,7 +2647,19 @@ class MarketMoodApp {
                             parsedData = this.parseDATFile(e.target.result);
                         } else {
                             // Default to CSV parsing
+                            // Try multiple parsing methods for premarket files
+                            if (uploadType === 'premarket') {
+                                // First try standard CSV parsing
                             parsedData = this.parseCSV(e.target.result);
+                                
+                                // If that fails or produces only one column, try tab-delimited
+                                if (parsedData.length > 0 && Object.keys(parsedData[0]).length <= 1) {
+                                    console.log('⚠️ Standard CSV parsing produced only one column, trying tab-delimited...');
+                                    parsedData = this.parseTabDelimitedFile(e.target.result);
+                                }
+                            } else {
+                                parsedData = this.parseCSV(e.target.result);
+                            }
                         }
                         
                         // Process data based on upload type
