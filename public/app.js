@@ -455,20 +455,9 @@ class MarketMoodApp {
             }
         }
         
-        // Ensure mood page is visible initially
-        if (this.moodPageView) {
-            this.moodPageView.style.setProperty('display', 'block', 'important');
-            console.log('✓ Mood page initialized and visible');
-        } else {
-            console.error('✗ Mood page view not found during init!');
-        }
-        if (this.signalsPageView) {
-            this.signalsPageView.style.setProperty('display', 'none', 'important');
-            console.log('✓ Signals page initialized and hidden');
-        } else {
-            console.error('✗ Signals page view not found during init!');
-            console.error('This will prevent the signals page from working. Please check the HTML structure.');
-        }
+        // Set default view to mood using centralized function
+        this.setActiveView('mood');
+        console.log('✓ Initial view set to mood');
         
         // Debug: Log all page view elements
         console.log('=== Page View Elements Check ===');
@@ -4306,7 +4295,79 @@ class MarketMoodApp {
         }
     }
 
+    /**
+     * Centralized function to control view switching
+     * Ensures page views are siblings and properly visible/hidden
+     */
+    setActiveView(active) {
+        const moodPageView = document.getElementById('moodPageView');
+        const signalsPageView = document.getElementById('signalsPageView');
+        const moodBtn = document.getElementById('moodBtn');
+        const signalsBtn = document.getElementById('signalsBtn');
+
+        if (!moodPageView || !signalsPageView) {
+            console.warn('setActiveView: missing page views', {
+                moodPageView: !!moodPageView,
+                signalsPageView: !!signalsPageView,
+            });
+            return;
+        }
+
+        // Ensure they are siblings, not nested
+        if (signalsPageView.parentElement === moodPageView && moodPageView.parentElement) {
+            console.log('Fixing nested structure: moving signalsPageView to be sibling of moodPageView');
+            moodPageView.parentElement.insertBefore(signalsPageView, moodPageView.nextSibling);
+        }
+
+        // Clean up old inline display so we fully control it
+        moodPageView.style.removeProperty('display');
+        signalsPageView.style.removeProperty('display');
+        moodPageView.style.removeProperty('visibility');
+        signalsPageView.style.removeProperty('visibility');
+
+        if (active === 'mood') {
+            moodPageView.style.setProperty('display', 'block', 'important');
+            signalsPageView.style.setProperty('display', 'none', 'important');
+            moodPageView.style.setProperty('visibility', 'visible', 'important');
+            signalsPageView.style.setProperty('visibility', 'hidden', 'important');
+
+            moodBtn && moodBtn.classList.add('active');
+            signalsBtn && signalsBtn.classList.remove('active');
+            
+            // Update header title
+            const headerTitle = document.getElementById('headerTitle');
+            if (headerTitle) {
+                headerTitle.textContent = 'NSE Market Mood';
+            }
+        } else if (active === 'signals') {
+            moodPageView.style.setProperty('display', 'none', 'important');
+            signalsPageView.style.setProperty('display', 'block', 'important');
+            moodPageView.style.setProperty('visibility', 'hidden', 'important');
+            signalsPageView.style.setProperty('visibility', 'visible', 'important');
+            signalsPageView.style.setProperty('background', '#ffffff', 'important');
+
+            signalsBtn && signalsBtn.classList.add('active');
+            moodBtn && moodBtn.classList.remove('active');
+            
+            // Update header title
+            const headerTitle = document.getElementById('headerTitle');
+            if (headerTitle) {
+                headerTitle.textContent = 'NSE Signals';
+            }
+        }
+
+        console.log('setActiveView result', {
+            active,
+            moodDisplay: moodPageView.style.display,
+            signalsDisplay: signalsPageView.style.display,
+            moodParent: moodPageView.parentElement?.id,
+            signalsParent: signalsPageView.parentElement?.id,
+        });
+    }
+
     showMoodView() {
+        console.log('showMoodView: switching to mood');
+        
         // Prevent multiple rapid calls
         if (this._switchingView) {
             console.log('View switch already in progress, ignoring');
@@ -4319,54 +4380,25 @@ class MarketMoodApp {
         }
         
         this._switchingView = true;
-        console.log('Switching to Mood view');
         
         try {
-            // Ensure we have references to page views
-            if (!this.moodPageView) {
-                this.moodPageView = document.getElementById('moodPageView');
-            }
-            if (!this.signalsPageView) {
-                this.signalsPageView = document.getElementById('signalsPageView');
-            }
-            
-            // Validate elements exist
-            if (!this.moodPageView) {
-                console.error('moodPageView element not found');
-                this._switchingView = false;
-                return;
-            }
-            
             // Update state first
             this.currentView = 'mood';
             
-            // Update header title
-        const headerTitle = document.getElementById('headerTitle');
-        if (headerTitle) {
-            headerTitle.textContent = 'NSE Market Mood';
-        }
+            // Use centralized view switching
+            this.setActiveView('mood');
             
-            // Hide signals page cleanly
-        if (this.signalsPageView) {
-            this.signalsPageView.style.setProperty('display', 'none', 'important');
-                this.signalsPageView.style.setProperty('visibility', 'hidden', 'important');
-                this.signalsPageView.classList.add('hidden');
-        }
-            
-            // Show mood page
-            this.moodPageView.style.removeProperty('display');
-            this.moodPageView.style.removeProperty('visibility');
-            this.moodPageView.style.setProperty('display', 'block', 'important');
-            this.moodPageView.style.setProperty('visibility', 'visible', 'important');
-            this.moodPageView.classList.remove('hidden');
-            
-            // Force reflow
-            void this.moodPageView.offsetHeight;
+            // Restart polling if market is open
+            if (this.isMarketOpen()) {
+                this.startPolling();
+            }
             
             // Show mood page elements
-            const moodGreetingArea = this.moodPageView.querySelector('.mood-greeting-area');
-            const moodCard = this.moodPageView.querySelector('#moodCard');
-            const mainIndicesGrid = this.moodPageView.querySelector('#mainIndicesGrid');
+            const moodPageView = document.getElementById('moodPageView');
+            if (moodPageView) {
+                const moodGreetingArea = moodPageView.querySelector('.mood-greeting-area');
+                const moodCard = moodPageView.querySelector('#moodCard');
+                const mainIndicesGrid = moodPageView.querySelector('#mainIndicesGrid');
             const allIndicesSection = this.moodPageView.querySelector('#allIndicesSection');
             const advanceDecline = this.moodPageView.querySelector('.advance-decline');
             const dataSourceInfo = this.moodPageView.querySelector('.data-source-info');
