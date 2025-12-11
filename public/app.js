@@ -2748,25 +2748,69 @@ class MarketMoodApp {
     }
 
     parseCSV(csvText) {
-        const lines = csvText.split('\n').filter(line => line.trim());
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim());
         if (lines.length < 2) {
             throw new Error('CSV file is empty or invalid');
         }
 
-        // Parse header
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        // Detect delimiter by checking first few lines
+        const firstLine = lines[0];
+        const secondLine = lines[1] || '';
+        
+        // Count occurrences of different delimiters
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const pipeCount = (firstLine.match(/\|/g) || []).length;
+        
+        // Choose delimiter with most occurrences
+        let delimiter = ',';
+        let maxCount = commaCount;
+        
+        if (tabCount > maxCount) {
+            delimiter = '\t';
+            maxCount = tabCount;
+        }
+        if (semicolonCount > maxCount) {
+            delimiter = ';';
+            maxCount = semicolonCount;
+        }
+        if (pipeCount > maxCount) {
+            delimiter = '|';
+            maxCount = pipeCount;
+        }
+        
+        console.log(`🔍 Detected delimiter: ${delimiter === '\t' ? 'TAB' : delimiter} (counts: comma=${commaCount}, tab=${tabCount}, semicolon=${semicolonCount}, pipe=${pipeCount})`);
+
+        // Parse header using detected delimiter
+        const headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+        console.log(`🔍 CSV headers (${headers.length} columns):`, headers);
         
         // Parse data rows
         const data = [];
         for (let i = 1; i < lines.length; i++) {
-            const values = this.parseCSVLine(lines[i]);
+            let values;
+            if (delimiter === ',') {
+                values = this.parseCSVLine(lines[i]);
+            } else {
+                values = lines[i].split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''));
+            }
+            
             if (values.length === headers.length) {
                 const row = {};
                 headers.forEach((header, index) => {
-                    row[header] = values[index].trim().replace(/^"|"$/g, '');
+                    row[header] = values[index] || '';
                 });
                 data.push(row);
+            } else if (values.length > 0 && i <= 3) {
+                // Log mismatch for first few rows
+                console.log(`⚠️ Row ${i} column count mismatch: expected ${headers.length}, got ${values.length}`, values.slice(0, 5));
             }
+        }
+
+        console.log(`📊 Parsed ${data.length} rows from CSV file`);
+        if (data.length > 0) {
+            console.log('🔍 First CSV row:', data[0]);
         }
 
         return data;
