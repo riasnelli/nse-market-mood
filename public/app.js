@@ -2680,19 +2680,31 @@ class MarketMoodApp {
                         this.showUploadStatus('Data uploaded successfully!', 'success');
                         
                         // Refresh the uploaded data table after a short delay to ensure DB is updated
+                        // Use a longer delay to ensure database has processed the insert
                         setTimeout(() => {
                         this.updateUploadedDataInfo();
-                        }, 500);
+                            console.log('✅ Uploaded data table refreshed');
+                        }, 1000);
                         
                         // Check and show date picker after upload
                         this.checkAndShowDatePicker();
                         
-                        // Reload data to use uploaded CSV
+                        // Don't close the modal automatically - let user see the updated table and close manually
+                        // Reset the form so user can upload another file if needed
+                        if (csvFile) {
+                            csvFile.value = '';
+                        }
+                        if (fileName) {
+                            fileName.textContent = 'Choose CSV or DAT file...';
+                        }
+                        this.updateUploadButtonState();
+                        
+                        // Optional: Reload main data if on mood page (but don't close modal)
+                        if (this.currentView === 'mood') {
                         setTimeout(() => {
-                            if (uploadModal) uploadModal.classList.remove('show');
-                            this.unlockBodyScroll();
                             this.loadData();
-                        }, 1500);
+                            }, 2000);
+                        }
                     } catch (error) {
                         console.error('Error processing file:', error);
                         this.showUploadStatus('Error processing file: ' + error.message, 'error');
