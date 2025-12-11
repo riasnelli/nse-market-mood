@@ -4250,11 +4250,14 @@ class MarketMoodApp {
                         `🎯 Rendering row for ${normalizedDate}: hasPremarket=${hasPremarket}, premarket=${dateData.premarket?.count || 0}, premarketId=${dateData.premarket?.id || 'none'}`
                     );
                     
-                    // Use green checkmark for better visibility
-                    const checkmarkColor = '#10b981'; // Green color
-                    const checkmark = '✓';
-                    
-                    // SVG icons for premarket status
+                    // SVG icons for bhav and premarket status
+                    const bhavCheckIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>`;
+                    const bhavXIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>`;
                     const premarketCheckIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>`;
@@ -4267,7 +4270,7 @@ class MarketMoodApp {
                         <td>${rowNumber}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
-                        <td style="color: ${hasBhav ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasBhav ? 'bold' : 'normal'}; font-size: ${hasBhav ? '1.2em' : '1em'};">${hasBhav ? checkmark : ''}</td>
+                        <td style="text-align: center; vertical-align: middle;" title="${hasBhav ? 'Bhavcopy data available' : 'No bhavcopy data uploaded'}">${hasBhav ? bhavCheckIcon : bhavXIcon}</td>
                         <td style="text-align: center; vertical-align: middle;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? premarketCheckIcon : premarketXIcon}</td>
                         <td class="action-buttons">
                             <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
