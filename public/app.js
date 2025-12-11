@@ -3432,6 +3432,19 @@ class MarketMoodApp {
 
     async saveToDatabase(data, fileName, dataDate, type = 'indices') {
         try {
+            // Debug: Log what we're sending for premarket
+            if (type === 'premarket') {
+                console.log(`🔍 SAVING PREMARKET TO DB:`, {
+                    fileName,
+                    date: dataDate,
+                    indicesCount: data.indicesCount,
+                    count: data.count,
+                    dateDataPremarketCount: data.dateDataPremarketCount,
+                    indicesArrayLength: Array.isArray(data.indices) ? data.indices.length : 'not array',
+                    header: data.header
+                });
+            }
+            
             const response = await fetch('/api/save-uploaded-data', {
                 method: 'POST',
                 headers: {
@@ -3442,6 +3455,10 @@ class MarketMoodApp {
                     date: dataDate || new Date().toISOString().split('T')[0],
                     type: type || 'indices',
                     indices: data.indices || [],
+                    indicesCount: data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0),
+                    count: data.count || data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0),
+                    dateDataPremarketCount: data.dateDataPremarketCount || data.count || data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0),
+                    header: data.header || null,
                     mood: data.mood,
                     vix: data.vix,
                     advanceDecline: data.advanceDecline,
