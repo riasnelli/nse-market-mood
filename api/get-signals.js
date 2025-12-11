@@ -77,9 +77,26 @@ module.exports = async (req, res) => {
       }
 
       // No signals in DB - try to generate them
-      console.log(`No signals found in DB for ${date}, attempting to generate...`);
+      const strategy = req.query.strategy || 'momentum_gap';
+      console.log(`No signals found in DB for ${date}, attempting to generate with strategy: ${strategy}...`);
       try {
-        const generatedResult = await generateSimpleMomentumGapSignals(date);
+        // Import the generate function
+        const { generateSimpleMomentumGapSignals, generateMeanReversionSignals } = require('./generate-signals');
+        
+        let generatedResult;
+        if (strategy === 'mean_reversion') {
+          generatedResult = await generateMeanReversionSignals(date);
+        } else if (strategy === 'defensive') {
+          generatedResult = {
+            success: true,
+            date: date,
+            signals: [],
+            signal_count: 0,
+            message: 'Defensive strategy: No signals recommended.'
+          };
+        } else {
+          generatedResult = await generateSimpleMomentumGapSignals(date, strategy);
+        }
         
         if (generatedResult.signals && generatedResult.signals.length > 0) {
           // Transform signals to match frontend expectations

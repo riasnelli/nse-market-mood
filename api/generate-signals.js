@@ -424,7 +424,7 @@ async function generateSimpleMomentumGapSignals(date) {
         run_id: runId,
         date: date,
         bhavcopy_date: yesterdayDate,
-        strategy: 'momentum_gap',
+        strategy: strategy || 'momentum_gap',
         signal_count: topSignals.length,
         created_at: new Date()
       };
