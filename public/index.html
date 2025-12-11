@@ -684,75 +684,7 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="settings.js?v=TITLE-1764867156"></script>
-    <script>
-        // IMMEDIATE check for signalsPageView element - runs before app.js
-        (function() {
-            console.log('═══════════════════════════════════════');
-            console.log('🔍 PRE-INIT CHECK: Looking for signalsPageView element...');
-            console.log('═══════════════════════════════════════');
-            
-            function checkSignalsPageView() {
-                const el = document.getElementById('signalsPageView');
-                console.log('signalsPageView element:', el);
-                if (!el) {
-                    console.error('❌❌❌ signalsPageView NOT FOUND in DOM! ❌❌❌');
-                    console.log('Document ready state:', document.readyState);
-                    const main = document.querySelector('main');
-                    console.log('Main element:', main);
-                    if (main) {
-                        console.log('Main innerHTML length:', main.innerHTML ? main.innerHTML.length : 0);
-                        console.log('Main children count:', main.children.length);
-                    }
-                    const allPageViews = document.querySelectorAll('.page-view');
-                    console.log('All page-view elements:', allPageViews.length);
-                    allPageViews.forEach((pv, idx) => {
-                        console.log(`  Page view ${idx}: id="${pv.id}", class="${pv.className}"`);
-                    });
-                } else {
-                    console.log('✅✅✅ signalsPageView FOUND! ✅✅✅');
-                    console.log('Element display:', getComputedStyle(el).display);
-                    console.log('Element parent:', el.parentElement);
-                    console.log('Element offsetHeight:', el.offsetHeight);
-                    console.log('Element offsetWidth:', el.offsetWidth);
-                }
-            }
-            
-            // Check immediately
-            checkSignalsPageView();
-            
-            // Check when DOM is ready
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => {
-                    console.log('DOMContentLoaded fired, checking again...');
-                    checkSignalsPageView();
-                });
-            } else {
-                setTimeout(() => {
-                    console.log('DOM already ready, checking again after delay...');
-                    checkSignalsPageView();
-                }, 100);
-            }
-            
-            // Check after a longer delay
-            setTimeout(() => {
-                console.log('Final check after 1 second...');
-                checkSignalsPageView();
-            }, 1000);
-        })();
-    </script>
     <script src="app.js?v=TITLE-1764867156"></script>
-    <script>
-        // IMMEDIATE test - runs as soon as script loads
-        console.log('🔍 SIGNALS BUTTON TEST SCRIPT LOADED');
-        
-        // Test function that can be called manually
-        window.testSignalsButton = function() {
-            console.log('⚠️ testSignalsButton is deprecated. Use showSignalsView() instead.');
-            if (window.marketMoodApp && typeof window.marketMoodApp.showSignalsView === 'function') {
-                window.marketMoodApp.showSignalsView();
-            }
-        };
-    </script>
     <script>
         // Create safe area overlay immediately on page load to prevent black inset
         (function() {

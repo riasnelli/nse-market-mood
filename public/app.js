@@ -4453,24 +4453,30 @@ class MarketMoodApp {
         console.log('Switching to Signals view');
         
         try {
-            // Ensure we have references to page views
-            if (!this.moodPageView) {
-                this.moodPageView = document.getElementById('moodPageView');
-            }
-        if (!this.signalsPageView) {
-                this.signalsPageView = document.getElementById('signalsPageView');
-            }
+            // Get DOM elements - force fresh lookup to ensure we have the latest references
+            const moodPageView = document.getElementById('moodPageView');
+            const signalsPageView = document.getElementById('signalsPageView');
+            
+            // Update instance references
+            this.moodPageView = moodPageView;
+            this.signalsPageView = signalsPageView;
             
             // Validate elements exist
-            if (!this.signalsPageView) {
+            if (!signalsPageView) {
                 console.error('signalsPageView element not found');
                 this._switchingView = false;
-            return;
-        }
-        
+                return;
+            }
+            
+            if (!moodPageView) {
+                console.error('moodPageView element not found');
+                this._switchingView = false;
+                return;
+            }
+            
             // Update state first
-        this.currentView = 'signals';
-        
+            this.currentView = 'signals';
+            
             // Stop polling when switching to Signals page
             this.stopPolling();
             
@@ -4480,30 +4486,32 @@ class MarketMoodApp {
                 headerTitle.textContent = 'NSE Signals';
             }
             
-            // Hide mood page cleanly
-            if (this.moodPageView) {
-        this.moodPageView.style.setProperty('display', 'none', 'important');
-        this.moodPageView.style.setProperty('visibility', 'hidden', 'important');
-        this.moodPageView.classList.add('hidden');
-            }
+            // CRITICAL: Force hide mood page and show signals page with !important
+            // This overrides any existing inline styles or CSS rules
+            moodPageView.style.setProperty('display', 'none', 'important');
+            moodPageView.style.setProperty('visibility', 'hidden', 'important');
+            moodPageView.classList.add('hidden');
             
-            // Show signals page - use simple, reliable method
-            this.signalsPageView.style.removeProperty('display');
-            this.signalsPageView.style.removeProperty('visibility');
-        this.signalsPageView.style.setProperty('display', 'block', 'important');
-        this.signalsPageView.style.setProperty('visibility', 'visible', 'important');
-            this.signalsPageView.style.setProperty('background', '#ffffff', 'important');
-        this.signalsPageView.classList.remove('hidden');
+            signalsPageView.style.setProperty('display', 'block', 'important');
+            signalsPageView.style.setProperty('visibility', 'visible', 'important');
+            signalsPageView.style.setProperty('background', '#ffffff', 'important');
+            signalsPageView.classList.remove('hidden');
+            
+            // Remove any display: none from inline style attribute
+            signalsPageView.removeAttribute('style');
+            signalsPageView.style.setProperty('display', 'block', 'important');
+            signalsPageView.style.setProperty('visibility', 'visible', 'important');
+            signalsPageView.style.setProperty('background', '#ffffff', 'important');
         
             // Force reflow
         void this.signalsPageView.offsetHeight;
             
             // Scroll to top immediately (before any async operations)
-            window.scrollTo({ top: 0, behavior: 'instant' });
-            
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        
             // Ensure all Signals page sections are visible and properly styled
             const signalsStatusPanel = document.getElementById('signalsStatusPanel');
-            const signalsSection = document.getElementById('signalsSection');
+        const signalsSection = document.getElementById('signalsSection');
             const signalsContainer = document.getElementById('signalsContainer');
             const signalsLoading = document.getElementById('signalsLoading');
             const dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
@@ -4515,8 +4523,8 @@ class MarketMoodApp {
             }
             
             // Show and style the signals section
-            if (signalsSection) {
-                signalsSection.style.display = 'block';
+        if (signalsSection) {
+            signalsSection.style.display = 'block';
                 signalsSection.style.padding = '20px 10px';
                 signalsSection.style.minHeight = '200px';
             }

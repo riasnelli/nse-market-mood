@@ -563,9 +563,7 @@ header h1 {
     background: #ffffff !important;
 }
 
-.page-view[style*="display: none"] {
-    display: none !important;
-}
+/* Removed !important rule - let JS control visibility with inline styles */
 
 /* Ensure page views are visible when not explicitly hidden */
 #moodPageView:not([style*="display: none"]) {
