@@ -2924,6 +2924,127 @@ class MarketMoodApp {
         };
     }
 
+    processBhavcopyData(csvData, date, fileName) {
+        // Process bhavcopy (EOD) data - format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, PREV_CLOSE, etc.
+        const indices = [];
+        
+        csvData.forEach(row => {
+            // Handle various field name variations
+            const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
+            const series = row['SERIES'] || row['Series'] || row['series'] || 'EQ';
+            const close = parseFloat((row['CLOSE'] || row['Close'] || row['close'] || '0').replace(/,/g, ''));
+            const prevClose = parseFloat((row['PREV_CLOSE'] || row['Prev Close'] || row['prev_close'] || row['PREVCLOSE'] || close || '0').replace(/,/g, ''));
+            const high = parseFloat((row['HIGH'] || row['High'] || row['high'] || '0').replace(/,/g, ''));
+            const low = parseFloat((row['LOW'] || row['Low'] || row['low'] || '0').replace(/,/g, ''));
+            const open = parseFloat((row['OPEN'] || row['Open'] || row['open'] || '0').replace(/,/g, ''));
+            const volume = parseFloat((row['TOTTRDQTY'] || row['Tottrdqty'] || row['VOLUME'] || row['Volume'] || row['volume'] || '0').replace(/,/g, ''));
+            const delivery = parseFloat((row['DELIVERYQTY'] || row['Deliveryqty'] || row['DELIVERY'] || row['Delivery'] || row['delivery'] || '0').replace(/,/g, ''));
+            const deliveryPercent = parseFloat((row['DELIVERY_PER'] || row['Delivery %'] || row['delivery_percent'] || row['delivery_per'] || '0').replace(/,/g, ''));
+
+            // Only process EQ series stocks with valid data
+            if (!symbol || symbol.trim() === '' || series.toUpperCase() !== 'EQ') {
+                return;
+            }
+
+            if (isNaN(close) || close <= 0) {
+                return;
+            }
+
+            indices.push({
+                symbol: symbol.trim().toUpperCase(),
+                series: series.toUpperCase(),
+                open: open || 0,
+                high: high || 0,
+                low: low || 0,
+                close: close,
+                prev_close: prevClose || close,
+                volume: volume || 0,
+                delivery: delivery || 0,
+                delivery_percent: deliveryPercent || 0,
+                // Also include normalized field names for compatibility
+                SYMBOL: symbol.trim().toUpperCase(),
+                SERIES: series.toUpperCase(),
+                OPEN: open || 0,
+                HIGH: high || 0,
+                LOW: low || 0,
+                CLOSE: close,
+                PREV_CLOSE: prevClose || close,
+                TOTTRDQTY: volume || 0,
+                DELIVERYQTY: delivery || 0,
+                DELIVERY_PER: deliveryPercent || 0
+            });
+        });
+
+        console.log(`📊 Processed ${indices.length} EQ stocks from bhavcopy file: ${fileName}`);
+
+        return {
+            mood: null, // Bhavcopy doesn't have mood data
+            indices: indices,
+            vix: null,
+            advanceDecline: { advances: 0, declines: 0 },
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
+    }
+
+    processPremarketData(csvData, date, fileName) {
+        // Process premarket data - format varies, but typically: Symbol, Price, Change, etc.
+        const indices = [];
+        
+        csvData.forEach(row => {
+            // Handle various field name variations for premarket data
+            const symbol = row['Symbol'] || row['SYMBOL'] || row['symbol'] || row['Name'] || row['name'] || '';
+            const price = parseFloat((row['Price'] || row['PRICE'] || row['price'] || 
+                                    row['Pre Open Price'] || row['PRE_OPEN_PRICE'] || row['pre_open_price'] ||
+                                    row['LTP'] || row['ltp'] || row['Last Price'] || row['LAST_PRICE'] ||
+                                    row['Close'] || row['CLOSE'] || row['close'] || '0').replace(/,/g, ''));
+            const change = parseFloat((row['Change'] || row['CHANGE'] || row['change'] || 
+                                     row['Change(%)'] || row['Change (%)'] || '0').replace(/,/g, '').replace(/%/g, ''));
+            const volume = parseFloat((row['Volume'] || row['VOLUME'] || row['volume'] || '0').replace(/,/g, ''));
+
+            if (!symbol || symbol.trim() === '') {
+                return;
+            }
+
+            if (isNaN(price) || price <= 0) {
+                return;
+            }
+
+            indices.push({
+                symbol: symbol.trim().toUpperCase(),
+                price: price,
+                pre_open_price: price,
+                PRE_OPEN_PRICE: price,
+                change: change || 0,
+                volume: volume || 0,
+                // Include normalized field names for compatibility
+                SYMBOL: symbol.trim().toUpperCase(),
+                PRICE: price,
+                PRE_OPEN_PRICE: price,
+                preOpenPrice: price,
+                last_price: price,
+                LAST_PRICE: price,
+                close: price,
+                CLOSE: price
+            });
+        });
+
+        console.log(`📊 Processed ${indices.length} stocks from premarket file: ${fileName}`);
+
+        return {
+            mood: null, // Premarket doesn't have mood data
+            indices: indices,
+            vix: null,
+            advanceDecline: { advances: 0, declines: 0 },
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
+    }
+
     getMoodFromScore(score) {
         if (score >= 80) return { score, text: 'Extremely Bullish', emoji: '🚀' };
         if (score >= 70) return { score, text: 'Very Bullish', emoji: '📈' };
