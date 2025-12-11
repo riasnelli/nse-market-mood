@@ -270,6 +270,16 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       }
       
       console.log(`📊 FINAL BHAVCOPY COUNT for ${yesterdayDate}: total = ${bhavcopyData.length} (daily: ${bhavCountDaily}, uploaded: ${bhavCountUploaded})`);
+      
+      // If still no data, provide helpful error message
+      if (bhavcopyData.length === 0) {
+        console.warn(`⚠️ No bhavcopy data found for ${yesterdayDate}`);
+        console.warn(`   This could mean:`);
+        console.warn(`   1. Data was uploaded but parsing failed (indices array is empty)`);
+        console.warn(`   2. Data was uploaded with wrong date`);
+        console.warn(`   3. Data hasn't been uploaded yet`);
+        console.warn(`   Solution: Re-upload the bhavcopy file for ${yesterdayDate} using the upload modal.`);
+      }
     } catch (queryError) {
       console.error('Error querying bhavcopy data:', queryError);
       return {
