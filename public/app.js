@@ -2643,6 +2643,24 @@ class MarketMoodApp {
                         const fileExtension = file.name.split('.').pop().toLowerCase();
                         let parsedData;
                         
+                        // Debug: Log raw file content for premarket files to understand structure
+                        if (uploadType === 'premarket') {
+                            const rawText = e.target.result;
+                            const firstLines = rawText.split(/\r?\n/).slice(0, 10);
+                            console.log('🔍 Raw CSV first 10 lines:', firstLines);
+                            console.log('🔍 First line length:', firstLines[0]?.length);
+                            console.log('🔍 First line (first 200 chars):', firstLines[0]?.substring(0, 200));
+                            // Check for common delimiters in first line
+                            const firstLine = firstLines[0] || '';
+                            console.log('🔍 Delimiter analysis:', {
+                                commas: (firstLine.match(/,/g) || []).length,
+                                tabs: (firstLine.match(/\t/g) || []).length,
+                                semicolons: (firstLine.match(/;/g) || []).length,
+                                pipes: (firstLine.match(/\|/g) || []).length,
+                                spaces: (firstLine.match(/\s{2,}/g) || []).length // Multiple spaces
+                            });
+                        }
+                        
                         if (fileExtension === 'dat') {
                             parsedData = this.parseDATFile(e.target.result);
                         } else {
@@ -2656,6 +2674,12 @@ class MarketMoodApp {
                                 if (parsedData.length > 0 && Object.keys(parsedData[0]).length <= 1) {
                                     console.log('⚠️ Standard CSV parsing produced only one column, trying tab-delimited...');
                                     parsedData = this.parseTabDelimitedFile(e.target.result);
+                                    
+                                    // If tab-delimited also fails, try space-delimited or other formats
+                                    if (parsedData.length > 0 && Object.keys(parsedData[0]).length <= 1) {
+                                        console.log('⚠️ Tab-delimited also failed, trying space-delimited...');
+                                        parsedData = this.parseSpaceDelimitedFile(e.target.result);
+                                    }
                                 }
                             } else {
                                 parsedData = this.parseCSV(e.target.result);
