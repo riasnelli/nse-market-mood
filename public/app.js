@@ -3137,10 +3137,62 @@ class MarketMoodApp {
         // Process premarket data - format varies, but typically: Symbol, Price, Change, etc.
         const indices = [];
         
-        // Debug: Log first row to see actual field names
+        // Debug: Log first few rows to see structure
         if (csvData.length > 0) {
             console.log('🔍 Premarket CSV first row fields:', Object.keys(csvData[0]));
             console.log('🔍 Premarket CSV first row sample:', csvData[0]);
+            if (csvData.length > 1) {
+                console.log('🔍 Premarket CSV second row sample:', csvData[1]);
+            }
+            if (csvData.length > 2) {
+                console.log('🔍 Premarket CSV third row sample:', csvData[2]);
+            }
+        }
+        
+        // Find the actual header row - skip rows that look like headers (contain "PREV", "CLOSE", "CHNG", etc.)
+        let startIndex = 0;
+        const headerKeywords = ['PREV', 'CLOSE', 'CHNG', 'CHANGE', 'IEP', 'VOLUME', 'SYMBOL', 'PRICE'];
+        
+        for (let i = 0; i < Math.min(5, csvData.length); i++) {
+            const row = csvData[i];
+            const rowValues = Object.values(row).join(' ').toUpperCase();
+            const hasHeaderKeywords = headerKeywords.some(keyword => rowValues.includes(keyword));
+            
+            // If this row has header keywords but no numeric price values, it's likely a header row
+            if (hasHeaderKeywords) {
+                const hasNumericPrice = Object.values(row).some(val => {
+                    const num = parseFloat(String(val).replace(/,/g, ''));
+                    return !isNaN(num) && num > 100; // Prices are usually > 100
+                });
+                
+                if (!hasNumericPrice) {
+                    console.log(`⚠️ Row ${i} appears to be a header row, skipping...`);
+                    startIndex = i + 1;
+                    continue;
+                }
+            }
+            
+            // If we find a row with a valid symbol and price, this is where data starts
+            const symbol = row['Symbol'] || row['SYMBOL'] || row['symbol'] || '';
+            const price = parseFloat((row['Price'] || row['PRICE'] || row['price'] || 
+                                    row['Pre Open Price'] || row['PRE_OPEN_PRICE'] || row['pre_open_price'] ||
+                                    row['LTP'] || row['ltp'] || row['Last Price'] || row['LAST_PRICE'] ||
+                                    row['Close'] || row['CLOSE'] || row['close'] || '0').replace(/,/g, ''));
+            
+            if (symbol && symbol.length > 0 && symbol.length < 20 && !symbol.includes(',') && 
+                !isNaN(price) && price > 0) {
+                startIndex = i;
+                console.log(`✅ Found data starting at row ${i}`);
+                break;
+            }
+        }
+        
+        // Update field names based on the actual header row
+        let actualHeaders = {};
+        if (startIndex > 0 && csvData[startIndex - 1]) {
+            const headerRow = csvData[startIndex - 1];
+            actualHeaders = headerRow;
+            console.log('🔍 Using header row:', headerRow);
         }
         
         csvData.forEach((row, index) => {
@@ -3161,9 +3213,11 @@ class MarketMoodApp {
                 'Close', 'CLOSE', 'close',
                 'Open', 'OPEN', 'open',
                 'Current Price', 'CURRENT_PRICE', 'current_price',
-                'Value', 'VALUE', 'value'
+                'Value', 'VALUE', 'value',
+                'IEP', 'iep' // Indian Equity Price
             ];
             
+            // Try standard field names first
             for (const field of priceFields) {
                 const val = row[field];
                 if (val !== undefined && val !== null && val !== '') {
@@ -3171,6 +3225,26 @@ class MarketMoodApp {
                     if (!isNaN(parsed) && parsed > 0) {
                         price = parsed;
                         break;
+                    }
+                }
+            }
+            
+            // If no price found in standard fields, try all column values
+            if (price === 0) {
+                const allValues = Object.values(row);
+                for (const val of allValues) {
+                    if (val !== undefined && val !== null && val !== '') {
+                        const strVal = String(val).trim();
+                        // Skip if it looks like a header or symbol
+                        if (strVal.includes('PREV') || strVal.includes('CLOSE') || 
+                            strVal.includes('CHNG') || strVal.length > 20) {
+                            continue;
+                        }
+                        const parsed = parseFloat(strVal.replace(/,/g, '').replace(/₹/g, '').replace(/Rs\./g, ''));
+                        if (!isNaN(parsed) && parsed > 10 && parsed < 100000) { // Reasonable price range
+                            price = parsed;
+                            break;
+                        }
                     }
                 }
             }
