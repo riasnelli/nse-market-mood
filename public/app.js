@@ -2649,12 +2649,19 @@ class MarketMoodApp {
                             // For premarket files, use the robust NSE pre-open CSV parser
                             if (uploadType === 'premarket') {
                                 const { header, parsedRows } = this.parseNSEPremarketCSV(e.target.result, file.name);
-                                console.log(`📊 Processing ${parsedRows.length} rows from NSE premarket CSV`);
-                                // Use parsedRows array for processing
+                                const parsedCount = Array.isArray(parsedRows) ? parsedRows.length : 0;
+                                console.log(`📊 Processing ${parsedCount} rows from NSE premarket CSV`);
+                                
+                                // Use parsedRows array for processing (for future analytics)
                                 parsedData = parsedRows;
+                                
+                                // Store parsed count for summary (regardless of price validation)
+                                // This will be used as the "count" field
+                                this._premarketParsedCount = parsedCount;
+                                this._premarketHeader = header;
                             } else {
                                 // Default to standard CSV parsing for other types
-                            parsedData = this.parseCSV(e.target.result);
+                                parsedData = this.parseCSV(e.target.result);
                             }
                         }
                         
@@ -2664,9 +2671,19 @@ class MarketMoodApp {
                             processedData = this.processBhavcopyData(parsedData, date, file.name);
                         } else if (uploadType === 'premarket') {
                             processedData = this.processPremarketData(parsedData, date, file.name);
-                            // Always set count from processed indices (even if 0)
-                            processedData.indicesCount = processedData.indices ? processedData.indices.length : 0;
-                            console.log(`📊 Saved premarket for date ${date} with count=${processedData.indicesCount} (parsed ${parsedData.length} rows, processed ${processedData.indicesCount} stocks)`);
+                            
+                            // Use parsed row count (not processed stocks count) for summary
+                            const premarketCount = this._premarketParsedCount || 0;
+                            processedData.indicesCount = premarketCount;
+                            processedData.count = premarketCount;
+                            processedData.dateDataPremarketCount = premarketCount;
+                            processedData.header = this._premarketHeader || [];
+                            
+                            console.log(`📊 Saving premarket for date ${date} with premarketCount=${premarketCount} (parsedRows=${premarketCount})`);
+                            
+                            // Clear temporary storage
+                            this._premarketParsedCount = null;
+                            this._premarketHeader = null;
                         } else {
                             // Default to indices processing
                             processedData = this.processCSVData(parsedData, date, file.name);
@@ -4154,9 +4171,11 @@ class MarketMoodApp {
                     // If count is 0, it means the file was uploaded but parsing failed (empty indices array)
                     const hasBhav = (dateData.bhav?.count || 0) > 0;
                     
-                    // For PREM: Show marker ONLY if count > 0 (actual data exists)
-                    // Don't show marker just because a file ID exists - we need actual parsed data
-                    const hasPremarket = (dateData.premarket?.count || 0) > 0;
+                    // For PREM: Show marker if file exists (has ID) OR count > 0
+                    // This ensures files are visible even if price parsing failed
+                    const hasPremarket = !!dateData.premarket?.id || 
+                                       (dateData.premarket?.count || 0) > 0 || 
+                                       (dateData.dateDataPremarketCount || 0) > 0;
                     
                     // Debug log for rendering
                     console.log(

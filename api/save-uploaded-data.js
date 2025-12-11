@@ -66,7 +66,12 @@ module.exports = async (req, res) => {
       }
 
       // Calculate indicesCount from the indices array length
-      const indicesCount = Array.isArray(indices) ? indices.length : 0;
+      // For premarket, use the count from request body if provided (parsed row count)
+      const requestCount = req.body.count;
+      const requestDateDataPremarketCount = req.body.dateDataPremarketCount;
+      const indicesCount = uploadType === 'premarket' && requestCount !== undefined 
+        ? requestCount 
+        : (Array.isArray(indices) ? indices.length : 0);
       
       const dataToSave = {
         fileName: fileName || 'uploaded.csv',
@@ -83,7 +88,16 @@ module.exports = async (req, res) => {
         updatedAt: new Date()
       };
       
-      console.log(`📊 Saving ${uploadType} data: date=${dataToSave.date}, indicesCount=${indicesCount}, fileName=${fileName}`);
+      // For premarket, store count and dateDataPremarketCount from request
+      if (uploadType === 'premarket') {
+        dataToSave.count = requestCount ?? indicesCount ?? 0;
+        dataToSave.dateDataPremarketCount = requestDateDataPremarketCount ?? requestCount ?? indicesCount ?? 0;
+        if (req.body.header) {
+          dataToSave.header = req.body.header;
+        }
+      }
+      
+      console.log(`📊 Saving ${uploadType} data: date=${dataToSave.date}, indicesCount=${indicesCount}, count=${dataToSave.count || 'N/A'}, fileName=${fileName}`);
 
       // Get the correct collection based on type
       const collection = await getUploadedDataCollection(uploadType);
@@ -316,15 +330,25 @@ module.exports = async (req, res) => {
         });
       } else {
         // Return metadata only (default)
-        const formattedData = documents.map(doc => ({
-          id: doc._id.toString(),
-          fileName: doc.fileName,
-          date: doc.date,
-          indicesCount: doc.indicesCount || doc.indices?.length || 0, // Use stored count first, fallback to array length
-          uploadedAt: doc.uploadedAt,
-          mood: doc.mood,
-          source: doc.source
-        }));
+        const formattedData = documents.map(doc => {
+          const baseData = {
+            id: doc._id.toString(),
+            fileName: doc.fileName,
+            date: doc.date,
+            indicesCount: doc.indicesCount || doc.indices?.length || 0, // Use stored count first, fallback to array length
+            uploadedAt: doc.uploadedAt,
+            mood: doc.mood,
+            source: doc.source
+          };
+          
+          // For premarket, include count and dateDataPremarketCount
+          if (doc.type === 'premarket') {
+            baseData.count = doc.count || doc.indicesCount || 0;
+            baseData.dateDataPremarketCount = doc.dateDataPremarketCount || doc.count || doc.indicesCount || 0;
+          }
+          
+          return baseData;
+        });
 
         return res.status(200).json({
           success: true,
