@@ -2847,7 +2847,7 @@ class MarketMoodApp {
         const lines = datText.split(/\r?\n/).filter(line => line.trim());
         console.log(`📊 Total lines in DAT file: ${lines.length}`);
         
-        if (lines.length < 2) {
+        if (lines.length < 1) {
             throw new Error('DAT file is empty or invalid');
         }
 
@@ -2885,19 +2885,53 @@ class MarketMoodApp {
         
         console.log(`🔍 Detected delimiter: "${delimiter === '\t' ? 'TAB' : delimiter}"`);
 
-        // Parse header
-        const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+        // Check if first line is a header or data
+        // NSE bhavcopy files typically don't have headers - they start with data
+        // Headers would contain words like "SYMBOL", "SERIES", "OPEN", "CLOSE", etc.
+        const firstLineUpper = firstLine.toUpperCase();
+        const hasHeaderKeywords = firstLineUpper.includes('SYMBOL') || 
+                                   firstLineUpper.includes('SERIES') || 
+                                   firstLineUpper.includes('OPEN') || 
+                                   firstLineUpper.includes('CLOSE');
+        
+        // Standard NSE bhavcopy column names (if no header row)
+        const standardHeaders = [
+            'SYMBOL', 'SERIES', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST', 
+            'PREVCLOSE', 'TOTTRDQTY', 'TOTTRDVAL', 'TIMESTAMP', 
+            'TOTALTRADES', 'ISIN', 'UNUSED', 'UNUSED2', 'UNUSED3'
+        ];
+        
+        let headers;
+        let startIndex = 0;
+        
+        if (hasHeaderKeywords) {
+            // First line is a header
+            headers = this.parseDelimitedLine(firstLine, delimiter).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
+            startIndex = 1;
+            console.log(`✅ Detected header row: ${headers.length} columns`);
+        } else {
+            // No header row - use standard NSE bhavcopy column names
+            // First, check how many columns the first data row has
+            const firstRowValues = this.parseDelimitedLine(firstLine, delimiter);
+            const columnCount = firstRowValues.length;
+            headers = standardHeaders.slice(0, columnCount);
+            startIndex = 0; // Start from first line (it's data, not header)
+            console.log(`✅ No header row detected, using standard NSE bhavcopy column names: ${headers.length} columns`);
+        }
+        
         console.log(`🔍 Headers (${headers.length}):`, headers.slice(0, 10));
         
         // Parse data rows
         const data = [];
         let skippedRows = 0;
-        for (let i = 1; i < lines.length; i++) {
+        for (let i = startIndex; i < lines.length; i++) {
             const values = this.parseDelimitedLine(lines[i], delimiter);
-            if (values.length === headers.length) {
+            if (values.length >= headers.length || values.length >= 6) { // At least need SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE
                 const row = {};
                 headers.forEach((header, index) => {
-                    row[header] = values[index].trim().replace(/^"|"$/g, '');
+                    if (index < values.length) {
+                        row[header] = values[index].trim().replace(/^"|"$/g, '');
+                    }
                 });
                 data.push(row);
             } else {
@@ -2912,9 +2946,12 @@ class MarketMoodApp {
         if (data.length > 0) {
             console.log(`🔍 First row keys:`, Object.keys(data[0]));
             console.log(`🔍 First row sample:`, {
-                SYMBOL: data[0]['SYMBOL'] || data[0]['Symbol'] || data[0]['symbol'],
-                SERIES: data[0]['SERIES'] || data[0]['Series'] || data[0]['series'],
-                CLOSE: data[0]['CLOSE'] || data[0]['Close'] || data[0]['close']
+                SYMBOL: data[0]['SYMBOL'],
+                SERIES: data[0]['SERIES'],
+                CLOSE: data[0]['CLOSE'],
+                OPEN: data[0]['OPEN'],
+                HIGH: data[0]['HIGH'],
+                LOW: data[0]['LOW']
             });
         }
 
