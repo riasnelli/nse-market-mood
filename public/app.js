@@ -3044,22 +3044,64 @@ class MarketMoodApp {
         // Process premarket data - format varies, but typically: Symbol, Price, Change, etc.
         const indices = [];
         
-        csvData.forEach(row => {
+        // Debug: Log first row to see actual field names
+        if (csvData.length > 0) {
+            console.log('🔍 Premarket CSV first row fields:', Object.keys(csvData[0]));
+            console.log('🔍 Premarket CSV first row sample:', csvData[0]);
+        }
+        
+        csvData.forEach((row, index) => {
             // Handle various field name variations for premarket data
-            const symbol = row['Symbol'] || row['SYMBOL'] || row['symbol'] || row['Name'] || row['name'] || '';
-            const price = parseFloat((row['Price'] || row['PRICE'] || row['price'] || 
-                                    row['Pre Open Price'] || row['PRE_OPEN_PRICE'] || row['pre_open_price'] ||
-                                    row['LTP'] || row['ltp'] || row['Last Price'] || row['LAST_PRICE'] ||
-                                    row['Close'] || row['CLOSE'] || row['close'] || '0').replace(/,/g, ''));
+            // Try all possible field name combinations
+            const symbol = row['Symbol'] || row['SYMBOL'] || row['symbol'] || 
+                          row['Name'] || row['NAME'] || row['name'] ||
+                          row['Company'] || row['COMPANY'] || row['company'] ||
+                          row['Stock'] || row['STOCK'] || row['stock'] || '';
+            
+            // Try multiple price field variations
+            let price = 0;
+            const priceFields = [
+                'Price', 'PRICE', 'price',
+                'Pre Open Price', 'PRE_OPEN_PRICE', 'pre_open_price', 'PreOpenPrice',
+                'LTP', 'ltp', 'Ltp',
+                'Last Price', 'LAST_PRICE', 'last_price', 'LastPrice',
+                'Close', 'CLOSE', 'close',
+                'Open', 'OPEN', 'open',
+                'Current Price', 'CURRENT_PRICE', 'current_price',
+                'Value', 'VALUE', 'value'
+            ];
+            
+            for (const field of priceFields) {
+                const val = row[field];
+                if (val !== undefined && val !== null && val !== '') {
+                    const parsed = parseFloat(String(val).replace(/,/g, '').replace(/₹/g, '').replace(/Rs\./g, '').trim());
+                    if (!isNaN(parsed) && parsed > 0) {
+                        price = parsed;
+                        break;
+                    }
+                }
+            }
+            
             const change = parseFloat((row['Change'] || row['CHANGE'] || row['change'] || 
-                                     row['Change(%)'] || row['Change (%)'] || '0').replace(/,/g, '').replace(/%/g, ''));
-            const volume = parseFloat((row['Volume'] || row['VOLUME'] || row['volume'] || '0').replace(/,/g, ''));
+                                     row['Change(%)'] || row['Change (%)'] || row['Change%'] ||
+                                     row['% Change'] || row['%Change'] || '0').replace(/,/g, '').replace(/%/g, '').trim());
+            const volume = parseFloat((row['Volume'] || row['VOLUME'] || row['volume'] ||
+                                     row['Qty'] || row['QTY'] || row['qty'] || '0').replace(/,/g, '').trim());
 
             if (!symbol || symbol.trim() === '') {
+                if (index < 3) {
+                    console.log(`⚠️ Row ${index} skipped: no symbol found`, row);
+                }
                 return;
             }
 
             if (isNaN(price) || price <= 0) {
+                if (index < 3) {
+                    console.log(`⚠️ Row ${index} skipped: invalid price (${price})`, {
+                        symbol,
+                        priceFields: priceFields.map(f => ({ field: f, value: row[f] })).filter(f => f.value !== undefined)
+                    });
+                }
                 return;
             }
 
@@ -3083,6 +3125,9 @@ class MarketMoodApp {
         });
 
         console.log(`📊 Processed ${indices.length} stocks from premarket file: ${fileName}`);
+        if (indices.length === 0 && csvData.length > 0) {
+            console.warn(`⚠️ No stocks processed from ${csvData.length} CSV rows. First row fields:`, Object.keys(csvData[0]));
+        }
 
         return {
             mood: null, // Premarket doesn't have mood data
