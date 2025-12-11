@@ -42,10 +42,10 @@ function getYesterdayDate(todayDate) {
  * 
  * Never throws - always returns a result object
  */
-async function generateSimpleMomentumGapSignals(date) {
+async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap') {
   try {
     const yesterdayDate = getYesterdayDate(date);
-    console.log(`📊 Generating signals for ${date}:`);
+    console.log(`📊 Generating signals for ${date} with strategy: ${strategy}:`);
     console.log(`   - Premarket data: ${date} (today's pre-open)`);
     console.log(`   - Bhavcopy data: ${yesterdayDate} (yesterday's EOD)`);
     console.log(`   - Indices data: ${yesterdayDate} (yesterday's EOD)`);
