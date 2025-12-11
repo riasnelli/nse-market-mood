@@ -3977,6 +3977,7 @@ class MarketMoodApp {
                         if (count > dateData.premarket.count || !dateData.premarket.id) {
                             dateData.premarket.count = count;
                             dateData.premarket.id = file.id;
+                            dateData.dateDataPremarketCount = count;
                         }
                         // Keep the most recent uploadedAt
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
