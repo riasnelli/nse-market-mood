@@ -3080,8 +3080,11 @@ class MarketMoodApp {
             return { header: [], parsedRows: [] };
         }
         
-        // Debug: Log first line to see actual format
-        console.log('🔍 First line (first 300 chars):', nonEmptyLines[0]?.substring(0, 300));
+        // Debug: Log first few lines to see actual format
+        console.log('🔍 First line (first 500 chars):', nonEmptyLines[0]?.substring(0, 500));
+        if (nonEmptyLines.length > 1) {
+            console.log('🔍 Second line (first 200 chars):', nonEmptyLines[1]?.substring(0, 200));
+        }
         
         // 2. First non-empty line is the header row
         const headerLine = nonEmptyLines[0];
@@ -3092,6 +3095,12 @@ class MarketMoodApp {
         
         console.log('🔍 Fixed header cells:', headerCells);
         console.log(`✅ Detected ${headerCells.length} columns`);
+        
+        // Debug: Test parsing on second line to verify it works
+        if (nonEmptyLines.length > 1) {
+            const testRow = parseCSVLine(nonEmptyLines[1]);
+            console.log(`🔍 Test parsing second line: ${testRow.length} cells, first 5:`, testRow.slice(0, 5));
+        }
         
         const parsedRows = [];
         
