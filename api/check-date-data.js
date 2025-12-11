@@ -112,11 +112,29 @@ module.exports = async (req, res) => {
         series: 'EQ' 
       });
       
-      // Also check uploadedBhav for yesterday
+      // Also check uploadedBhav for yesterday (and try closest date if no exact match)
       if (bhavcopyCount === 0) {
-        const uploadedBhavDocs = await uploadedBhavCollection
+        let uploadedBhavDocs = await uploadedBhavCollection
           .find({ date: yesterdayDate })
           .toArray();
+        
+        // If no exact match, try to find closest date
+        if (uploadedBhavDocs.length === 0) {
+          const allBhavDocs = await uploadedBhavCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(20)
+            .toArray();
+          
+          // Find closest date <= yesterdayDate
+          for (const doc of allBhavDocs) {
+            if (doc.date && doc.date <= yesterdayDate) {
+              uploadedBhavDocs = [doc];
+              console.log(`Found closest uploadedBhav date: ${doc.date} (looking for ${yesterdayDate})`);
+              break;
+            }
+          }
+        }
         
         // Count EQ stocks in uploaded bhav
         for (const doc of uploadedBhavDocs) {
@@ -136,11 +154,29 @@ module.exports = async (req, res) => {
       // Count premarket data (today's date)
       let premarketCount = await premarketCollection.countDocuments({ date: date });
       
-      // Also check uploadedPreMarket for today
+      // Also check uploadedPreMarket for today (and try closest date if no exact match)
       if (premarketCount === 0) {
-        const uploadedPremarketDocs = await uploadedPremarketCollection
+        let uploadedPremarketDocs = await uploadedPremarketCollection
           .find({ date: date })
           .toArray();
+        
+        // If no exact match, try to find closest date
+        if (uploadedPremarketDocs.length === 0) {
+          const allPremarketDocs = await uploadedPremarketCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(20)
+            .toArray();
+          
+          // Find closest date <= date
+          for (const doc of allPremarketDocs) {
+            if (doc.date && doc.date <= date) {
+              uploadedPremarketDocs = [doc];
+              console.log(`Found closest uploadedPreMarket date: ${doc.date} (looking for ${date})`);
+              break;
+            }
+          }
+        }
         
         // Count items in uploaded premarket
         for (const doc of uploadedPremarketDocs) {

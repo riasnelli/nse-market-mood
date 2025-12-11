@@ -72,7 +72,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
     let bhavCountUploaded = 0;
     
     try {
-      // First, try daily_bhavcopy collection
+      // First, try daily_bhavcopy collection (includes data inserted from uploads)
       bhavcopyData = await bhavcopyCollection
         .find({ 
           date: yesterdayDate,
@@ -82,6 +82,32 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       
       bhavCountDaily = bhavcopyData.length;
       console.log(`📊 BHAVCOPY COUNT for ${yesterdayDate}: daily_bhavcopy = ${bhavCountDaily}`);
+      
+      // If no exact date match, try to find the most recent date before or equal to yesterday
+      if (bhavcopyData.length === 0) {
+        console.log(`No exact date match in daily_bhavcopy for ${yesterdayDate}, searching for closest date...`);
+        const allBhavDaily = await bhavcopyCollection
+          .find({ series: 'EQ' })
+          .sort({ date: -1 })
+          .limit(50)
+          .toArray();
+        
+        // Get unique dates and find closest
+        const uniqueDates = [...new Set(allBhavDaily.map(d => d.date))].sort().reverse();
+        console.log(`📅 Available dates in daily_bhavcopy:`, uniqueDates.slice(0, 10).join(', '));
+        
+        // Find closest date <= yesterdayDate
+        for (const dateStr of uniqueDates) {
+          if (dateStr && dateStr <= yesterdayDate) {
+            console.log(`✅ Found closest date in daily_bhavcopy: ${dateStr} (looking for ${yesterdayDate})`);
+            bhavcopyData = await bhavcopyCollection
+              .find({ date: dateStr, series: 'EQ' })
+              .toArray();
+            bhavCountDaily = bhavcopyData.length;
+            break;
+          }
+        }
+      }
       
       // If no data in daily_bhavcopy, check uploadedBhav collection
       if (bhavcopyData.length === 0) {
