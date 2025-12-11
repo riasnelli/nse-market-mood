@@ -2648,7 +2648,10 @@ class MarketMoodApp {
                         } else {
                             // For premarket files, use the robust NSE pre-open CSV parser
                             if (uploadType === 'premarket') {
-                                parsedData = this.parseNSEPremarketCSV(e.target.result, file.name);
+                                const parseResult = this.parseNSEPremarketCSV(e.target.result, file.name);
+                                console.log(`✅ parseNSEPremarketCSV: header=[${Object.keys(parseResult.parsedRows[0] || {}).join(', ')}] parsedRows.length=${parseResult.parsedRows.length}`);
+                                // Use parsedRows array for processing
+                                parsedData = parseResult.parsedRows;
                             } else {
                                 // Default to standard CSV parsing for other types
                             parsedData = this.parseCSV(e.target.result);
@@ -2661,6 +2664,11 @@ class MarketMoodApp {
                             processedData = this.processBhavcopyData(parsedData, date, file.name);
                         } else if (uploadType === 'premarket') {
                             processedData = this.processPremarketData(parsedData, date, file.name);
+                            // Ensure count is set from parsed data
+                            if (processedData.indices && processedData.indices.length > 0) {
+                                processedData.indicesCount = processedData.indices.length;
+                                console.log(`📊 Saved premarket for date ${date} with count=${processedData.indicesCount}`);
+                            }
                         } else {
                             // Default to indices processing
                             processedData = this.processCSVData(parsedData, date, file.name);
@@ -3005,6 +3013,131 @@ class MarketMoodApp {
         }
 
         return data;
+    }
+
+    /**
+     * Robust parser for NSE Pre-Open Market CSV files
+     * Format: Standard comma-separated CSV with quoted fields
+     * Header: "SYMBOL","PREV. CLOSE","IEP","CHNG","%CHNG","FINAL","FINAL QUANTITY",...
+     * Returns: { parsedRows: array, meta: { count: number } }
+     */
+    parseNSEPremarketCSV(csvText, fileName) {
+        console.log(`📄 Parsing NSE premarket CSV: ${fileName}`);
+        
+        // Split by newline (handle both \r\n and \n)
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim());
+        
+        if (lines.length < 2) {
+            throw new Error('NSE premarket CSV file is empty or invalid');
+        }
+        
+        // Find first non-empty line as header
+        let headerLine = null;
+        let headerIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim()) {
+                headerLine = lines[i];
+                headerIndex = i;
+                break;
+            }
+        }
+        
+        if (!headerLine) {
+            throw new Error('No header row found in NSE premarket CSV');
+        }
+        
+        // Parse header: split by comma, strip quotes, trim
+        const parseCSVLine = (line) => {
+            const values = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+                
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        // Escaped quote
+                        current += '"';
+                        i++; // Skip next quote
+                    } else {
+                        // Toggle quote state
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    // End of value
+                    values.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            // Add last value
+            values.push(current.trim());
+            return values;
+        };
+        
+        const headerValues = parseCSVLine(headerLine);
+        const headers = headerValues.map(h => h.replace(/^"|"$/g, '').trim());
+        
+        console.log(`✅ Detected ${headers.length} columns in header row:`, headers.slice(0, 10).join(', '), headers.length > 10 ? '...' : '');
+        
+        // Parse data rows
+        const parsedRows = [];
+        for (let i = headerIndex + 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue; // Skip empty lines
+            
+            const values = parseCSVLine(line);
+            
+            // Skip if column count doesn't match (likely a footer or malformed row)
+            if (values.length !== headers.length) {
+                if (i <= headerIndex + 5) {
+                    console.log(`⚠️ Row ${i} column mismatch: expected ${headers.length}, got ${values.length}`);
+                }
+                continue;
+            }
+            
+            // Build row object
+            const row = {};
+            headers.forEach((header, index) => {
+                let value = values[index] || '';
+                // Remove surrounding quotes if present
+                value = value.replace(/^"|"$/g, '').trim();
+                row[header] = value;
+            });
+            
+            // Skip rows where SYMBOL is empty or looks like a header
+            const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
+            if (!symbol || 
+                symbol.toUpperCase().includes('SYMBOL') || 
+                symbol.toUpperCase().includes('PREV') || 
+                symbol.toUpperCase().includes('CLOSE') ||
+                symbol.startsWith(',') ||
+                symbol.length > 50) {
+                continue; // Skip header-like rows
+            }
+            
+            parsedRows.push(row);
+        }
+        
+        console.log(`📊 Parsed ${parsedRows.length} valid stock rows from NSE premarket CSV`);
+        if (parsedRows.length > 0) {
+            console.log(`🔍 Sample row:`, {
+                SYMBOL: parsedRows[0]['SYMBOL'],
+                IEP: parsedRows[0]['IEP'],
+                FINAL: parsedRows[0]['FINAL'],
+                'PREV. CLOSE': parsedRows[0]['PREV. CLOSE']
+            });
+        }
+        
+        return {
+            parsedRows: parsedRows,
+            meta: {
+                count: parsedRows.length
+            }
+        };
     }
 
     processCSVData(csvData, date, fileName) {
@@ -4090,7 +4223,7 @@ class MarketMoodApp {
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
                         <td style="color: ${hasBhav ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasBhav ? 'bold' : 'normal'}; font-size: ${hasBhav ? '1.2em' : '1em'};">${hasBhav ? checkmark : ''}</td>
-                        <td style="color: ${hasPremarket ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasPremarket ? 'bold' : 'normal'}; font-size: ${hasPremarket ? '1.2em' : '1em'};">${hasPremarket ? checkmark : ''}</td>
+                        <td style="color: ${hasPremarket ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasPremarket ? 'bold' : 'normal'}; font-size: ${hasPremarket ? '1.2em' : '1em'};">${hasPremarket ? '111' : ''}</td>
                         <td class="action-buttons">
                             <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
