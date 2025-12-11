@@ -4335,10 +4335,10 @@ class MarketMoodApp {
             signalsBtn && signalsBtn.classList.remove('active');
             
             // Update header title
-            const headerTitle = document.getElementById('headerTitle');
-            if (headerTitle) {
-                headerTitle.textContent = 'NSE Market Mood';
-            }
+        const headerTitle = document.getElementById('headerTitle');
+        if (headerTitle) {
+            headerTitle.textContent = 'NSE Market Mood';
+        }
         } else if (active === 'signals') {
             moodPageView.style.setProperty('display', 'none', 'important');
             signalsPageView.style.setProperty('display', 'block', 'important');
@@ -4350,9 +4350,9 @@ class MarketMoodApp {
             moodBtn && moodBtn.classList.remove('active');
             
             // Update header title
-            const headerTitle = document.getElementById('headerTitle');
-            if (headerTitle) {
-                headerTitle.textContent = 'NSE Signals';
+        const headerTitle = document.getElementById('headerTitle');
+        if (headerTitle) {
+            headerTitle.textContent = 'NSE Signals';
             }
         }
 
@@ -4433,6 +4433,7 @@ class MarketMoodApp {
                 dataSourceInfo.style.setProperty('display', 'block', 'important');
                 dataSourceInfo.style.setProperty('visibility', 'visible', 'important');
             }
+            } // Close if (moodPageView) block
             
             // Load/refresh data
             requestAnimationFrame(() => {
@@ -4829,7 +4830,7 @@ class MarketMoodApp {
                     this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
                     signalsContainer.style.setProperty('display', 'block', 'important');
                     signalsEmpty.style.display = 'none';
-                    signalsLoading.style.display = 'none';
+            signalsLoading.style.display = 'none';
                     console.log('✅ Strategy recommendation rendered, container visible');
                     this._switchingView = false;
                     return;

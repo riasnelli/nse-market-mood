@@ -144,7 +144,7 @@ class SettingsManager {
     async addUploadCSVDataOption(container) {
         // Prevent concurrent calls
         if (this.isAddingUploadOption) {
-            console.log('Already adding Upload CSV Data option, skipping duplicate call');
+            // Silently skip duplicate calls
             return;
         }
         
