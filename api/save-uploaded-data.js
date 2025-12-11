@@ -188,7 +188,17 @@ module.exports = async (req, res) => {
               const insertResult = await premarketCollection.insertMany(premarketDocs, { ordered: false });
               dailyInsertCount = insertResult.insertedCount || premarketDocs.length;
               console.log(`✅ Inserted ${dailyInsertCount} rows into premarket_data for ${targetDate}`);
-              console.log(`📊 DEBUG: Sample premarket doc:`, JSON.stringify(premarketDocs[0], null, 2));
+              
+              // Ensure count is set correctly in the metadata document
+              if (dataToSave.indicesCount !== dailyInsertCount) {
+                dataToSave.indicesCount = dailyInsertCount;
+                // Update the document with correct count
+                await collection.updateOne(
+                  { _id: result.insertedId },
+                  { $set: { indicesCount: dailyInsertCount } }
+                );
+                console.log(`✅ Updated metadata document with correct count: ${dailyInsertCount}`);
+              }
             } else {
               console.warn(`⚠️ No valid premarket documents to insert. Filtered ${indices.length} items, got ${premarketDocs.length} valid docs.`);
               console.warn(`   Sample item before filtering:`, indices[0] ? JSON.stringify(indices[0], null, 2) : 'No items in indices array');
