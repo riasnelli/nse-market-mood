@@ -2895,8 +2895,10 @@ class MarketMoodApp {
                                    firstLineUpper.includes('CLOSE');
         
         // Standard NSE bhavcopy column names (if no header row)
+        // NSE bhavcopy format: SYMBOL, SERIES, [extra fields], OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
+        // The actual format may have extra columns between SERIES and OPEN
         const standardHeaders = [
-            'SYMBOL', 'SERIES', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST', 
+            'SYMBOL', 'SERIES', 'EXTRA1', 'EXTRA2', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST', 
             'PREVCLOSE', 'TOTTRDQTY', 'TOTTRDVAL', 'TIMESTAMP', 
             'TOTALTRADES', 'ISIN', 'UNUSED', 'UNUSED2', 'UNUSED3'
         ];
@@ -2910,13 +2912,52 @@ class MarketMoodApp {
             startIndex = 1;
             console.log(`✅ Detected header row: ${headers.length} columns`);
         } else {
-            // No header row - use standard NSE bhavcopy column names
-            // First, check how many columns the first data row has
+            // No header row - try to detect column positions by analyzing first few rows
             const firstRowValues = this.parseDelimitedLine(firstLine, delimiter);
             const columnCount = firstRowValues.length;
-            headers = standardHeaders.slice(0, columnCount);
+            
+            // Try to find where OPEN/HIGH/LOW/CLOSE are by looking for numeric patterns
+            // OPEN, HIGH, LOW, CLOSE should be consecutive numeric values
+            let openIndex = -1;
+            for (let i = 2; i < Math.min(columnCount - 3, 10); i++) {
+                const val1 = parseFloat(firstRowValues[i]?.replace(/,/g, '') || '0');
+                const val2 = parseFloat(firstRowValues[i + 1]?.replace(/,/g, '') || '0');
+                const val3 = parseFloat(firstRowValues[i + 2]?.replace(/,/g, '') || '0');
+                const val4 = parseFloat(firstRowValues[i + 3]?.replace(/,/g, '') || '0');
+                
+                // Check if these look like prices (positive numbers > 0)
+                if (val1 > 0 && val2 > 0 && val3 > 0 && val4 > 0 && 
+                    val1 < 1000000 && val2 < 1000000 && val3 < 1000000 && val4 < 1000000) {
+                    openIndex = i;
+                    break;
+                }
+            }
+            
+            if (openIndex > 0) {
+                // Found price columns starting at openIndex
+                // Map: 0=SYMBOL, 1=SERIES, openIndex=OPEN, openIndex+1=HIGH, openIndex+2=LOW, openIndex+3=CLOSE
+                headers = [];
+                for (let i = 0; i < columnCount; i++) {
+                    if (i === 0) headers.push('SYMBOL');
+                    else if (i === 1) headers.push('SERIES');
+                    else if (i === openIndex) headers.push('OPEN');
+                    else if (i === openIndex + 1) headers.push('HIGH');
+                    else if (i === openIndex + 2) headers.push('LOW');
+                    else if (i === openIndex + 3) headers.push('CLOSE');
+                    else if (i === openIndex + 4) headers.push('LAST');
+                    else if (i === openIndex + 5) headers.push('PREVCLOSE');
+                    else if (i === openIndex + 6) headers.push('TOTTRDQTY');
+                    else if (i === openIndex + 7) headers.push('TOTTRDVAL');
+                    else headers.push(`COL${i}`);
+                }
+                console.log(`✅ No header row detected, found price columns starting at index ${openIndex}, mapped ${headers.length} columns`);
+            } else {
+                // Fallback: use standard mapping
+                headers = standardHeaders.slice(0, columnCount);
+                console.log(`⚠️ No header row detected, using standard mapping (may be incorrect): ${headers.length} columns`);
+            }
+            
             startIndex = 0; // Start from first line (it's data, not header)
-            console.log(`✅ No header row detected, using standard NSE bhavcopy column names: ${headers.length} columns`);
         }
         
         console.log(`🔍 Headers (${headers.length}):`, headers.slice(0, 10));
