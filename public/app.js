@@ -2991,6 +2991,53 @@ class MarketMoodApp {
         return data;
     }
 
+    parseSpaceDelimitedFile(text) {
+        const lines = text.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length < 2) {
+            throw new Error('File is empty or invalid');
+        }
+
+        // Try to find header row by looking for common header keywords
+        let headerIndex = 0;
+        const headerKeywords = ['SYMBOL', 'SYM', 'STOCK', 'COMPANY', 'NAME'];
+        
+        for (let i = 0; i < Math.min(10, lines.length); i++) {
+            const upperLine = lines[i].toUpperCase();
+            if (headerKeywords.some(keyword => upperLine.includes(keyword))) {
+                headerIndex = i;
+                break;
+            }
+        }
+
+        // Parse header - split by multiple spaces (2+ spaces)
+        const headerLine = lines[headerIndex];
+        const headers = headerLine.split(/\s{2,}/).map(h => h.trim().replace(/^"|"$/g, ''));
+        
+        console.log('🔍 Space-delimited headers:', headers);
+        
+        // Parse data rows
+        const data = [];
+        for (let i = headerIndex + 1; i < lines.length; i++) {
+            const values = lines[i].split(/\s{2,}/).map(v => v.trim().replace(/^"|"$/g, ''));
+            if (values.length >= headers.length) {
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                data.push(row);
+            } else if (values.length > 0 && i <= headerIndex + 5) {
+                console.log(`⚠️ Row ${i} column count mismatch: expected ${headers.length}, got ${values.length}`, values.slice(0, 5));
+            }
+        }
+
+        console.log(`📊 Parsed ${data.length} rows from space-delimited file`);
+        if (data.length > 0) {
+            console.log('🔍 First space-delimited row:', data[0]);
+        }
+
+        return data;
+    }
+
     processCSVData(csvData, date, fileName) {
         const indices = [];
         let vixData = null;
