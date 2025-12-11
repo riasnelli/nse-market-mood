@@ -49,6 +49,56 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
     console.log(`   - Premarket data: ${date} (today's pre-open)`);
     console.log(`   - Bhavcopy data: ${yesterdayDate} (yesterday's EOD)`);
     console.log(`   - Indices data: ${yesterdayDate} (yesterday's EOD)`);
+    
+    // DEBUG: Check what's actually in the database
+    try {
+      const { connectToDatabase } = require('./lib/mongodb');
+      const { db } = await connectToDatabase();
+      
+      // Check daily_bhavcopy
+      const bhav20251210 = await db.collection('daily_bhavcopy').countDocuments({ date: '2025-12-10' });
+      const bhavAllDates = await db.collection('daily_bhavcopy').distinct('date');
+      const bhavTotal = await db.collection('daily_bhavcopy').countDocuments({});
+      
+      // Check uploadedBhav
+      const uploadedBhav20251210 = await db.collection('uploadedBhav').countDocuments({ date: '2025-12-10' });
+      const uploadedBhavAllDates = await db.collection('uploadedBhav').distinct('date');
+      const uploadedBhavTotal = await db.collection('uploadedBhav').countDocuments({});
+      
+      // Check premarket_data
+      const premarket20251211 = await db.collection('premarket_data').countDocuments({ date: '2025-12-11' });
+      const premarketAllDates = await db.collection('premarket_data').distinct('date');
+      const premarketTotal = await db.collection('premarket_data').countDocuments({});
+      
+      // Check uploadedPreMarket
+      const uploadedPremarket20251211 = await db.collection('uploadedPreMarket').countDocuments({ date: '2025-12-11' });
+      const uploadedPremarketAllDates = await db.collection('uploadedPreMarket').distinct('date');
+      const uploadedPremarketTotal = await db.collection('uploadedPreMarket').countDocuments({});
+      
+      console.log('🔍 DEBUG: Database counts for test dates:');
+      console.log(`   daily_bhavcopy['2025-12-10']: ${bhav20251210} (total: ${bhavTotal})`);
+      console.log(`   daily_bhavcopy dates: ${bhavAllDates.slice(0, 10).join(', ')}`);
+      console.log(`   uploadedBhav['2025-12-10']: ${uploadedBhav20251210} (total: ${uploadedBhavTotal})`);
+      console.log(`   uploadedBhav dates: ${uploadedBhavAllDates.slice(0, 10).join(', ')}`);
+      console.log(`   premarket_data['2025-12-11']: ${premarket20251211} (total: ${premarketTotal})`);
+      console.log(`   premarket_data dates: ${premarketAllDates.slice(0, 10).join(', ')}`);
+      console.log(`   uploadedPreMarket['2025-12-11']: ${uploadedPremarket20251211} (total: ${uploadedPreMarketTotal})`);
+      console.log(`   uploadedPreMarket dates: ${uploadedPreMarketAllDates.slice(0, 10).join(', ')}`);
+      
+      // Also check for yesterdayDate dynamically
+      const bhavYesterday = await db.collection('daily_bhavcopy').countDocuments({ date: yesterdayDate });
+      const uploadedBhavYesterday = await db.collection('uploadedBhav').countDocuments({ date: yesterdayDate });
+      const premarketToday = await db.collection('premarket_data').countDocuments({ date: date });
+      const uploadedPremarketToday = await db.collection('uploadedPreMarket').countDocuments({ date: date });
+      
+      console.log(`🔍 DEBUG: Counts for actual query dates:`);
+      console.log(`   daily_bhavcopy['${yesterdayDate}']: ${bhavYesterday}`);
+      console.log(`   uploadedBhav['${yesterdayDate}']: ${uploadedBhavYesterday}`);
+      console.log(`   premarket_data['${date}']: ${premarketToday}`);
+      console.log(`   uploadedPreMarket['${date}']: ${uploadedPremarketToday}`);
+    } catch (debugError) {
+      console.warn('⚠️ Debug query failed:', debugError.message);
+    }
 
     // Get collections with error handling
     let bhavcopyCollection, premarketCollection;
