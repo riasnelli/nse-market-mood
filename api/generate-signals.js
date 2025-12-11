@@ -515,7 +515,8 @@ module.exports = async (req, res) => {
     }
 
     // Generate signals (this function never throws)
-    const result = await generateSimpleMomentumGapSignals(date);
+    const strategy = req.query.strategy || 'momentum_gap';
+    const result = await generateSimpleMomentumGapSignals(date, strategy);
     
     // Ensure response matches expected format (like test-generate-signals)
     res.status(200).json({
