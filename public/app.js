@@ -2669,7 +2669,11 @@ class MarketMoodApp {
                         let processedData;
                         if (uploadType === 'bhav') {
                             processedData = this.processBhavcopyData(parsedData, date, file.name);
-                            console.log(`📊 Saving bhavcopy for date ${date} with count=${processedData.indices?.length || 0} stocks`);
+                            // Explicitly set indicesCount for bhavcopy
+                            const bhavCount = processedData.indices?.length || 0;
+                            processedData.indicesCount = bhavCount;
+                            processedData.count = bhavCount;
+                            console.log(`📊 Saving bhavcopy for date ${date} with count=${bhavCount} stocks`);
                         } else if (uploadType === 'premarket') {
                             processedData = this.processPremarketData(parsedData, date, file.name);
                             
