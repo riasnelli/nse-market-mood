@@ -4172,10 +4172,9 @@ class MarketMoodApp {
                     // If count is 0, it means the file was uploaded but parsing failed (empty indices array)
                     const hasBhav = (dateData.bhav?.count || 0) > 0;
                     
-                    // For PREM: Show marker if file exists (has ID) OR count > 0
-                    // This ensures files are visible even if price parsing failed
-                    const hasPremarket = !!dateData.premarket?.id || 
-                                       (dateData.premarket?.count || 0) > 0 || 
+                    // For PREM: Show checkmark ONLY if count > 0 (actual data exists)
+                    // Don't show checkmark just because a file ID exists - we need actual parsed data
+                    const hasPremarket = (dateData.premarket?.count || 0) > 0 || 
                                        (dateData.dateDataPremarketCount || 0) > 0;
                     
                     // Debug log for rendering
@@ -4187,12 +4186,21 @@ class MarketMoodApp {
                     const checkmarkColor = '#10b981'; // Green color
                     const checkmark = '✓';
                     
+                    // SVG icons for premarket status
+                    const premarketCheckIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>`;
+                    const premarketXIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>`;
+                    
                     row.innerHTML = `
                         <td>${rowNumber}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
                         <td style="color: ${hasBhav ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasBhav ? 'bold' : 'normal'}; font-size: ${hasBhav ? '1.2em' : '1em'};">${hasBhav ? checkmark : ''}</td>
-                        <td style="text-align: center; font-size: 1.2em;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? '✅' : '❌'}</td>
+                        <td style="text-align: center; vertical-align: middle;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? premarketCheckIcon : premarketXIcon}</td>
                         <td class="action-buttons">
                             <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
