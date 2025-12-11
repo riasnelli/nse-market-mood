@@ -124,6 +124,10 @@ module.exports = async (req, res) => {
               const insertResult = await bhavcopyCollection.insertMany(bhavcopyDocs, { ordered: false });
               dailyInsertCount = insertResult.insertedCount || bhavcopyDocs.length;
               console.log(`✅ Inserted ${dailyInsertCount} rows into daily_bhavcopy for ${targetDate}`);
+              console.log(`📊 DEBUG: Sample bhavcopy doc:`, JSON.stringify(bhavcopyDocs[0], null, 2));
+            } else {
+              console.warn(`⚠️ No valid bhavcopy documents to insert. Filtered ${indices.length} items, got ${bhavcopyDocs.length} valid docs.`);
+              console.warn(`   Sample item before filtering:`, indices[0] ? JSON.stringify(indices[0], null, 2) : 'No items in indices array');
             }
           } else if (uploadType === 'indices') {
             // Insert into daily_indices collection
@@ -176,6 +180,10 @@ module.exports = async (req, res) => {
               const insertResult = await premarketCollection.insertMany(premarketDocs, { ordered: false });
               dailyInsertCount = insertResult.insertedCount || premarketDocs.length;
               console.log(`✅ Inserted ${dailyInsertCount} rows into premarket_data for ${targetDate}`);
+              console.log(`📊 DEBUG: Sample premarket doc:`, JSON.stringify(premarketDocs[0], null, 2));
+            } else {
+              console.warn(`⚠️ No valid premarket documents to insert. Filtered ${indices.length} items, got ${premarketDocs.length} valid docs.`);
+              console.warn(`   Sample item before filtering:`, indices[0] ? JSON.stringify(indices[0], null, 2) : 'No items in indices array');
             }
           }
         }
