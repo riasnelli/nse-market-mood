@@ -4501,6 +4501,43 @@ class MarketMoodApp {
             // Scroll to top immediately (before any async operations)
             window.scrollTo({ top: 0, behavior: 'instant' });
             
+            // Ensure all Signals page sections are visible and properly styled
+            const signalsStatusPanel = document.getElementById('signalsStatusPanel');
+            const signalsSection = document.getElementById('signalsSection');
+            const signalsContainer = document.getElementById('signalsContainer');
+            const signalsLoading = document.getElementById('signalsLoading');
+            const dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
+            
+            // Show and style the status panel
+            if (signalsStatusPanel) {
+                signalsStatusPanel.style.display = 'block';
+                signalsStatusPanel.style.padding = '20px 10px 0 10px';
+            }
+            
+            // Show and style the signals section
+            if (signalsSection) {
+                signalsSection.style.display = 'block';
+                signalsSection.style.padding = '20px 10px';
+                signalsSection.style.minHeight = '200px';
+            }
+            
+            // Show the container (will be populated by loadSignals)
+            if (signalsContainer) {
+                signalsContainer.style.display = 'block';
+                signalsContainer.style.padding = '20px 10px';
+            }
+            
+            // Show loading initially
+            if (signalsLoading) {
+                signalsLoading.style.display = 'block';
+            }
+            
+            // Show data availability section (will be populated by loadDataAvailability)
+            if (dataAvailabilitySection) {
+                dataAvailabilitySection.style.display = 'block';
+                dataAvailabilitySection.style.padding = '20px 10px';
+            }
+            
             // Show initial status panel
             this.updateSignalsStatus({
                 date: new Date().toISOString().split('T')[0],
