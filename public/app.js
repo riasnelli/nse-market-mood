@@ -3837,9 +3837,10 @@ class MarketMoodApp {
                     const dateColor = '#f97316'; // Orange color
                     
                     // Check if Bhav and Pre-market have data
-                    // Show checkmark if count > 0 OR if a file was uploaded (has an ID that is not null/undefined/empty)
-                    const hasBhav = (dateData.bhav?.count || 0) > 0 || (dateData.bhav?.id && dateData.bhav.id !== null && dateData.bhav.id !== undefined && dateData.bhav.id !== '');
-                    const hasPremarket = (dateData.premarket?.count || 0) > 0 || (dateData.premarket?.id && dateData.premarket.id !== null && dateData.premarket.id !== undefined && dateData.premarket.id !== '');
+                    // Show checkmark ONLY if count > 0 (data was actually parsed and stored)
+                    // If count is 0, it means the file was uploaded but parsing failed (empty indices array)
+                    const hasBhav = (dateData.bhav?.count || 0) > 0;
+                    const hasPremarket = (dateData.premarket?.count || 0) > 0;
                     
                     // Debug log for today's date
                     if (normalizedDate === '2025-12-01') {
