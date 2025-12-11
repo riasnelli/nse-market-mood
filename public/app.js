@@ -2648,10 +2648,10 @@ class MarketMoodApp {
                         } else {
                             // For premarket files, use the robust NSE pre-open CSV parser
                             if (uploadType === 'premarket') {
-                                const parseResult = this.parseNSEPremarketCSV(e.target.result, file.name);
-                                console.log(`✅ parseNSEPremarketCSV: header=[${Object.keys(parseResult.parsedRows[0] || {}).join(', ')}] parsedRows.length=${parseResult.parsedRows.length}`);
+                                const { header, parsedRows } = this.parseNSEPremarketCSV(e.target.result, file.name);
+                                console.log(`📊 Processing ${parsedRows.length} rows from NSE premarket CSV`);
                                 // Use parsedRows array for processing
-                                parsedData = parseResult.parsedRows;
+                                parsedData = parsedRows;
                             } else {
                                 // Default to standard CSV parsing for other types
                             parsedData = this.parseCSV(e.target.result);
@@ -3019,148 +3019,63 @@ class MarketMoodApp {
      * Robust parser for NSE Pre-Open Market CSV files
      * Format: Standard comma-separated CSV with quoted fields
      * Header: "SYMBOL","PREV. CLOSE","IEP","CHNG","%CHNG","FINAL","FINAL QUANTITY",...
-     * Returns: { parsedRows: array, meta: { count: number } }
+     * Returns: { header: array, parsedRows: array }
      */
     parseNSEPremarketCSV(csvText, fileName) {
-        console.log(`📄 Parsing NSE premarket CSV: ${fileName}`);
+        console.log('📄 Parsing NSE premarket CSV (fixed parser):', fileName);
         
-        // Debug: Log first few lines to understand the format
-        const allLines = csvText.split(/\r?\n/);
-        console.log(`🔍 Raw CSV first 5 lines:`, allLines.slice(0, 5));
-        console.log(`🔍 First line length: ${allLines[0]?.length}, first 200 chars:`, allLines[0]?.substring(0, 200));
+        // 1. Split by REAL line breaks, not commas
+        const rawLines = csvText.split(/\r?\n/).map(l => l.trim());
+        const nonEmptyLines = rawLines.filter(l => l.length > 0);
         
-        // Split by newline (handle both \r?\n and \n)
-        const lines = allLines.filter(line => line.trim());
-        
-        if (lines.length < 2) {
-            throw new Error('NSE premarket CSV file is empty or invalid');
+        if (nonEmptyLines.length === 0) {
+            console.warn('No non-empty lines in premarket CSV');
+            return { header: [], parsedRows: [] };
         }
         
-        // Find first non-empty line as header
-        let headerLine = null;
-        let headerIndex = -1;
-        for (let i = 0; i < Math.min(10, lines.length); i++) {
-            const line = lines[i].trim();
-            if (line && line.includes('SYMBOL') && (line.includes('IEP') || line.includes('FINAL') || line.includes('PREV'))) {
-                headerLine = line;
-                headerIndex = i;
-                console.log(`✅ Found header at line ${i}:`, line.substring(0, 200));
-                break;
-            }
-        }
+        // 2. First non-empty line is the header row
+        const headerLine = nonEmptyLines[0];
+        // Header should look like: "SYMBOL ","PREV. CLOSE ", "IEP ", ...
+        const headerCells = headerLine
+            .split(',')
+            .map(h => h.replace(/^"+|"+$/g, '').trim())
+            .filter(h => h); // Remove empty cells
         
-        if (!headerLine) {
-            // Fallback: use first non-empty line
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].trim()) {
-                    headerLine = lines[i];
-                    headerIndex = i;
-                    console.log(`⚠️ Using first non-empty line as header:`, headerLine.substring(0, 200));
-                    break;
-                }
-            }
-        }
+        console.log('🔍 Fixed header cells:', headerCells);
         
-        if (!headerLine) {
-            throw new Error('No header row found in NSE premarket CSV');
-        }
-        
-        // Parse header: split by comma, strip quotes, trim
-        const parseCSVLine = (line) => {
-            const values = [];
-            let current = '';
-            let inQuotes = false;
-            
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                const nextChar = line[i + 1];
-                
-                if (char === '"') {
-                    if (inQuotes && nextChar === '"') {
-                        // Escaped quote
-                        current += '"';
-                        i++; // Skip next quote
-                    } else {
-                        // Toggle quote state
-                        inQuotes = !inQuotes;
-                    }
-                } else if (char === ',' && !inQuotes) {
-                    // End of value
-                    values.push(current.trim());
-                    current = '';
-                } else {
-                    current += char;
-                }
-            }
-            // Add last value
-            values.push(current.trim());
-            return values;
-        };
-        
-        const headerValues = parseCSVLine(headerLine);
-        const headers = headerValues.map(h => h.replace(/^"|"$/g, '').trim()).filter(h => h); // Remove empty headers
-        
-        console.log(`✅ Detected ${headers.length} columns in header row:`, headers.join(', '));
-        console.log(`🔍 Header values (raw):`, headerValues.slice(0, 10));
-        
-        // Parse data rows
         const parsedRows = [];
-        let skippedRows = 0;
-        for (let i = headerIndex + 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue; // Skip empty lines
+        
+        for (let i = 1; i < nonEmptyLines.length; i++) {
+            const line = nonEmptyLines[i];
+            if (!line) continue;
             
-            const values = parseCSVLine(line);
+            const cells = line.split(',').map(c => c.replace(/^"+|"+$/g, '').trim());
+            if (cells.length === 0) continue;
             
-            // Skip if column count doesn't match (likely a footer or malformed row)
-            if (values.length !== headers.length) {
-                if (i <= headerIndex + 5) {
-                    console.log(`⚠️ Row ${i} column mismatch: expected ${headers.length}, got ${values.length}`, values.slice(0, 5));
-                }
-                skippedRows++;
-                continue;
-            }
-            
-            // Build row object
             const row = {};
-            headers.forEach((header, index) => {
-                let value = values[index] || '';
-                // Remove surrounding quotes if present
-                value = value.replace(/^"|"$/g, '').trim();
-                row[header] = value;
-            });
-            
-            // Skip rows where SYMBOL is empty or looks like a header/footer
-            const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
-            if (!symbol || 
-                symbol.toUpperCase().includes('SYMBOL') || 
-                symbol.toUpperCase().includes('PREV') || 
-                symbol.toUpperCase().includes('CLOSE') ||
-                symbol.includes('(₹ Crores)') ||
-                symbol.includes('52W') ||
-                symbol.startsWith(',') ||
-                symbol.length > 50) {
-                skippedRows++;
-                if (i <= headerIndex + 5) {
-                    console.log(`⚠️ Row ${i} skipped: invalid symbol`, { symbol, rowKeys: Object.keys(row) });
-                }
-                continue; // Skip header-like rows
+            for (let j = 0; j < headerCells.length && j < cells.length; j++) {
+                const key = headerCells[j];
+                if (!key) continue;
+                row[key] = cells[j];
             }
             
-            // Validate that we have at least one price field
-            const hasPrice = row['FINAL'] || row['IEP'] || row['PREV. CLOSE'] || row['PREV_CLOSE'];
-            if (!hasPrice || (hasPrice && !parseFloat(String(hasPrice).replace(/,/g, '')))) {
-                skippedRows++;
-                if (i <= headerIndex + 5) {
-                    console.log(`⚠️ Row ${i} skipped: no valid price field`, { symbol, FINAL: row['FINAL'], IEP: row['IEP'], 'PREV. CLOSE': row['PREV. CLOSE'] });
-                }
+            const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
+            if (!symbol || symbol === 'SYMBOL' || symbol.toUpperCase().includes('SYMBOL')) {
+                continue; // skip bad/header-like rows
+            }
+            
+            // Skip footer rows
+            if (symbol.includes('(₹ Crores)') || symbol.includes('52W') || symbol.length > 50) {
                 continue;
             }
             
             parsedRows.push(row);
         }
         
-        console.log(`📊 Parsed ${parsedRows.length} valid stock rows from NSE premarket CSV (skipped ${skippedRows} invalid rows)`);
+        console.log(
+            `✅ Fixed premarket parser: header=${JSON.stringify(headerCells)}, parsedRows.length=${parsedRows.length}`
+        );
+        
         if (parsedRows.length > 0) {
             console.log(`🔍 Sample row:`, {
                 SYMBOL: parsedRows[0]['SYMBOL'],
@@ -3168,15 +3083,11 @@ class MarketMoodApp {
                 FINAL: parsedRows[0]['FINAL'],
                 'PREV. CLOSE': parsedRows[0]['PREV. CLOSE']
             });
-        } else {
-            console.warn(`⚠️ No valid rows parsed! First data row after header:`, lines[headerIndex + 1]?.substring(0, 200));
         }
         
         return {
-            parsedRows: parsedRows,
-            meta: {
-                count: parsedRows.length
-            }
+            header: headerCells,
+            parsedRows: parsedRows
         };
     }
 
@@ -4229,30 +4140,16 @@ class MarketMoodApp {
                     // Show checkmark ONLY if count > 0 (data was actually parsed and stored)
                     // If count is 0, it means the file was uploaded but parsing failed (empty indices array)
                     const hasBhav = (dateData.bhav?.count || 0) > 0;
-                    const hasPremarket = (dateData.premarket?.count || 0) > 0;
                     
-                    // Debug log for today's date
-                    if (normalizedDate === '2025-12-01') {
-                        console.log('🎯 Rendering row for 2025-12-01:', {
-                            dateData: {
-                                indices: { count: dateData.indices?.count, id: dateData.indices?.id },
-                                bhav: { count: dateData.bhav?.count, id: dateData.bhav?.id },
-                                premarket: { count: dateData.premarket?.count, id: dateData.premarket?.id }
-                            },
-                            hasBhav,
-                            hasPremarket,
-                            bhavCheck: {
-                                countCheck: (dateData.bhav?.count || 0) > 0,
-                                idCheck: dateData.bhav?.id && dateData.bhav.id !== null && dateData.bhav.id !== undefined && dateData.bhav.id !== '',
-                                idValue: dateData.bhav?.id
-                            },
-                            premarketCheck: {
-                                countCheck: (dateData.premarket?.count || 0) > 0,
-                                idCheck: dateData.premarket?.id && dateData.premarket.id !== null && dateData.premarket.id !== undefined && dateData.premarket.id !== '',
-                                idValue: dateData.premarket?.id
-                            }
-                        });
-                    }
+                    // For PREM: Show marker if file exists (has ID) OR count > 0
+                    const hasPremarket = !!dateData.premarket?.id || 
+                                       (dateData.premarket?.count || 0) > 0 || 
+                                       (dateData.dateDataPremarketCount || 0) > 0;
+                    
+                    // Debug log for rendering
+                    console.log(
+                        `🎯 Rendering row for ${normalizedDate}: hasPremarket=${hasPremarket}, premarket=${dateData.premarket?.count || 0}, premarketId=${dateData.premarket?.id || 'none'}`
+                    );
                     
                     // Use green checkmark for better visibility
                     const checkmarkColor = '#10b981'; // Green color
