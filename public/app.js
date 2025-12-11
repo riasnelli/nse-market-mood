@@ -4191,7 +4191,7 @@ class MarketMoodApp {
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
                         <td style="color: ${hasBhav ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasBhav ? 'bold' : 'normal'}; font-size: ${hasBhav ? '1.2em' : '1em'};">${hasBhav ? checkmark : ''}</td>
-                        <td style="color: ${hasPremarket ? checkmarkColor : '#999'}; text-align: center; font-weight: ${hasPremarket ? 'bold' : 'normal'}; font-size: ${hasPremarket ? '1.2em' : '1em'};">${hasPremarket ? '111' : ''}</td>
+                        <td style="text-align: center; font-size: 1.2em;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? '✅' : '❌'}</td>
                         <td class="action-buttons">
                             <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
