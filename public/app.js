@@ -2886,6 +2886,43 @@ class MarketMoodApp {
         return values;
     }
 
+    parseTabDelimitedFile(text) {
+        const lines = text.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length < 2) {
+            throw new Error('File is empty or invalid');
+        }
+
+        // Parse header
+        const headers = lines[0].split('\t').map(h => h.trim().replace(/^"|"$/g, ''));
+        
+        console.log('🔍 Tab-delimited headers:', headers);
+        
+        // Parse data rows
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split('\t').map(v => v.trim().replace(/^"|"$/g, ''));
+            if (values.length === headers.length) {
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                data.push(row);
+            } else if (values.length > 0) {
+                // Log mismatch for debugging
+                if (i <= 3) {
+                    console.log(`⚠️ Row ${i} column count mismatch: expected ${headers.length}, got ${values.length}`, values);
+                }
+            }
+        }
+
+        console.log(`📊 Parsed ${data.length} rows from tab-delimited file`);
+        if (data.length > 0) {
+            console.log('🔍 First tab-delimited row:', data[0]);
+        }
+
+        return data;
+    }
+
     processCSVData(csvData, date, fileName) {
         const indices = [];
         let vixData = null;
