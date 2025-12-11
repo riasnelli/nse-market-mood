@@ -89,31 +89,52 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         try {
           const uploadedBhavCollection = await getUploadedDataCollection('bhav');
           
+          // First, let's see what dates are actually available
+          const allBhavDocs = await uploadedBhavCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(20)
+            .toArray();
+          
+          console.log(`📅 Available dates in uploadedBhav:`, allBhavDocs.map(d => d.date).join(', '));
+          console.log(`🔍 Looking for date: ${yesterdayDate}`);
+          
           // Try exact date match first
           let uploadedBhavDocs = await uploadedBhavCollection
             .find({ date: yesterdayDate })
             .toArray();
           
-          // If no exact match, try to find the most recent date before yesterday
+          console.log(`📊 Exact match found: ${uploadedBhavDocs.length} documents`);
+          
+          // If no exact match, try to find the most recent date before or equal to yesterday
           if (uploadedBhavDocs.length === 0) {
-            console.log(`No exact date match for ${yesterdayDate}, searching for recent dates...`);
-            const allBhavDocs = await uploadedBhavCollection
-              .find({})
-              .sort({ date: -1 })
-              .limit(10)
-              .toArray();
+            console.log(`No exact date match for ${yesterdayDate}, searching for closest date...`);
             
-            // Find the closest date to yesterday
+            // Find the closest date to yesterday (can be yesterday or before)
+            let closestDoc = null;
+            let closestDate = null;
+            
             for (const doc of allBhavDocs) {
-              if (doc.date && doc.date <= yesterdayDate) {
-                uploadedBhavDocs = [doc];
-                console.log(`Found closest date: ${doc.date} (looking for ${yesterdayDate})`);
-                break;
+              if (doc.date) {
+                // Compare dates as strings (ISO format YYYY-MM-DD)
+                if (doc.date <= yesterdayDate) {
+                  if (!closestDate || doc.date > closestDate) {
+                    closestDate = doc.date;
+                    closestDoc = doc;
+                  }
+                }
               }
+            }
+            
+            if (closestDoc) {
+              uploadedBhavDocs = [closestDoc];
+              console.log(`✅ Found closest date: ${closestDoc.date} (looking for ${yesterdayDate})`);
+            } else {
+              console.log(`❌ No suitable date found. Available dates: ${allBhavDocs.map(d => d.date).join(', ')}`);
             }
           }
           
-          console.log(`Found ${uploadedBhavDocs.length} uploadedBhav documents for ${yesterdayDate}`);
+          console.log(`📊 Final uploadedBhav documents found: ${uploadedBhavDocs.length}`);
           
           // Extract indices array from uploaded documents
           for (const doc of uploadedBhavDocs) {
