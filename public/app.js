@@ -3024,8 +3024,13 @@ class MarketMoodApp {
     parseNSEPremarketCSV(csvText, fileName) {
         console.log(`📄 Parsing NSE premarket CSV: ${fileName}`);
         
-        // Split by newline (handle both \r\n and \n)
-        const lines = csvText.split(/\r?\n/).filter(line => line.trim());
+        // Debug: Log first few lines to understand the format
+        const allLines = csvText.split(/\r?\n/);
+        console.log(`🔍 Raw CSV first 5 lines:`, allLines.slice(0, 5));
+        console.log(`🔍 First line length: ${allLines[0]?.length}, first 200 chars:`, allLines[0]?.substring(0, 200));
+        
+        // Split by newline (handle both \r?\n and \n)
+        const lines = allLines.filter(line => line.trim());
         
         if (lines.length < 2) {
             throw new Error('NSE premarket CSV file is empty or invalid');
@@ -3034,11 +3039,25 @@ class MarketMoodApp {
         // Find first non-empty line as header
         let headerLine = null;
         let headerIndex = -1;
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].trim()) {
-                headerLine = lines[i];
+        for (let i = 0; i < Math.min(10, lines.length); i++) {
+            const line = lines[i].trim();
+            if (line && line.includes('SYMBOL') && (line.includes('IEP') || line.includes('FINAL') || line.includes('PREV'))) {
+                headerLine = line;
                 headerIndex = i;
+                console.log(`✅ Found header at line ${i}:`, line.substring(0, 200));
                 break;
+            }
+        }
+        
+        if (!headerLine) {
+            // Fallback: use first non-empty line
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].trim()) {
+                    headerLine = lines[i];
+                    headerIndex = i;
+                    console.log(`⚠️ Using first non-empty line as header:`, headerLine.substring(0, 200));
+                    break;
+                }
             }
         }
         
@@ -3079,12 +3098,14 @@ class MarketMoodApp {
         };
         
         const headerValues = parseCSVLine(headerLine);
-        const headers = headerValues.map(h => h.replace(/^"|"$/g, '').trim());
+        const headers = headerValues.map(h => h.replace(/^"|"$/g, '').trim()).filter(h => h); // Remove empty headers
         
-        console.log(`✅ Detected ${headers.length} columns in header row:`, headers.slice(0, 10).join(', '), headers.length > 10 ? '...' : '');
+        console.log(`✅ Detected ${headers.length} columns in header row:`, headers.join(', '));
+        console.log(`🔍 Header values (raw):`, headerValues.slice(0, 10));
         
         // Parse data rows
         const parsedRows = [];
+        let skippedRows = 0;
         for (let i = headerIndex + 1; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line) continue; // Skip empty lines
@@ -3094,8 +3115,9 @@ class MarketMoodApp {
             // Skip if column count doesn't match (likely a footer or malformed row)
             if (values.length !== headers.length) {
                 if (i <= headerIndex + 5) {
-                    console.log(`⚠️ Row ${i} column mismatch: expected ${headers.length}, got ${values.length}`);
+                    console.log(`⚠️ Row ${i} column mismatch: expected ${headers.length}, got ${values.length}`, values.slice(0, 5));
                 }
+                skippedRows++;
                 continue;
             }
             
@@ -3108,21 +3130,37 @@ class MarketMoodApp {
                 row[header] = value;
             });
             
-            // Skip rows where SYMBOL is empty or looks like a header
+            // Skip rows where SYMBOL is empty or looks like a header/footer
             const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
             if (!symbol || 
                 symbol.toUpperCase().includes('SYMBOL') || 
                 symbol.toUpperCase().includes('PREV') || 
                 symbol.toUpperCase().includes('CLOSE') ||
+                symbol.includes('(₹ Crores)') ||
+                symbol.includes('52W') ||
                 symbol.startsWith(',') ||
                 symbol.length > 50) {
+                skippedRows++;
+                if (i <= headerIndex + 5) {
+                    console.log(`⚠️ Row ${i} skipped: invalid symbol`, { symbol, rowKeys: Object.keys(row) });
+                }
                 continue; // Skip header-like rows
+            }
+            
+            // Validate that we have at least one price field
+            const hasPrice = row['FINAL'] || row['IEP'] || row['PREV. CLOSE'] || row['PREV_CLOSE'];
+            if (!hasPrice || (hasPrice && !parseFloat(String(hasPrice).replace(/,/g, '')))) {
+                skippedRows++;
+                if (i <= headerIndex + 5) {
+                    console.log(`⚠️ Row ${i} skipped: no valid price field`, { symbol, FINAL: row['FINAL'], IEP: row['IEP'], 'PREV. CLOSE': row['PREV. CLOSE'] });
+                }
+                continue;
             }
             
             parsedRows.push(row);
         }
         
-        console.log(`📊 Parsed ${parsedRows.length} valid stock rows from NSE premarket CSV`);
+        console.log(`📊 Parsed ${parsedRows.length} valid stock rows from NSE premarket CSV (skipped ${skippedRows} invalid rows)`);
         if (parsedRows.length > 0) {
             console.log(`🔍 Sample row:`, {
                 SYMBOL: parsedRows[0]['SYMBOL'],
@@ -3130,6 +3168,8 @@ class MarketMoodApp {
                 FINAL: parsedRows[0]['FINAL'],
                 'PREV. CLOSE': parsedRows[0]['PREV. CLOSE']
             });
+        } else {
+            console.warn(`⚠️ No valid rows parsed! First data row after header:`, lines[headerIndex + 1]?.substring(0, 200));
         }
         
         return {
