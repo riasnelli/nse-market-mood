@@ -3039,6 +3039,38 @@ class MarketMoodApp {
     parseNSEPremarketCSV(csvText, fileName) {
         console.log('📄 Parsing NSE premarket CSV (fixed parser):', fileName);
         
+        // Helper function to properly parse CSV line with quoted fields
+        const parseCSVLine = (line) => {
+            const values = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+                
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        // Escaped quote
+                        current += '"';
+                        i++; // Skip next quote
+                    } else {
+                        // Toggle quote state
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    // End of value
+                    values.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            // Add last value
+            values.push(current.trim());
+            return values;
+        };
+        
         // 1. Split by REAL line breaks, not commas
         const rawLines = csvText.split(/\r?\n/).map(l => l.trim());
         const nonEmptyLines = rawLines.filter(l => l.length > 0);
@@ -3048,15 +3080,18 @@ class MarketMoodApp {
             return { header: [], parsedRows: [] };
         }
         
+        // Debug: Log first line to see actual format
+        console.log('🔍 First line (first 300 chars):', nonEmptyLines[0]?.substring(0, 300));
+        
         // 2. First non-empty line is the header row
         const headerLine = nonEmptyLines[0];
-        // Header should look like: "SYMBOL ","PREV. CLOSE ", "IEP ", ...
-        const headerCells = headerLine
-            .split(',')
+        // Use proper CSV parser to handle quoted fields
+        const headerCells = parseCSVLine(headerLine)
             .map(h => h.replace(/^"+|"+$/g, '').trim())
             .filter(h => h); // Remove empty cells
         
         console.log('🔍 Fixed header cells:', headerCells);
+        console.log(`✅ Detected ${headerCells.length} columns`);
         
         const parsedRows = [];
         
@@ -3064,7 +3099,10 @@ class MarketMoodApp {
             const line = nonEmptyLines[i];
             if (!line) continue;
             
-            const cells = line.split(',').map(c => c.replace(/^"+|"+$/g, '').trim());
+            // Use proper CSV parser to handle quoted fields
+            const cells = parseCSVLine(line)
+                .map(c => c.replace(/^"+|"+$/g, '').trim());
+            
             if (cells.length === 0) continue;
             
             const row = {};
