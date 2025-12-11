@@ -2661,7 +2661,7 @@ class MarketMoodApp {
                                 this._premarketHeader = header;
                             } else {
                                 // Default to standard CSV parsing for other types
-                                parsedData = this.parseCSV(e.target.result);
+                            parsedData = this.parseCSV(e.target.result);
                             }
                         }
                         
@@ -2882,7 +2882,7 @@ class MarketMoodApp {
                 }
             }
         }
-        
+
         console.log(`🔍 Detected delimiter: "${delimiter === '\t' ? 'TAB' : delimiter}"`);
 
         // Check if first line is a header or data
@@ -2971,7 +2971,7 @@ class MarketMoodApp {
                 const row = {};
                 headers.forEach((header, index) => {
                     if (index < values.length) {
-                        row[header] = values[index].trim().replace(/^"|"$/g, '');
+                    row[header] = values[index].trim().replace(/^"|"$/g, '');
                     }
                 });
                 data.push(row);
@@ -3444,6 +3444,7 @@ class MarketMoodApp {
                 high: high || 0,
                 low: low || 0,
                 close: close,
+                last: last || close,
                 prev_close: prevClose || close,
                 volume: volume || 0,
                 delivery: delivery || 0,
@@ -3455,6 +3456,7 @@ class MarketMoodApp {
                 HIGH: high || 0,
                 LOW: low || 0,
                 CLOSE: close,
+                LAST: last || close,
                 PREV_CLOSE: prevClose || close,
                 TOTTRDQTY: volume || 0,
                 DELIVERYQTY: delivery || 0,
