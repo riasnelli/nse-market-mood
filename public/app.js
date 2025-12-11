@@ -2664,11 +2664,9 @@ class MarketMoodApp {
                             processedData = this.processBhavcopyData(parsedData, date, file.name);
                         } else if (uploadType === 'premarket') {
                             processedData = this.processPremarketData(parsedData, date, file.name);
-                            // Ensure count is set from parsed data
-                            if (processedData.indices && processedData.indices.length > 0) {
-                                processedData.indicesCount = processedData.indices.length;
-                                console.log(`📊 Saved premarket for date ${date} with count=${processedData.indicesCount}`);
-                            }
+                            // Always set count from processed indices (even if 0)
+                            processedData.indicesCount = processedData.indices ? processedData.indices.length : 0;
+                            console.log(`📊 Saved premarket for date ${date} with count=${processedData.indicesCount} (parsed ${parsedData.length} rows, processed ${processedData.indicesCount} stocks)`);
                         } else {
                             // Default to indices processing
                             processedData = this.processCSVData(parsedData, date, file.name);
@@ -3263,6 +3261,13 @@ class MarketMoodApp {
         
         console.log(`📊 Processing ${csvData.length} rows from NSE premarket CSV: ${fileName}`);
         
+        // Debug: Log first row to see what fields are available
+        if (csvData.length > 0) {
+            console.log(`🔍 First row keys:`, Object.keys(csvData[0]));
+            console.log(`🔍 First row sample:`, csvData[0]);
+        }
+        
+        let skippedCount = 0;
         csvData.forEach((row, index) => {
             // NSE premarket CSV uses uppercase field names
             const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
@@ -3291,6 +3296,7 @@ class MarketMoodApp {
 
             // Skip invalid rows
             if (!symbol || symbol.trim() === '' || symbol.length > 50) {
+                skippedCount++;
                 if (index < 3) {
                     console.log(`⚠️ Row ${index} skipped: invalid symbol`, { symbol, rowKeys: Object.keys(row) });
                 }
@@ -3298,12 +3304,15 @@ class MarketMoodApp {
             }
 
             if (isNaN(price) || price <= 0) {
+                skippedCount++;
                 if (index < 3) {
                     console.log(`⚠️ Row ${index} skipped: invalid price`, { 
                         symbol, 
                         FINAL: row['FINAL'], 
                         IEP: row['IEP'],
-                        'PREV. CLOSE': row['PREV. CLOSE']
+                        'PREV. CLOSE': row['PREV. CLOSE'],
+                        priceStr: priceStr,
+                        allRowKeys: Object.keys(row)
                     });
                 }
                 return;
@@ -3335,8 +3344,12 @@ class MarketMoodApp {
             });
         });
 
-        console.log(`✅ Processed ${indices.length} stocks from NSE premarket file: ${fileName}`);
+        console.log(`✅ Processed ${indices.length} stocks from NSE premarket file: ${fileName} (skipped ${skippedCount} rows)`);
         console.log(`📅 Date used: ${date}`);
+        
+        if (indices.length === 0 && csvData.length > 0) {
+            console.warn(`⚠️ WARNING: No stocks processed from ${csvData.length} parsed rows! Check field names.`);
+        }
 
         return {
             mood: null, // Premarket doesn't have mood data
