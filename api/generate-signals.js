@@ -287,7 +287,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         date: date,
         signals: [],
         signal_count: 0,
-        message: `No bhavcopy data found for ${yesterdayDate} in daily_bhavcopy or uploadedBhav collections`
+        message: `No bhavcopy data found for ${yesterdayDate}. If you have already uploaded a bhavcopy file, it may have been parsed incorrectly. Please re-upload the file using the upload modal - the parser has been fixed to properly handle bhavcopy files.`
       };
     }
 
