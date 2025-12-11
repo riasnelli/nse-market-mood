@@ -207,31 +207,52 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         console.log(`No data in premarket_data for ${date}, checking uploadedPreMarket...`);
         const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
         
+        // First, let's see what dates are actually available
+        const allPremarketDocs = await uploadedPremarketCollection
+          .find({})
+          .sort({ date: -1 })
+          .limit(20)
+          .toArray();
+        
+        console.log(`📅 Available dates in uploadedPreMarket:`, allPremarketDocs.map(d => d.date).join(', '));
+        console.log(`🔍 Looking for date: ${date}`);
+        
         // Try exact date match first
         let uploadedPremarketDocs = await uploadedPremarketCollection
           .find({ date: date })
           .toArray();
         
+        console.log(`📊 Exact match found: ${uploadedPremarketDocs.length} documents`);
+        
         // If no exact match, try to find the most recent date
         if (uploadedPremarketDocs.length === 0) {
-          console.log(`No exact date match for ${date}, searching for recent dates...`);
-          const allPremarketDocs = await uploadedPremarketCollection
-            .find({})
-            .sort({ date: -1 })
-            .limit(10)
-            .toArray();
+          console.log(`No exact date match for ${date}, searching for closest date...`);
           
-          // Find the closest date to today
+          // Find the closest date to today (can be today or before)
+          let closestDoc = null;
+          let closestDate = null;
+          
           for (const doc of allPremarketDocs) {
-            if (doc.date && doc.date <= date) {
-              uploadedPremarketDocs = [doc];
-              console.log(`Found closest date: ${doc.date} (looking for ${date})`);
-              break;
+            if (doc.date) {
+              // Compare dates as strings (ISO format YYYY-MM-DD)
+              if (doc.date <= date) {
+                if (!closestDate || doc.date > closestDate) {
+                  closestDate = doc.date;
+                  closestDoc = doc;
+                }
+              }
             }
+          }
+          
+          if (closestDoc) {
+            uploadedPremarketDocs = [closestDoc];
+            console.log(`✅ Found closest date: ${closestDoc.date} (looking for ${date})`);
+          } else {
+            console.log(`❌ No suitable date found. Available dates: ${allPremarketDocs.map(d => d.date).join(', ')}`);
           }
         }
         
-        console.log(`Found ${uploadedPremarketDocs.length} uploadedPreMarket documents for ${date}`);
+        console.log(`📊 Final uploadedPreMarket documents found: ${uploadedPremarketDocs.length}`);
         
         // Extract indices array from uploaded documents
         for (const doc of uploadedPremarketDocs) {
