@@ -320,7 +320,7 @@ module.exports = async (req, res) => {
           id: doc._id.toString(),
           fileName: doc.fileName,
           date: doc.date,
-          indicesCount: doc.indices?.length || 0,
+          indicesCount: doc.indicesCount || doc.indices?.length || 0, // Use stored count first, fallback to array length
           uploadedAt: doc.uploadedAt,
           mood: doc.mood,
           source: doc.source
