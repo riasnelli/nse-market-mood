@@ -2592,6 +2592,19 @@ class MarketMoodApp {
                 this.updateUploadButtonState();
             });
         }
+        
+        // Date input change handler
+        if (dataDate) {
+            dataDate.addEventListener('change', () => {
+                this.updateUploadButtonState();
+            });
+            dataDate.addEventListener('input', () => {
+                this.updateUploadButtonState();
+            });
+        }
+        
+        // Initialize button state on page load
+        this.updateUploadButtonState();
 
         // Upload button
         if (uploadDataBtn && csvFile && dataDate) {
