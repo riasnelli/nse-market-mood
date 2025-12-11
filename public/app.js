@@ -408,9 +408,13 @@ class MarketMoodApp {
         this.signalsBtn = document.getElementById('signalsBtn');
         this.signalsBtnLabel = document.getElementById('signalsBtnLabel');
         this.generateSignalsBtn = document.getElementById('generateSignalsBtn');
+        this.selectStrategyBtn = document.getElementById('selectStrategyBtn');
+        this.strategyModal = document.getElementById('strategyModal');
+        this.selectedStrategyText = document.getElementById('selectedStrategyText');
         this.refreshDataAvailabilityBtn = document.getElementById('refreshDataAvailabilityBtn');
         this.dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
         this.uploadBtn = document.getElementById('uploadBtn');
+        this.selectedStrategy = localStorage.getItem('selectedStrategy') || 'momentum_gap'; // Default strategy
         this.moodPageView = document.getElementById('moodPageView');
         this.signalsPageView = document.getElementById('signalsPageView');
         this.currentView = 'mood'; // 'mood' or 'signals'
@@ -525,6 +529,12 @@ class MarketMoodApp {
         if (this.generateSignalsBtn) {
             this.generateSignalsBtn.addEventListener('click', () => this.generateSignals());
         }
+        
+        // Setup strategy selector
+        this.setupStrategySelector();
+        
+        // Update selected strategy text on init
+        this.updateSelectedStrategyText();
         if (this.refreshDataAvailabilityBtn) {
             this.refreshDataAvailabilityBtn.addEventListener('click', () => this.loadDataAvailability());
         }
@@ -2354,6 +2364,175 @@ class MarketMoodApp {
     setLoading(isLoading) {
         if (this.refreshBtn) {
             this.refreshBtn.disabled = isLoading;
+        }
+    }
+
+    setupStrategySelector() {
+        const selectStrategyBtn = this.selectStrategyBtn;
+        const strategyModal = this.strategyModal;
+        const closeStrategyModal = document.getElementById('closeStrategyModal');
+        const cancelStrategyBtn = document.getElementById('cancelStrategyBtn');
+        const applyStrategyBtn = document.getElementById('applyStrategyBtn');
+        const strategyList = document.getElementById('strategyList');
+        
+        // Define available strategies
+        const strategies = [
+            {
+                id: 'momentum_gap',
+                name: 'Momentum Gap',
+                description: 'Find stocks with positive gaps and strong momentum. Best for bullish markets with low volatility.',
+                icon: '📈'
+            },
+            {
+                id: 'breakout',
+                name: 'Breakout',
+                description: 'Look for stocks breaking out of consolidation patterns with high volume. Best for volatile bullish markets.',
+                icon: '🚀'
+            },
+            {
+                id: 'mean_reversion',
+                name: 'Mean Reversion',
+                description: 'Find oversold stocks that may revert to mean. Best for neutral markets with low volatility.',
+                icon: '🔄'
+            },
+            {
+                id: 'defensive',
+                name: 'Defensive / Wait',
+                description: 'Conservative approach for bearish markets. Wait for better entry points or consider defensive positions.',
+                icon: '🛡️'
+            },
+            {
+                id: 'volatility_play',
+                name: 'Volatility Play',
+                description: 'Focus on high-beta stocks with strong momentum. Best for high volatility environments.',
+                icon: '⚡'
+            }
+        ];
+        
+        // Render strategy list
+        if (strategyList) {
+            strategyList.innerHTML = strategies.map(strategy => `
+                <div class="strategy-option" data-strategy="${strategy.id}" style="
+                    border: 2px solid #e5e7eb;
+                    border-radius: 12px;
+                    padding: 16px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    background: #ffffff;
+                ">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                        <span style="font-size: 1.5rem;">${strategy.icon}</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 1rem; color: #333; margin-bottom: 4px;">${strategy.name}</div>
+                            <div style="font-size: 0.85rem; color: #666; line-height: 1.4;">${strategy.description}</div>
+                        </div>
+                        <div class="strategy-check" style="
+                            width: 24px;
+                            height: 24px;
+                            border: 2px solid #667eea;
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            opacity: 0;
+                            transition: opacity 0.2s;
+                        ">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Add click handlers
+            const strategyOptions = strategyList.querySelectorAll('.strategy-option');
+            let selectedStrategyId = this.selectedStrategy;
+            
+            strategyOptions.forEach(option => {
+                const strategyId = option.dataset.strategy;
+                
+                // Mark current selection
+                if (strategyId === this.selectedStrategy) {
+                    option.style.borderColor = '#667eea';
+                    option.style.background = '#f0f4ff';
+                    option.querySelector('.strategy-check').style.opacity = '1';
+                }
+                
+                option.addEventListener('click', () => {
+                    // Remove previous selection
+                    strategyOptions.forEach(opt => {
+                        opt.style.borderColor = '#e5e7eb';
+                        opt.style.background = '#ffffff';
+                        opt.querySelector('.strategy-check').style.opacity = '0';
+                    });
+                    
+                    // Mark new selection
+                    option.style.borderColor = '#667eea';
+                    option.style.background = '#f0f4ff';
+                    option.querySelector('.strategy-check').style.opacity = '1';
+                    selectedStrategyId = strategyId;
+                });
+            });
+            
+            // Apply button
+            if (applyStrategyBtn) {
+                applyStrategyBtn.addEventListener('click', () => {
+                    this.selectedStrategy = selectedStrategyId;
+                    localStorage.setItem('selectedStrategy', selectedStrategyId);
+                    this.updateSelectedStrategyText();
+                    if (strategyModal) {
+                        strategyModal.classList.remove('show');
+                    }
+                    // Regenerate signals with new strategy
+                    if (this.currentView === 'signals') {
+                        this.loadSignals();
+                    }
+                });
+            }
+        }
+        
+        // Open modal
+        if (selectStrategyBtn && strategyModal) {
+            selectStrategyBtn.addEventListener('click', () => {
+                strategyModal.classList.add('show');
+            });
+        }
+        
+        // Close modal
+        if (closeStrategyModal && strategyModal) {
+            closeStrategyModal.addEventListener('click', () => {
+                strategyModal.classList.remove('show');
+            });
+        }
+        
+        if (cancelStrategyBtn && strategyModal) {
+            cancelStrategyBtn.addEventListener('click', () => {
+                strategyModal.classList.remove('show');
+            });
+        }
+        
+        // Close on backdrop click
+        if (strategyModal) {
+            strategyModal.addEventListener('click', (e) => {
+                if (e.target === strategyModal) {
+                    strategyModal.classList.remove('show');
+                }
+            });
+        }
+    }
+    
+    updateSelectedStrategyText() {
+        const strategyNames = {
+            'momentum_gap': 'Momentum Gap',
+            'breakout': 'Breakout',
+            'mean_reversion': 'Mean Reversion',
+            'defensive': 'Defensive / Wait',
+            'volatility_play': 'Volatility Play'
+        };
+        
+        if (this.selectedStrategyText) {
+            this.selectedStrategyText.textContent = strategyNames[this.selectedStrategy] || 'Select Strategy';
         }
     }
 
@@ -4435,6 +4614,10 @@ class MarketMoodApp {
             if (targetDate) {
                 url = `/api/get-signals?date=${targetDate}`;
             }
+            // Add strategy parameter
+            if (this.selectedStrategy) {
+                url += `${targetDate ? '&' : '?'}strategy=${this.selectedStrategy}`;
+            }
 
             console.log('🔍 Fetching existing signals from:', url);
             let response = await fetch(url);
@@ -4688,10 +4871,14 @@ class MarketMoodApp {
     async generateSignalsForDate(date) {
         console.log('🔄 Generating signals for date:', date);
         
-        let generateUrl = '/api/generate-signals';
-        if (date) {
-            generateUrl = `/api/generate-signals?date=${date}`;
-        }
+            let generateUrl = '/api/generate-signals';
+            if (date) {
+                generateUrl = `/api/generate-signals?date=${date}`;
+            }
+            // Add strategy parameter
+            if (this.selectedStrategy) {
+                generateUrl += `${date ? '&' : '?'}strategy=${this.selectedStrategy}`;
+            }
         
         // Try generate-signals first, fallback to test-generate-signals
         let response = await fetch(generateUrl);

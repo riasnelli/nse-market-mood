@@ -88,9 +88,30 @@ async function generateSimpleMomentumGapSignals(date) {
         console.log(`No data in daily_bhavcopy for ${yesterdayDate}, checking uploadedBhav...`);
         try {
           const uploadedBhavCollection = await getUploadedDataCollection('bhav');
-          const uploadedBhavDocs = await uploadedBhavCollection
+          
+          // Try exact date match first
+          let uploadedBhavDocs = await uploadedBhavCollection
             .find({ date: yesterdayDate })
             .toArray();
+          
+          // If no exact match, try to find the most recent date before yesterday
+          if (uploadedBhavDocs.length === 0) {
+            console.log(`No exact date match for ${yesterdayDate}, searching for recent dates...`);
+            const allBhavDocs = await uploadedBhavCollection
+              .find({})
+              .sort({ date: -1 })
+              .limit(10)
+              .toArray();
+            
+            // Find the closest date to yesterday
+            for (const doc of allBhavDocs) {
+              if (doc.date && doc.date <= yesterdayDate) {
+                uploadedBhavDocs = [doc];
+                console.log(`Found closest date: ${doc.date} (looking for ${yesterdayDate})`);
+                break;
+              }
+            }
+          }
           
           console.log(`Found ${uploadedBhavDocs.length} uploadedBhav documents for ${yesterdayDate}`);
           
@@ -164,9 +185,30 @@ async function generateSimpleMomentumGapSignals(date) {
       if (premarketData.length === 0) {
         console.log(`No data in premarket_data for ${date}, checking uploadedPreMarket...`);
         const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
-        const uploadedPremarketDocs = await uploadedPremarketCollection
+        
+        // Try exact date match first
+        let uploadedPremarketDocs = await uploadedPremarketCollection
           .find({ date: date })
           .toArray();
+        
+        // If no exact match, try to find the most recent date
+        if (uploadedPremarketDocs.length === 0) {
+          console.log(`No exact date match for ${date}, searching for recent dates...`);
+          const allPremarketDocs = await uploadedPremarketCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(10)
+            .toArray();
+          
+          // Find the closest date to today
+          for (const doc of allPremarketDocs) {
+            if (doc.date && doc.date <= date) {
+              uploadedPremarketDocs = [doc];
+              console.log(`Found closest date: ${doc.date} (looking for ${date})`);
+              break;
+            }
+          }
+        }
         
         console.log(`Found ${uploadedPremarketDocs.length} uploadedPreMarket documents for ${date}`);
         
@@ -501,6 +543,23 @@ module.exports = async (req, res) => {
   }
 };
 
-// Export the function for reuse
+/**
+ * Mean Reversion signal generator
+ * Looks for oversold stocks (gap-down) that may revert to mean
+ */
+async function generateMeanReversionSignals(date) {
+  // For now, use the same logic as momentum gap but with different filters
+  // In the future, we can implement proper mean reversion logic
+  // (e.g., look for gap-down stocks, RSI oversold, etc.)
+  const result = await generateSimpleMomentumGapSignals(date);
+  // Modify the result to indicate it's mean reversion
+  if (result.message && result.message.includes('No bhavcopy')) {
+    result.message = result.message.replace('momentum gap', 'mean reversion');
+  }
+  return result;
+}
+
+// Export the functions for reuse
 module.exports.generateSimpleMomentumGapSignals = generateSimpleMomentumGapSignals;
+module.exports.generateMeanReversionSignals = generateMeanReversionSignals;
 

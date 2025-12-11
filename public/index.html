@@ -176,7 +176,16 @@
                 <div class="signals-section" id="signalsSection">
                     <div class="section-header">
                     <h3 class="section-title">Intraday Signals</h3>
-                    <button id="generateSignalsBtn" class="btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">Generate Signals</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="selectStrategyBtn" class="btn-secondary" style="padding: 8px 16px; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 11l3 3L22 4"></path>
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                            </svg>
+                            <span id="selectedStrategyText">Select Strategy</span>
+                        </button>
+                        <button id="generateSignalsBtn" class="btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">Generate Signals</button>
+                    </div>
                 </div>
                 <div id="signalsLoading" class="loading-message" style="display: none; text-align: center; padding: 20px;">
                     Loading signals...
@@ -333,6 +342,36 @@
             <div class="modal-footer">
                 <button id="uploadDataBtn" class="btn-primary" disabled>Upload Data</button>
                 <button id="cancelUpload" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Strategy Selector Modal -->
+    <div id="strategyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                    Select Trading Strategy
+                </h2>
+                <button class="modal-close" id="closeStrategyModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="strategy-list" id="strategyList" style="display: grid; gap: 12px;">
+                    <!-- Strategy options will be populated here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="applyStrategyBtn" class="btn-primary">Apply Strategy</button>
+                <button id="cancelStrategyBtn" class="btn-secondary">Cancel</button>
             </div>
         </div>
     </div>
