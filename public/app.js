@@ -2839,10 +2839,16 @@ class MarketMoodApp {
         // 2. Fixed-width format
         // 3. Other delimited formats
         
+        console.log('📄 Parsing DAT file...');
         const lines = datText.split(/\r?\n/).filter(line => line.trim());
+        console.log(`📊 Total lines in DAT file: ${lines.length}`);
+        
         if (lines.length < 2) {
             throw new Error('DAT file is empty or invalid');
         }
+
+        // Debug: Log first line
+        console.log('🔍 First line (first 500 chars):', lines[0]?.substring(0, 500));
 
         // Check if it's CSV-like (contains commas or tabs)
         const firstLine = lines[0];
@@ -2872,12 +2878,16 @@ class MarketMoodApp {
                 }
             }
         }
+        
+        console.log(`🔍 Detected delimiter: "${delimiter === '\t' ? 'TAB' : delimiter}"`);
 
         // Parse header
         const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+        console.log(`🔍 Headers (${headers.length}):`, headers.slice(0, 10));
         
         // Parse data rows
         const data = [];
+        let skippedRows = 0;
         for (let i = 1; i < lines.length; i++) {
             const values = this.parseDelimitedLine(lines[i], delimiter);
             if (values.length === headers.length) {
@@ -2886,7 +2896,22 @@ class MarketMoodApp {
                     row[header] = values[index].trim().replace(/^"|"$/g, '');
                 });
                 data.push(row);
+            } else {
+                skippedRows++;
+                if (i <= 3) {
+                    console.log(`⚠️ Row ${i} skipped: ${values.length} values vs ${headers.length} headers`);
+                }
             }
+        }
+        
+        console.log(`✅ Parsed ${data.length} rows from DAT file (skipped ${skippedRows} rows)`);
+        if (data.length > 0) {
+            console.log(`🔍 First row keys:`, Object.keys(data[0]));
+            console.log(`🔍 First row sample:`, {
+                SYMBOL: data[0]['SYMBOL'] || data[0]['Symbol'] || data[0]['symbol'],
+                SERIES: data[0]['SERIES'] || data[0]['Series'] || data[0]['series'],
+                CLOSE: data[0]['CLOSE'] || data[0]['Close'] || data[0]['close']
+            });
         }
 
         return data;
@@ -3259,7 +3284,19 @@ class MarketMoodApp {
         // Process bhavcopy (EOD) data - format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, PREV_CLOSE, etc.
         const indices = [];
         
-        csvData.forEach(row => {
+        console.log(`📊 Processing ${csvData.length} rows from bhavcopy file: ${fileName}`);
+        
+        // Debug: Log first row to see what fields are available
+        if (csvData.length > 0) {
+            console.log(`🔍 First row keys:`, Object.keys(csvData[0]));
+            console.log(`🔍 First row sample:`, csvData[0]);
+        }
+        
+        let skippedSymbol = 0;
+        let skippedSeries = 0;
+        let skippedClose = 0;
+        
+        csvData.forEach((row, index) => {
             // Handle various field name variations
             const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
             const series = row['SERIES'] || row['Series'] || row['series'] || 'EQ';
@@ -3273,11 +3310,33 @@ class MarketMoodApp {
             const deliveryPercent = parseFloat((row['DELIVERY_PER'] || row['Delivery %'] || row['delivery_percent'] || row['delivery_per'] || '0').replace(/,/g, ''));
 
             // Only process EQ series stocks with valid data
-            if (!symbol || symbol.trim() === '' || series.toUpperCase() !== 'EQ') {
+            if (!symbol || symbol.trim() === '') {
+                skippedSymbol++;
+                if (index < 3) {
+                    console.log(`⚠️ Row ${index} skipped: invalid symbol`, { symbol, rowKeys: Object.keys(row) });
+                }
+                return;
+            }
+            
+            if (series.toUpperCase() !== 'EQ') {
+                skippedSeries++;
+                if (index < 3) {
+                    console.log(`⚠️ Row ${index} skipped: not EQ series`, { symbol, series });
+                }
                 return;
             }
 
             if (isNaN(close) || close <= 0) {
+                skippedClose++;
+                if (index < 3) {
+                    console.log(`⚠️ Row ${index} skipped: invalid close price`, { 
+                        symbol, 
+                        CLOSE: row['CLOSE'], 
+                        Close: row['Close'], 
+                        close: row['close'],
+                        parsedClose: close
+                    });
+                }
                 return;
             }
 
@@ -3307,6 +3366,13 @@ class MarketMoodApp {
         });
 
         console.log(`📊 Processed ${indices.length} EQ stocks from bhavcopy file: ${fileName}`);
+        console.log(`   Skipped: ${skippedSymbol} (no symbol), ${skippedSeries} (not EQ), ${skippedClose} (invalid close)`);
+        
+        if (indices.length === 0 && csvData.length > 0) {
+            console.warn(`⚠️ WARNING: No stocks processed from ${csvData.length} parsed rows! Check field names.`);
+            console.warn(`   First row keys:`, Object.keys(csvData[0]));
+            console.warn(`   First row sample:`, csvData[0]);
+        }
 
         return {
             mood: null, // Bhavcopy doesn't have mood data
