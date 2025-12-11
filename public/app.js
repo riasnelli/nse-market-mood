@@ -4875,7 +4875,7 @@ class MarketMoodApp {
             
             // Display strategy recommendation first, then signals
             signalsEmpty.style.display = 'none';
-            signalsContainer.style.display = 'block';
+            signalsContainer.style.setProperty('display', 'block', 'important');
             signalsContainer.innerHTML = '';
             
             // Update strategy analysis with actual stock recommendations from signals
