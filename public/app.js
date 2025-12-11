@@ -2643,45 +2643,14 @@ class MarketMoodApp {
                         const fileExtension = file.name.split('.').pop().toLowerCase();
                         let parsedData;
                         
-                        // Debug: Log raw file content for premarket files to understand structure
-                        if (uploadType === 'premarket') {
-                            const rawText = e.target.result;
-                            const firstLines = rawText.split(/\r?\n/).slice(0, 10);
-                            console.log('🔍 Raw CSV first 10 lines:', firstLines);
-                            console.log('🔍 First line length:', firstLines[0]?.length);
-                            console.log('🔍 First line (first 200 chars):', firstLines[0]?.substring(0, 200));
-                            // Check for common delimiters in first line
-                            const firstLine = firstLines[0] || '';
-                            console.log('🔍 Delimiter analysis:', {
-                                commas: (firstLine.match(/,/g) || []).length,
-                                tabs: (firstLine.match(/\t/g) || []).length,
-                                semicolons: (firstLine.match(/;/g) || []).length,
-                                pipes: (firstLine.match(/\|/g) || []).length,
-                                spaces: (firstLine.match(/\s{2,}/g) || []).length // Multiple spaces
-                            });
-                        }
-                        
                         if (fileExtension === 'dat') {
                             parsedData = this.parseDATFile(e.target.result);
                         } else {
-                            // Default to CSV parsing
-                            // Try multiple parsing methods for premarket files
+                            // For premarket files, use the robust NSE pre-open CSV parser
                             if (uploadType === 'premarket') {
-                                // First try standard CSV parsing
-                            parsedData = this.parseCSV(e.target.result);
-                                
-                                // If that fails or produces only one column, try tab-delimited
-                                if (parsedData.length > 0 && Object.keys(parsedData[0]).length <= 1) {
-                                    console.log('⚠️ Standard CSV parsing produced only one column, trying tab-delimited...');
-                                    parsedData = this.parseTabDelimitedFile(e.target.result);
-                                    
-                                    // If tab-delimited also fails, try space-delimited or other formats
-                                    if (parsedData.length > 0 && Object.keys(parsedData[0]).length <= 1) {
-                                        console.log('⚠️ Tab-delimited also failed, trying space-delimited...');
-                                        parsedData = this.parseSpaceDelimitedFile(e.target.result);
-                                    }
-                                }
+                                parsedData = this.parseNSEPremarketCSV(e.target.result, file.name);
                             } else {
+                                // Default to standard CSV parsing for other types
                                 parsedData = this.parseCSV(e.target.result);
                             }
                         }
@@ -3205,139 +3174,52 @@ class MarketMoodApp {
     }
 
     processPremarketData(csvData, date, fileName) {
-        // Process premarket data - format varies, but typically: Symbol, Price, Change, etc.
+        // Process NSE premarket data - standard format: SYMBOL, PREV. CLOSE, IEP, CHNG, %CHNG, FINAL, etc.
         const indices = [];
         
-        // Debug: Log first few rows to see structure
-        if (csvData.length > 0) {
-            console.log('🔍 Premarket CSV first row fields:', Object.keys(csvData[0]));
-            console.log('🔍 Premarket CSV first row sample:', csvData[0]);
-            if (csvData.length > 1) {
-                console.log('🔍 Premarket CSV second row sample:', csvData[1]);
-            }
-            if (csvData.length > 2) {
-                console.log('🔍 Premarket CSV third row sample:', csvData[2]);
-            }
-        }
-        
-        // Find the actual header row - skip rows that look like headers (contain "PREV", "CLOSE", "CHNG", etc.)
-        let startIndex = 0;
-        const headerKeywords = ['PREV', 'CLOSE', 'CHNG', 'CHANGE', 'IEP', 'VOLUME', 'SYMBOL', 'PRICE'];
-        
-        for (let i = 0; i < Math.min(5, csvData.length); i++) {
-            const row = csvData[i];
-            const rowValues = Object.values(row).join(' ').toUpperCase();
-            const hasHeaderKeywords = headerKeywords.some(keyword => rowValues.includes(keyword));
-            
-            // If this row has header keywords but no numeric price values, it's likely a header row
-            if (hasHeaderKeywords) {
-                const hasNumericPrice = Object.values(row).some(val => {
-                    const num = parseFloat(String(val).replace(/,/g, ''));
-                    return !isNaN(num) && num > 100; // Prices are usually > 100
-                });
-                
-                if (!hasNumericPrice) {
-                    console.log(`⚠️ Row ${i} appears to be a header row, skipping...`);
-                    startIndex = i + 1;
-                    continue;
-                }
-            }
-            
-            // If we find a row with a valid symbol and price, this is where data starts
-            const symbol = row['Symbol'] || row['SYMBOL'] || row['symbol'] || '';
-            const price = parseFloat((row['Price'] || row['PRICE'] || row['price'] || 
-                                    row['Pre Open Price'] || row['PRE_OPEN_PRICE'] || row['pre_open_price'] ||
-                                    row['LTP'] || row['ltp'] || row['Last Price'] || row['LAST_PRICE'] ||
-                                    row['Close'] || row['CLOSE'] || row['close'] || '0').replace(/,/g, ''));
-            
-            if (symbol && symbol.length > 0 && symbol.length < 20 && !symbol.includes(',') && 
-                !isNaN(price) && price > 0) {
-                startIndex = i;
-                console.log(`✅ Found data starting at row ${i}`);
-                break;
-            }
-        }
-        
-        // Update field names based on the actual header row
-        let actualHeaders = {};
-        if (startIndex > 0 && csvData[startIndex - 1]) {
-            const headerRow = csvData[startIndex - 1];
-            actualHeaders = headerRow;
-            console.log('🔍 Using header row:', headerRow);
-        }
+        console.log(`📊 Processing ${csvData.length} rows from NSE premarket CSV: ${fileName}`);
         
         csvData.forEach((row, index) => {
-            // Handle various field name variations for premarket data
-            // Try all possible field name combinations
-            const symbol = row['Symbol'] || row['SYMBOL'] || row['symbol'] || 
-                          row['Name'] || row['NAME'] || row['name'] ||
-                          row['Company'] || row['COMPANY'] || row['company'] ||
-                          row['Stock'] || row['STOCK'] || row['stock'] || '';
+            // NSE premarket CSV uses uppercase field names
+            const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
             
-            // Try multiple price field variations
+            // Use IEP (Indian Equity Price) or FINAL as the pre-open price
+            // IEP is the indicative equilibrium price, FINAL is the final pre-open price
             let price = 0;
-            const priceFields = [
-                'Price', 'PRICE', 'price',
-                'Pre Open Price', 'PRE_OPEN_PRICE', 'pre_open_price', 'PreOpenPrice',
-                'LTP', 'ltp', 'Ltp',
-                'Last Price', 'LAST_PRICE', 'last_price', 'LastPrice',
-                'Close', 'CLOSE', 'close',
-                'Open', 'OPEN', 'open',
-                'Current Price', 'CURRENT_PRICE', 'current_price',
-                'Value', 'VALUE', 'value',
-                'IEP', 'iep' // Indian Equity Price
-            ];
+            const priceStr = row['FINAL'] || row['IEP'] || row['final'] || row['iep'] || 
+                           row['PRE_OPEN_PRICE'] || row['Pre Open Price'] || '';
             
-            // Try standard field names first
-            for (const field of priceFields) {
-                const val = row[field];
-                if (val !== undefined && val !== null && val !== '') {
-                    const parsed = parseFloat(String(val).replace(/,/g, '').replace(/₹/g, '').replace(/Rs\./g, '').trim());
-                    if (!isNaN(parsed) && parsed > 0) {
-                        price = parsed;
-                        break;
-                    }
+            if (priceStr) {
+                price = parseFloat(String(priceStr).replace(/,/g, '').replace(/₹/g, '').replace(/Rs\./g, '').trim());
+            }
+            
+            // Fallback: try PREV. CLOSE if FINAL/IEP not available
+            if (isNaN(price) || price <= 0) {
+                const prevCloseStr = row['PREV. CLOSE'] || row['PREV_CLOSE'] || row['Prev Close'] || '';
+                if (prevCloseStr) {
+                    price = parseFloat(String(prevCloseStr).replace(/,/g, '').trim());
                 }
             }
             
-            // If no price found in standard fields, try all column values
-            if (price === 0) {
-                const allValues = Object.values(row);
-                for (const val of allValues) {
-                    if (val !== undefined && val !== null && val !== '') {
-                        const strVal = String(val).trim();
-                        // Skip if it looks like a header or symbol
-                        if (strVal.includes('PREV') || strVal.includes('CLOSE') || 
-                            strVal.includes('CHNG') || strVal.length > 20) {
-                            continue;
-                        }
-                        const parsed = parseFloat(strVal.replace(/,/g, '').replace(/₹/g, '').replace(/Rs\./g, ''));
-                        if (!isNaN(parsed) && parsed > 10 && parsed < 100000) { // Reasonable price range
-                            price = parsed;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            const change = parseFloat((row['Change'] || row['CHANGE'] || row['change'] || 
-                                     row['Change(%)'] || row['Change (%)'] || row['Change%'] ||
-                                     row['% Change'] || row['%Change'] || '0').replace(/,/g, '').replace(/%/g, '').trim());
-            const volume = parseFloat((row['Volume'] || row['VOLUME'] || row['volume'] ||
-                                     row['Qty'] || row['QTY'] || row['qty'] || '0').replace(/,/g, '').trim());
+            const change = parseFloat((row['CHNG'] || row['CHANGE'] || row['Change'] || '0').replace(/,/g, '').trim());
+            const changePercent = parseFloat((row['%CHNG'] || row['% Change'] || row['Change(%)'] || '0').replace(/,/g, '').replace(/%/g, '').trim());
+            const volume = parseFloat((row['FINAL QUANTITY'] || row['FINAL_QUANTITY'] || row['Volume'] || row['VOLUME'] || '0').replace(/,/g, '').trim());
 
-            if (!symbol || symbol.trim() === '') {
+            // Skip invalid rows
+            if (!symbol || symbol.trim() === '' || symbol.length > 50) {
                 if (index < 3) {
-                    console.log(`⚠️ Row ${index} skipped: no symbol found`, row);
+                    console.log(`⚠️ Row ${index} skipped: invalid symbol`, { symbol, rowKeys: Object.keys(row) });
                 }
                 return;
             }
 
             if (isNaN(price) || price <= 0) {
                 if (index < 3) {
-                    console.log(`⚠️ Row ${index} skipped: invalid price (${price})`, {
-                        symbol,
-                        priceFields: priceFields.map(f => ({ field: f, value: row[f] })).filter(f => f.value !== undefined)
+                    console.log(`⚠️ Row ${index} skipped: invalid price`, { 
+                        symbol, 
+                        FINAL: row['FINAL'], 
+                        IEP: row['IEP'],
+                        'PREV. CLOSE': row['PREV. CLOSE']
                     });
                 }
                 return;
@@ -3349,6 +3231,7 @@ class MarketMoodApp {
                 pre_open_price: price,
                 PRE_OPEN_PRICE: price,
                 change: change || 0,
+                changePercent: changePercent || 0,
                 volume: volume || 0,
                 // Include normalized field names for compatibility
                 SYMBOL: symbol.trim().toUpperCase(),
@@ -3358,14 +3241,18 @@ class MarketMoodApp {
                 last_price: price,
                 LAST_PRICE: price,
                 close: price,
-                CLOSE: price
+                CLOSE: price,
+                // Include original NSE fields
+                'PREV. CLOSE': row['PREV. CLOSE'] || '',
+                IEP: row['IEP'] || '',
+                FINAL: row['FINAL'] || '',
+                CHNG: row['CHNG'] || '',
+                '%CHNG': row['%CHNG'] || ''
             });
         });
 
-        console.log(`📊 Processed ${indices.length} stocks from premarket file: ${fileName}`);
-        if (indices.length === 0 && csvData.length > 0) {
-            console.warn(`⚠️ No stocks processed from ${csvData.length} CSV rows. First row fields:`, Object.keys(csvData[0]));
-        }
+        console.log(`✅ Processed ${indices.length} stocks from NSE premarket file: ${fileName}`);
+        console.log(`📅 Date used: ${date}`);
 
         return {
             mood: null, // Premarket doesn't have mood data
@@ -4171,10 +4058,14 @@ class MarketMoodApp {
                     const dateColor = '#f97316'; // Orange color
                     
                     // Check if Bhav and Pre-market have data
-                    // Show checkmark ONLY if count > 0 (data was actually parsed and stored)
-                    // If count is 0, it means the file was uploaded but parsing failed (empty indices array)
+                    // For Bhav: Show checkmark ONLY if count > 0 (data was actually parsed and stored)
                     const hasBhav = (dateData.bhav?.count || 0) > 0;
-                    const hasPremarket = (dateData.premarket?.count || 0) > 0;
+                    
+                    // For Premarket: Show checkmark if file exists (has ID) OR count > 0
+                    // This ensures files are visible even if parsing initially failed
+                    const hasPremarket = !!dateData.premarket?.id || 
+                                       (dateData.premarket?.count || 0) > 0 || 
+                                       (dateData.dateDataPremarketCount || 0) > 0;
                     
                     // Debug log for today's date
                     if (normalizedDate === '2025-12-01') {

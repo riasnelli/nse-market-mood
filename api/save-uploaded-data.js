@@ -65,11 +65,15 @@ module.exports = async (req, res) => {
         });
       }
 
+      // Calculate indicesCount from the indices array length
+      const indicesCount = Array.isArray(indices) ? indices.length : 0;
+      
       const dataToSave = {
         fileName: fileName || 'uploaded.csv',
         date: date || new Date().toISOString().split('T')[0],
         type: uploadType,
         indices,
+        indicesCount: indicesCount, // Explicitly store the count
         mood: mood || null,
         vix: vix || null,
         advanceDecline: advanceDecline || { advances: 0, declines: 0 },
@@ -78,6 +82,8 @@ module.exports = async (req, res) => {
         uploadedAt: new Date(),
         updatedAt: new Date()
       };
+      
+      console.log(`📊 Saving ${uploadType} data: date=${dataToSave.date}, indicesCount=${indicesCount}, fileName=${fileName}`);
 
       // Get the correct collection based on type
       const collection = await getUploadedDataCollection(uploadType);
