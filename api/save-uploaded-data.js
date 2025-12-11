@@ -166,11 +166,13 @@ module.exports = async (req, res) => {
                 date: targetDate,
                 symbol: item.symbol || item.SYMBOL || item.Symbol,
                 pre_open_price: item.pre_open_price || item.PRE_OPEN_PRICE || item.preOpenPrice || 
-                              item.price || item.PRICE || item.last_price || item.LAST_PRICE,
+                              item.price || item.PRICE || item.last_price || item.LAST_PRICE ||
+                              item.close || item.CLOSE || item.ltp || item.LTP || 0,
                 price: item.pre_open_price || item.PRE_OPEN_PRICE || item.preOpenPrice || 
-                       item.price || item.PRICE || item.last_price || item.LAST_PRICE
+                       item.price || item.PRICE || item.last_price || item.LAST_PRICE ||
+                       item.close || item.CLOSE || item.ltp || item.LTP || 0
               }))
-              .filter(item => item.symbol && item.pre_open_price > 0); // Only valid entries
+              .filter(item => item.symbol && (item.pre_open_price > 0 || item.price > 0)); // Only valid entries
             
             if (premarketDocs.length > 0) {
               // Delete existing data for this date to avoid duplicates
