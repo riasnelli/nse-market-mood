@@ -3989,25 +3989,29 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         // For premarket, check multiple possible fields for count
-                        // The API might return indicesCount, or the data might be in indices array
+                        // Priority: dateDataPremarketCount > count > indicesCount > indices array length
                         let count = 0;
-                        if (file.indicesCount !== undefined && file.indicesCount !== null) {
+                        if (file.dateDataPremarketCount !== undefined && file.dateDataPremarketCount !== null) {
+                            count = file.dateDataPremarketCount;
+                        } else if (file.count !== undefined && file.count !== null) {
+                            count = file.count;
+                        } else if (file.indicesCount !== undefined && file.indicesCount !== null) {
                             count = file.indicesCount;
                         } else if (Array.isArray(file.indices) && file.indices.length > 0) {
                             count = file.indices.length;
-                        } else if (file.count !== undefined && file.count !== null) {
-                            count = file.count;
                         }
                         
                         // Debug log for premarket data
-                        if (normalizedDate === '2025-12-01') {
-                            console.log('🔍 Premarket data for 2025-12-01:', {
+                        if (normalizedDate === '2025-12-11' || normalizedDate === '2025-12-10') {
+                            console.log(`🔍 Premarket data for ${normalizedDate}:`, {
                                 fileId: file.id,
                                 fileName: file.fileName,
+                                dateDataPremarketCount: file.dateDataPremarketCount,
+                                count: file.count,
                                 indicesCount: file.indicesCount,
                                 indicesArray: Array.isArray(file.indices) ? file.indices.length : 'not array',
-                                count: count,
-                                dateDataPremarketCount: dateData.premarket.count
+                                finalCount: count,
+                                dateDataCurrentCount: dateData.premarket.count
                             });
                         }
                         
