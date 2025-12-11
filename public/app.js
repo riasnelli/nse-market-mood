@@ -4827,9 +4827,11 @@ class MarketMoodApp {
                     
                     signalsContainer.innerHTML = ''; // Clear any previous content
                     this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
-                    signalsContainer.style.display = 'block';
+                    signalsContainer.style.setProperty('display', 'block', 'important');
                     signalsEmpty.style.display = 'none';
-            signalsLoading.style.display = 'none';
+                    signalsLoading.style.display = 'none';
+                    console.log('✅ Strategy recommendation rendered, container visible');
+                    this._switchingView = false;
                     return;
                 } else {
                     console.warn('⚠️ No strategy analysis available, showing empty state');
