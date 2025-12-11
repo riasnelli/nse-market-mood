@@ -4496,12 +4496,6 @@ class MarketMoodApp {
             signalsPageView.style.setProperty('visibility', 'visible', 'important');
             signalsPageView.style.setProperty('background', '#ffffff', 'important');
             signalsPageView.classList.remove('hidden');
-            
-            // Remove any display: none from inline style attribute
-            signalsPageView.removeAttribute('style');
-            signalsPageView.style.setProperty('display', 'block', 'important');
-            signalsPageView.style.setProperty('visibility', 'visible', 'important');
-            signalsPageView.style.setProperty('background', '#ffffff', 'important');
         
             // Force reflow
         void this.signalsPageView.offsetHeight;
