@@ -2619,7 +2619,16 @@ class MarketMoodApp {
                             parsedData = this.parseCSV(e.target.result);
                         }
                         
-                        const processedData = this.processCSVData(parsedData, date, file.name);
+                        // Process data based on upload type
+                        let processedData;
+                        if (uploadType === 'bhav') {
+                            processedData = this.processBhavcopyData(parsedData, date, file.name);
+                        } else if (uploadType === 'premarket') {
+                            processedData = this.processPremarketData(parsedData, date, file.name);
+                        } else {
+                            // Default to indices processing
+                            processedData = this.processCSVData(parsedData, date, file.name);
+                        }
                         
                         // Add type to processed data
                         processedData.type = uploadType;
