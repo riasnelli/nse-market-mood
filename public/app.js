@@ -2600,8 +2600,26 @@ class MarketMoodApp {
                 const date = dataDate.value;
                 const uploadType = document.getElementById('uploadType')?.value;
                 
-                if (!file || !date || !uploadType) {
-                    this.showUploadStatus('Please select a file, date, and data type', 'error');
+                // Validate all required fields
+                if (!file) {
+                    this.showUploadStatus('Please select a file to upload', 'error');
+                    return;
+                }
+                
+                if (!date || date.trim() === '') {
+                    this.showUploadStatus('Please select a date', 'error');
+                    return;
+                }
+                
+                if (!uploadType || uploadType.trim() === '') {
+                    this.showUploadStatus('Please select a data type', 'error');
+                    return;
+                }
+                
+                // Validate file type
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+                if (fileExtension !== 'csv' && fileExtension !== 'dat') {
+                    this.showUploadStatus('Please select a CSV or DAT file', 'error');
                     return;
                 }
 
