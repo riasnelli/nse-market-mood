@@ -3362,6 +3362,18 @@ class MarketMoodApp {
         };
     }
 
+    // ---- SAFE CLEANER FOR BHAVCOPY VALUES ----
+    cleanPrice(value) {
+        if (value === null || value === undefined) return null;
+
+        // Convert to string always
+        const str = String(value).trim();
+        if (!str) return null;   // handles "" without turning it into 0
+
+        return parseFloat(str.replace(/,/g, ''));
+    }
+    // -------------------------------------------
+
     processBhavcopyData(csvData, date, fileName) {
         // Process bhavcopy (EOD) data - format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, PREV_CLOSE, etc.
         const indices = [];
@@ -3382,14 +3394,17 @@ class MarketMoodApp {
             // Handle various field name variations
             const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
             const series = row['SERIES'] || row['Series'] || row['series'] || 'EQ';
-            const close = parseFloat((row['CLOSE'] || row['Close'] || row['close'] || '0').replace(/,/g, ''));
-            const prevClose = parseFloat((row['PREV_CLOSE'] || row['Prev Close'] || row['prev_close'] || row['PREVCLOSE'] || close || '0').replace(/,/g, ''));
-            const high = parseFloat((row['HIGH'] || row['High'] || row['high'] || '0').replace(/,/g, ''));
-            const low = parseFloat((row['LOW'] || row['Low'] || row['low'] || '0').replace(/,/g, ''));
-            const open = parseFloat((row['OPEN'] || row['Open'] || row['open'] || '0').replace(/,/g, ''));
-            const volume = parseFloat((row['TOTTRDQTY'] || row['Tottrdqty'] || row['VOLUME'] || row['Volume'] || row['volume'] || '0').replace(/,/g, ''));
-            const delivery = parseFloat((row['DELIVERYQTY'] || row['Deliveryqty'] || row['DELIVERY'] || row['Delivery'] || row['delivery'] || '0').replace(/,/g, ''));
-            const deliveryPercent = parseFloat((row['DELIVERY_PER'] || row['Delivery %'] || row['delivery_percent'] || row['delivery_per'] || '0').replace(/,/g, ''));
+            
+            // Use cleanPrice for all numeric fields - handles null/undefined/empty safely
+            const close = this.cleanPrice(row['CLOSE'] || row['Close'] || row['close']);
+            const prevClose = this.cleanPrice(row['PREV_CLOSE'] || row['Prev Close'] || row['prev_close'] || row['PREVCLOSE']) || close;
+            const high = this.cleanPrice(row['HIGH'] || row['High'] || row['high']);
+            const low = this.cleanPrice(row['LOW'] || row['Low'] || row['low']);
+            const open = this.cleanPrice(row['OPEN'] || row['Open'] || row['open']);
+            const last = this.cleanPrice(row['LAST'] || row['Last'] || row['last']) || close;
+            const volume = this.cleanPrice(row['TOTTRDQTY'] || row['Tottrdqty'] || row['VOLUME'] || row['Volume'] || row['volume']) || 0;
+            const delivery = this.cleanPrice(row['DELIVERYQTY'] || row['Deliveryqty'] || row['DELIVERY'] || row['Delivery'] || row['delivery']) || 0;
+            const deliveryPercent = this.cleanPrice(row['DELIVERY_PER'] || row['Delivery %'] || row['delivery_percent'] || row['delivery_per']) || 0;
 
             // Only process EQ series stocks with valid data
             if (!symbol || symbol.trim() === '') {
