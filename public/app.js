@@ -3512,9 +3512,9 @@ class MarketMoodApp {
 
     async saveToDatabase(data, fileName, dataDate, type = 'indices') {
         try {
-            // Debug: Log what we're sending for premarket
-            if (type === 'premarket') {
-                console.log(`🔍 SAVING PREMARKET TO DB:`, {
+            // Debug: Log what we're sending for premarket and bhavcopy
+            if (type === 'premarket' || type === 'bhav') {
+                console.log(`🔍 SAVING ${type.toUpperCase()} TO DB:`, {
                     fileName,
                     date: dataDate,
                     indicesCount: data.indicesCount,
