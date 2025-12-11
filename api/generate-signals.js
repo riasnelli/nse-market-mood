@@ -231,8 +231,35 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
               console.warn(`uploadedBhav doc has no indices array or empty array:`, {
                 hasIndices: !!doc.indices,
                 isArray: Array.isArray(doc.indices),
-                length: doc.indices?.length || 0
+                length: doc.indices?.length || 0,
+                fileName: doc.fileName,
+                date: doc.date
               });
+              
+              // If indices array is empty but document exists, check if individual rows were inserted into daily_bhavcopy
+              // This can happen if the upload happened but parsing failed, but individual rows were still inserted
+              console.log(`⚠️ uploadedBhav doc has empty indices array. Checking if individual rows exist in daily_bhavcopy for date ${doc.date}...`);
+              
+              // Try to find individual rows in daily_bhavcopy that might have been inserted from this upload
+              // We already checked daily_bhavcopy above, but let's double-check with the doc's date
+              if (doc.date) {
+                const individualRows = await bhavcopyCollection
+                  .find({ 
+                    date: doc.date,
+                    series: 'EQ'
+                  })
+                  .limit(10)
+                  .toArray();
+                
+                if (individualRows.length > 0) {
+                  console.log(`✅ Found ${individualRows.length} individual rows in daily_bhavcopy for date ${doc.date} (from uploadedBhav doc ${doc.fileName})`);
+                  // These rows should have already been included in bhavcopyData from the earlier query
+                  // But if they weren't, we'll note it
+                } else {
+                  console.log(`❌ No individual rows found in daily_bhavcopy for date ${doc.date}`);
+                  console.log(`   This suggests the upload file was not parsed correctly. Please re-upload the file.`);
+                }
+              }
             }
           }
           console.log(`Total: Found ${bhavcopyData.length} EQ stocks in uploadedBhav for ${yesterdayDate}`);
