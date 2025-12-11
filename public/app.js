@@ -3975,6 +3975,19 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        
+                        // Debug log for bhav data
+                        if (normalizedDate === '2025-12-11' || normalizedDate === '2025-12-10' || normalizedDate === '2025-12-01') {
+                            console.log(`🔍 Bhav data for ${normalizedDate}:`, {
+                                fileId: file.id,
+                                fileName: file.fileName,
+                                indicesCount: file.indicesCount,
+                                indicesArrayLength: Array.isArray(file.indices) ? file.indices.length : 'not array',
+                                finalCount: count,
+                                dateDataCurrentCount: dateData.bhav.count
+                            });
+                        }
+                        
                         // Always update if count is higher OR if no ID is set yet (file exists)
                         if (count > dateData.bhav.count || !dateData.bhav.id) {
                             dateData.bhav.count = count;
@@ -3983,18 +3996,6 @@ class MarketMoodApp {
                         // Keep the most recent uploadedAt
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
                             dateData.uploadedAt = file.uploadedAt;
-                        }
-                        
-                        // Debug log for bhav data
-                        if (normalizedDate === '2025-12-01') {
-                            console.log('🔍 Bhav data for 2025-12-01:', {
-                                fileId: file.id,
-                                fileName: file.fileName,
-                                indicesCount: file.indicesCount,
-                                count: count,
-                                dateDataBhavCount: dateData.bhav.count,
-                                dateDataBhavId: dateData.bhav.id
-                            });
                         }
                     }
                 });
