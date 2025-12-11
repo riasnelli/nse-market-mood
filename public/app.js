@@ -2606,7 +2606,7 @@ class MarketMoodApp {
                 }
 
                 const reader = new FileReader();
-                reader.onload = (e) => {
+                reader.onload = async (e) => {
                     try {
                         // Detect file type and parse accordingly
                         const fileExtension = file.name.split('.').pop().toLowerCase();
@@ -2638,12 +2638,20 @@ class MarketMoodApp {
                         localStorage.setItem(storageKey, JSON.stringify(processedData));
                         
                         // Also save to database (optional - will work even if DB is not configured)
-                        this.saveToDatabase(processedData, file.name, date, uploadType).catch(err => {
+                        // Wait for save to complete before refreshing the table
+                        try {
+                            await this.saveToDatabase(processedData, file.name, date, uploadType);
+                            console.log('✅ Data saved to database successfully');
+                        } catch (err) {
                             console.warn('Failed to save to database (continuing with localStorage):', err);
-                        });
+                        }
                         
                         this.showUploadStatus('Data uploaded successfully!', 'success');
+                        
+                        // Refresh the uploaded data table after a short delay to ensure DB is updated
+                        setTimeout(() => {
                         this.updateUploadedDataInfo();
+                        }, 500);
                         
                         // Check and show date picker after upload
                         this.checkAndShowDatePicker();
