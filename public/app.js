@@ -2651,7 +2651,7 @@ class MarketMoodApp {
                                 parsedData = this.parseNSEPremarketCSV(e.target.result, file.name);
                             } else {
                                 // Default to standard CSV parsing for other types
-                                parsedData = this.parseCSV(e.target.result);
+                            parsedData = this.parseCSV(e.target.result);
                             }
                         }
                         
@@ -3882,16 +3882,11 @@ class MarketMoodApp {
                 premarketId: data.premarket.id
             })));
             
-            // Special debug for today's date
-            const todayData = dateMap.get('2025-12-01');
-            if (todayData) {
-                console.log('📊 Today (2025-12-01) data summary:', {
-                    indices: todayData.indices.count,
-                    bhav: todayData.bhav.count,
-                    premarket: todayData.premarket.count,
-                    premarketId: todayData.premarket.id
-                });
-            }
+            // Log summary for all dates
+            console.log('📊 Data summary by date:');
+            dateMap.forEach((dateData, dateKey) => {
+                console.log(`  ${dateKey}: indices=${dateData.indices.count}, bhav=${dateData.bhav.count}, premarket=${dateData.premarket.count}, premarketId=${dateData.premarket.id || 'none'}`);
+            });
 
             // Use a more robust normalization function
             const normalizeDateForKey = (dateStr) => {
