@@ -65,20 +65,23 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Calculate indicesCount from the indices array length
-      // For premarket, use the count from request body if provided (parsed row count)
-      const requestCount = req.body.count;
-      const requestDateDataPremarketCount = req.body.dateDataPremarketCount;
-      const indicesCount = uploadType === 'premarket' && requestCount !== undefined 
-        ? requestCount 
-        : (Array.isArray(indices) ? indices.length : 0);
+      // CRITICAL FIX: Always calculate indicesCount from actual array length
+      // Don't trust the frontend's indicesCount - recalculate it
+      const indicesCount = Array.isArray(indices) ? indices.length : 0;
+      
+      // For bhavcopy, ensure we have valid EQ stocks
+      if (uploadType === 'bhav' && indicesCount === 0) {
+        console.warn(`⚠️ WARNING: Bhavcopy upload has 0 indices in array. This means no EQ stocks were processed.`);
+        console.warn(`   File: ${fileName}, Date: ${date}`);
+        console.warn(`   This file should NOT be saved to database as it has no valid data.`);
+      }
       
       const dataToSave = {
         fileName: fileName || 'uploaded.csv',
         date: date || new Date().toISOString().split('T')[0],
         type: uploadType,
-        indices,
-        indicesCount: indicesCount, // Explicitly store the count
+        indices: indices || [], // Always ensure it's an array
+        indicesCount: indicesCount, // Calculated from actual array length
         mood: mood || null,
         vix: vix || null,
         advanceDecline: advanceDecline || { advances: 0, declines: 0 },
@@ -88,24 +91,49 @@ module.exports = async (req, res) => {
         updatedAt: new Date()
       };
       
-      // For premarket, store count and dateDataPremarketCount from request
-      if (uploadType === 'premarket') {
-        dataToSave.count = requestCount ?? indicesCount ?? 0;
-        dataToSave.dateDataPremarketCount = requestDateDataPremarketCount ?? requestCount ?? indicesCount ?? 0;
-        if (req.body.header) {
-          dataToSave.header = req.body.header;
-        }
+      // CRITICAL: Double-check indicesCount matches array length
+      if (dataToSave.indicesCount !== (dataToSave.indices?.length || 0)) {
+        console.warn(`⚠️ Mismatch detected: stored indicesCount=${dataToSave.indicesCount} but array length=${dataToSave.indices?.length || 0}`);
+        dataToSave.indicesCount = dataToSave.indices?.length || 0;
+        console.log(`✅ Corrected indicesCount to ${dataToSave.indicesCount}`);
       }
       
-      console.log(`📊 Saving ${uploadType} data: date=${dataToSave.date}, indicesCount=${indicesCount}, count=${dataToSave.count || 'N/A'}, fileName=${fileName}`);
+      console.log(`📊 Saving ${uploadType} data: date=${dataToSave.date}, indicesCount=${indicesCount}, fileName=${fileName}`);
+      
+      if (uploadType === 'bhav') {
+        console.log(`🔍 Bhavcopy data validation:`, {
+          indicesArrayLength: indices ? indices.length : 0,
+          indicesCount: indicesCount,
+          hasIndices: Array.isArray(indices),
+          sampleItem: indices && indices.length > 0 ? {
+            symbol: indices[0].symbol,
+            series: indices[0].series,
+            close: indices[0].close,
+            hasDate: !!indices[0].date
+          } : null
+        });
+      }
 
       // Get the correct collection based on type
       const collection = await getUploadedDataCollection(uploadType);
 
+      // CRITICAL: For bhavcopy with 0 count, don't save to database
+      if (uploadType === 'bhav' && indicesCount === 0) {
+        console.warn(`⚠️ Skipping database save: bhavcopy has 0 processed EQ stocks`);
+        console.warn(`   File: ${fileName}, Date: ${date}`);
+        return res.status(200).json({
+          success: false,
+          message: 'Bhavcopy processed 0 EQ stocks - file not saved',
+          warning: 'No valid EQ stocks found in file. Check file format and parsing logic.',
+          indicesCount: 0,
+          skipped: true
+        });
+      }
+
       // Insert into MongoDB (metadata)
       const result = await collection.insertOne(dataToSave);
 
-      console.log(`✅ Data saved to MongoDB: ${result.insertedId}`);
+      console.log(`✅ Metadata saved to MongoDB: ${result.insertedId} (type: ${uploadType}, indicesCount: ${indicesCount})`);
 
       // Also insert individual rows into daily collections
       let dailyInsertCount = 0;
@@ -117,37 +145,83 @@ module.exports = async (req, res) => {
             // Insert into daily_bhavcopy collection
             const bhavcopyCollection = await getDailyBhavcopyCollection();
             
+            console.log(`📊 Processing ${indices.length} bhavcopy items for daily collection...`);
+            
             // Prepare documents with date field
             const bhavcopyDocs = indices
               .filter(item => item && (item.symbol || item.SYMBOL))
-              .map(item => ({
-                ...item,
-                date: targetDate,
-                symbol: item.symbol || item.SYMBOL || item.Symbol,
-                series: item.series || item.SERIES || 'EQ',
-                // Normalize field names
-                close: item.close || item.CLOSE || item.prev_close || item.PREV_CLOSE || item.last_price || item.LAST_PRICE,
-                high: item.high || item.HIGH,
-                low: item.low || item.LOW,
-                open: item.open || item.OPEN,
-                volume: item.volume || item.VOLUME || item.tottrdqty || item.TOTTRDQTY || 0,
-                delivery: item.delivery || item.DELIVERY || item.deliveryqty || item.DELIVERYQTY || 0,
-                delivery_percent: item.delivery_percent || item.DELIVERY_PER || item.delivery_per || 0
-              }))
-              .filter(item => item.symbol && item.close > 0); // Only valid entries
+              .map(item => {
+                // Use date from item if available, otherwise use targetDate
+                const itemDate = item.date || targetDate;
+                const symbol = item.symbol || item.SYMBOL || item.Symbol;
+                const series = item.series || item.SERIES || 'EQ';
+                const close = item.close || item.CLOSE || item.prev_close || item.PREV_CLOSE || item.last_price || item.LAST_PRICE;
+                
+                return {
+                  ...item,
+                  date: itemDate,
+                  symbol: symbol,
+                  series: series,
+                  // Normalize field names
+                  close: close,
+                  high: item.high || item.HIGH || null,
+                  low: item.low || item.LOW || null,
+                  open: item.open || item.OPEN || null,
+                  prevClose: item.prevClose || item.PREVCLOSE || item.prev_close || item.PREV_CLOSE || close,
+                  volume: item.volume || item.VOLUME || item.tottrdqty || item.TOTTRDQTY || 0,
+                  delivery: item.delivery || item.DELIVERY || item.deliveryqty || item.DELIVERYQTY || 0,
+                  delivery_percent: item.delivery_percent || item.DELIVERY_PER || item.delivery_per || 0
+                };
+              })
+              .filter(item => {
+                // Only valid entries: must have symbol, series='EQ', and valid close price
+                const isValid = item.symbol && 
+                               item.series === 'EQ' && 
+                               item.close !== null && 
+                               item.close !== undefined && 
+                               !isNaN(item.close) && 
+                               item.close > 0;
+                return isValid;
+              });
+            
+            console.log(`📊 Prepared ${bhavcopyDocs.length} valid EQ bhavcopy documents (from ${indices.length} input items)`);
             
             if (bhavcopyDocs.length > 0) {
               // Delete existing data for this date to avoid duplicates
-              await bhavcopyCollection.deleteMany({ date: targetDate, series: 'EQ' });
+              const deleteResult = await bhavcopyCollection.deleteMany({ date: targetDate, series: 'EQ' });
+              console.log(`🗑️ Deleted ${deleteResult.deletedCount} existing bhavcopy records for ${targetDate}`);
               
               // Insert new data
               const insertResult = await bhavcopyCollection.insertMany(bhavcopyDocs, { ordered: false });
               dailyInsertCount = insertResult.insertedCount || bhavcopyDocs.length;
-              console.log(`✅ Inserted ${dailyInsertCount} rows into daily_bhavcopy for ${targetDate}`);
-              console.log(`📊 DEBUG: Sample bhavcopy doc:`, JSON.stringify(bhavcopyDocs[0], null, 2));
+              console.log(`✅ Inserted ${dailyInsertCount} EQ rows into daily_bhavcopy for ${targetDate}`);
+              
+              if (bhavcopyDocs.length > 0) {
+                console.log(`📊 Sample bhavcopy doc:`, {
+                  symbol: bhavcopyDocs[0].symbol,
+                  series: bhavcopyDocs[0].series,
+                  date: bhavcopyDocs[0].date,
+                  open: bhavcopyDocs[0].open,
+                  high: bhavcopyDocs[0].high,
+                  low: bhavcopyDocs[0].low,
+                  close: bhavcopyDocs[0].close,
+                  prevClose: bhavcopyDocs[0].prevClose
+                });
+              }
             } else {
-              console.warn(`⚠️ No valid bhavcopy documents to insert. Filtered ${indices.length} items, got ${bhavcopyDocs.length} valid docs.`);
-              console.warn(`   Sample item before filtering:`, indices[0] ? JSON.stringify(indices[0], null, 2) : 'No items in indices array');
+              console.warn(`⚠️ No valid bhavcopy documents to insert.`);
+              console.warn(`   Input items: ${indices.length}`);
+              console.warn(`   Valid docs after filtering: ${bhavcopyDocs.length}`);
+              if (indices.length > 0) {
+                console.warn(`   Sample input item:`, {
+                  symbol: indices[0].symbol,
+                  series: indices[0].series,
+                  close: indices[0].close,
+                  hasDate: !!indices[0].date
+                });
+              } else {
+                console.warn(`   No items in indices array`);
+              }
             }
           } else if (uploadType === 'indices') {
             // Insert into daily_indices collection
@@ -224,11 +298,22 @@ module.exports = async (req, res) => {
         // Don't fail the request - metadata is already saved
       }
 
+      // Summary log
+      if (uploadType === 'bhav') {
+        console.log(`📊 BHAVCOPY SAVE SUMMARY:`);
+        console.log(`   ✅ Metadata saved: ${result.insertedId}`);
+        console.log(`   ✅ Daily records: ${dailyInsertCount} EQ stocks`);
+        console.log(`   📅 Date: ${dataToSave.date}`);
+        console.log(`   📁 File: ${fileName}`);
+        console.log(`   📈 Total processed: ${indicesCount} items`);
+      }
+
       return res.status(200).json({
         success: true,
         message: `Data saved successfully to MongoDB${dailyInsertCount > 0 ? ` (${dailyInsertCount} rows inserted into daily collections)` : ''}`,
         id: result.insertedId.toString(),
         dailyInsertCount: dailyInsertCount,
+        indicesCount: indicesCount,
         data: {
           ...dataToSave,
           _id: result.insertedId.toString()
@@ -310,18 +395,27 @@ module.exports = async (req, res) => {
       
       if (full === 'true') {
         // Return full data including indices array
-        const fullData = documents.map(doc => ({
-          id: doc._id.toString(),
-          fileName: doc.fileName,
-          date: doc.date,
-          indices: doc.indices || [],
-          indicesCount: doc.indices?.length || 0,
-          mood: doc.mood,
-          vix: doc.vix,
-          advanceDecline: doc.advanceDecline,
-          uploadedAt: doc.uploadedAt,
-          source: doc.source
-        }));
+        const fullData = documents.map(doc => {
+          // CRITICAL: Always read from indices array, check multiple possible field names
+          const stocks = 
+            Array.isArray(doc.indices) ? doc.indices :
+            Array.isArray(doc.records) ? doc.records :
+            Array.isArray(doc.normalized?.stocks) ? doc.normalized.stocks :
+            [];
+          
+          return {
+            id: doc._id.toString(),
+            fileName: doc.fileName,
+            date: doc.date,
+            indices: stocks, // Always return the actual array
+            indicesCount: stocks.length, // Always calculate from array
+            mood: doc.mood,
+            vix: doc.vix,
+            advanceDecline: doc.advanceDecline,
+            uploadedAt: doc.uploadedAt,
+            source: doc.source
+          };
+        });
 
         return res.status(200).json({
           success: true,
@@ -331,23 +425,48 @@ module.exports = async (req, res) => {
       } else {
         // Return metadata only (default)
         const formattedData = documents.map(doc => {
-          const baseData = {
+          // CRITICAL FIX: Always calculate indicesCount from actual array, not stored value
+          // Check multiple possible field names for bhavcopy data
+          const stocks = 
+            Array.isArray(doc.indices) ? doc.indices :
+            Array.isArray(doc.records) ? doc.records :
+            Array.isArray(doc.normalized?.stocks) ? doc.normalized.stocks :
+            [];
+          
+          // Calculate count from actual array length
+          const actualCount = stocks.length;
+          
+          // Debug log for bhavcopy documents
+          if (doc.type === 'bhav' && (doc.date === '2025-12-11' || doc.date === '2025-12-10' || doc.date === '2025-12-01')) {
+            console.log(`🔍 Bhavcopy document debug for ${doc.date}:`, {
+              docId: doc._id.toString(),
+              fileName: doc.fileName,
+              keys: Object.keys(doc),
+              indicesType: typeof doc.indices,
+              isIndicesArray: Array.isArray(doc.indices),
+              indicesLength: Array.isArray(doc.indices) ? doc.indices.length : 'N/A',
+              recordsType: typeof doc.records,
+              isRecordsArray: Array.isArray(doc.records),
+              recordsLength: Array.isArray(doc.records) ? doc.records.length : 'N/A',
+              normalizedType: typeof doc.normalized,
+              normalizedStocks: Array.isArray(doc.normalized?.stocks) ? doc.normalized.stocks.length : 'N/A',
+              storedIndicesCount: doc.indicesCount,
+              actualCountFromArray: actualCount,
+              stocksArrayLength: stocks.length,
+              sampleStocks: stocks.length > 0 ? stocks.slice(0, 2) : null
+            });
+          }
+          
+          return {
             id: doc._id.toString(),
             fileName: doc.fileName,
             date: doc.date,
-            indicesCount: doc.indicesCount || doc.indices?.length || 0, // Use stored count first, fallback to array length
+            indicesCount: actualCount, // Always use calculated count from array
+            indices: stocks, // Include the actual array for frontend to check
             uploadedAt: doc.uploadedAt,
             mood: doc.mood,
             source: doc.source
           };
-          
-          // For premarket, include count and dateDataPremarketCount
-          if (doc.type === 'premarket') {
-            baseData.count = doc.count || doc.indicesCount || 0;
-            baseData.dateDataPremarketCount = doc.dateDataPremarketCount || doc.count || doc.indicesCount || 0;
-          }
-          
-          return baseData;
         });
 
         return res.status(200).json({

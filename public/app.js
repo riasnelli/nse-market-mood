@@ -2644,7 +2644,7 @@ class MarketMoodApp {
                         let parsedData;
                         
                         if (fileExtension === 'dat') {
-                            parsedData = this.parseDATFile(e.target.result);
+                            parsedData = this.parseDATFile(e.target.result, file.name);
                         } else {
                             // For premarket files, use the robust NSE pre-open CSV parser
                             if (uploadType === 'premarket') {
@@ -2673,7 +2673,23 @@ class MarketMoodApp {
                             const bhavCount = processedData.indices?.length || 0;
                             processedData.indicesCount = bhavCount;
                             processedData.count = bhavCount;
+                            
+                            // CRITICAL: Ensure indices array exists and is populated
+                            if (!Array.isArray(processedData.indices)) {
+                                console.error(`❌ Bhavcopy processing failed: indices is not an array`, processedData);
+                                this.showUploadStatus('Bhavcopy processing error - indices not an array', 'error');
+                                return;
+                            }
+                            
+                            if (!bhavCount || bhavCount === 0) {
+                                console.warn(`⚠️ Bhavcopy has 0 processed EQ stocks, skipping DB save for ${date}`, file.name);
+                                console.warn(`   Parsed rows: ${parsedData.length}, Processed EQ stocks: ${bhavCount}`);
+                                this.showUploadStatus('Bhavcopy processed 0 EQ stocks - check file format', 'warning');
+                                return;
+                            }
+                            
                             console.log(`📊 Saving bhavcopy for date ${date} with count=${bhavCount} stocks`);
+                            console.log(`   ✅ Indices array is valid: ${Array.isArray(processedData.indices)}, length: ${processedData.indices.length}`);
                         } else if (uploadType === 'premarket') {
                             processedData = this.processPremarketData(parsedData, date, file.name);
                             
@@ -2837,7 +2853,7 @@ class MarketMoodApp {
         return data;
     }
 
-    parseDATFile(datText) {
+    parseDATFile(datText, fileName = '') {
         // .DAT files can have various formats. Try to detect the format:
         // 1. CSV-like format (comma or tab separated)
         // 2. Fixed-width format
@@ -2851,6 +2867,9 @@ class MarketMoodApp {
             throw new Error('DAT file is empty or invalid');
         }
 
+        // Check if this is an FCM_INTRM_BC*.DAT file (specific format)
+        const isFCMIntrmBC = fileName && fileName.toUpperCase().includes('FCM_INTRM_BC') && fileName.toUpperCase().endsWith('.DAT');
+        
         // Debug: Log first line
         console.log('🔍 First line (first 500 chars):', lines[0]?.substring(0, 500));
 
@@ -2933,7 +2952,49 @@ class MarketMoodApp {
                 }
             }
             
-            if (openIndex > 0) {
+            // PRIORITY 1: Check if this is FCM_INTRM_BC*.DAT format FIRST
+            // This format has: NAME, SYMBOL, SERIES, MARKET, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, ...
+            const isFCMIntrmBC = fileName && fileName.toUpperCase().includes('FCM_INTRM_BC');
+            const is17ColsWithOpenAt4 = !hasHeaderKeywords && delimiter === ',' && openIndex === 4 && columnCount === 17;
+            
+            // ALWAYS log for debugging
+            console.log(`🔍 Header mapping conditions:`, {
+                fileName: fileName || 'NOT PROVIDED',
+                isFCMIntrmBC,
+                hasHeaderKeywords,
+                delimiter,
+                openIndex,
+                columnCount,
+                is17ColsWithOpenAt4,
+                conditionMatch: isFCMIntrmBC || is17ColsWithOpenAt4
+            });
+            
+            // PRIORITY 1: Force FCM_INTRM_BC mapping if filename matches OR if we have 17 cols with open at 4
+            if (isFCMIntrmBC || is17ColsWithOpenAt4) {
+                // FCM_INTRM_BC*.DAT format with exactly 17 columns: NAME, SYMBOL, SERIES, MARKET, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, ...
+                headers = [
+                    'NAME',
+                    'SYMBOL',
+                    'SERIES',
+                    'MARKET',
+                    'OPEN',
+                    'HIGH',
+                    'LOW',
+                    'CLOSE',
+                    'LAST',
+                    'PREVCLOSE',
+                    'TOTTRDQTY',
+                    'TOTTRDVAL',
+                    'TIMESTAMP',
+                    'TOTALTRADES',
+                    'DELIVQTY',
+                    'DELIVPER',
+                    'EXTRA'
+                ];
+                console.log(`✅ FCM_INTRM_BC*.DAT format detected (17 columns, priceStartIndex=4), using exact header mapping: NAME, SYMBOL, SERIES, MARKET, OPEN, HIGH, LOW, CLOSE...`);
+            } 
+            // PRIORITY 2: Generic mapping for other formats
+            else if (openIndex > 0) {
                 // Found price columns starting at openIndex
                 // Map: 0=SYMBOL, 1=SERIES, openIndex=OPEN, openIndex+1=HIGH, openIndex+2=LOW, openIndex+3=CLOSE
                 headers = [];
@@ -2951,6 +3012,32 @@ class MarketMoodApp {
                     else headers.push(`COL${i}`);
                 }
                 console.log(`✅ No header row detected, found price columns starting at index ${openIndex}, mapped ${headers.length} columns`);
+                
+                // CRITICAL FIX: Double-check after generic mapping - if we have 17 cols with openIndex=4, 
+                // this MUST be FCM_INTRM_BC format and we need to remap headers
+                if (columnCount === 17 && openIndex === 4 && delimiter === ',' && !hasHeaderKeywords) {
+                    console.log(`🔄 CRITICAL: Detected 17 columns with openIndex=4 AFTER generic mapping - forcing FCM_INTRM_BC header remapping!`);
+                    headers = [
+                        'NAME',
+                        'SYMBOL',
+                        'SERIES',
+                        'MARKET',
+                        'OPEN',
+                        'HIGH',
+                        'LOW',
+                        'CLOSE',
+                        'LAST',
+                        'PREVCLOSE',
+                        'TOTTRDQTY',
+                        'TOTTRDVAL',
+                        'TIMESTAMP',
+                        'TOTALTRADES',
+                        'DELIVQTY',
+                        'DELIVPER',
+                        'EXTRA'
+                    ];
+                    console.log(`✅ FCM_INTRM_BC*.DAT format FORCED (17 columns, priceStartIndex=4), using exact header mapping: NAME, SYMBOL, SERIES, MARKET, OPEN, HIGH, LOW, CLOSE...`);
+                }
             } else {
                 // Fallback: use standard mapping
                 headers = standardHeaders.slice(0, columnCount);
@@ -2987,13 +3074,40 @@ class MarketMoodApp {
         if (data.length > 0) {
             console.log(`🔍 First row keys:`, Object.keys(data[0]));
             console.log(`🔍 First row sample:`, {
+                NAME: data[0]['NAME'],
                 SYMBOL: data[0]['SYMBOL'],
                 SERIES: data[0]['SERIES'],
+                COL2: data[0]['COL2'],
+                COL3: data[0]['COL3'],
+                MARKET: data[0]['MARKET'],
                 CLOSE: data[0]['CLOSE'],
                 OPEN: data[0]['OPEN'],
                 HIGH: data[0]['HIGH'],
                 LOW: data[0]['LOW']
             });
+            
+            // Find and log first EQ row for verification
+            const eqRow = data.find(row => {
+                const series = (row.SERIES || row.COL2 || '').trim();
+                return series === 'EQ';
+            });
+            if (eqRow) {
+                console.log(`🔎 First EQ row after parsing:`, {
+                    NAME: eqRow.NAME,
+                    SYMBOL: eqRow.SYMBOL,
+                    SERIES: eqRow.SERIES || eqRow.COL2,
+                    OPEN: eqRow.OPEN,
+                    HIGH: eqRow.HIGH,
+                    LOW: eqRow.LOW,
+                    CLOSE: eqRow.CLOSE
+                });
+            } else {
+                console.warn(`⚠️ No EQ row found in parsed data - check SERIES/COL2 field mapping`);
+            }
+            
+            // Find and log the first EQ row for verification
+            const eqSample = data.find(row => (row.SERIES || '').trim() === 'EQ');
+            console.log("🔎 EQ sample row after mapping:", eqSample);
         }
 
         return data;
@@ -3375,114 +3489,192 @@ class MarketMoodApp {
     // -------------------------------------------
 
     processBhavcopyData(csvData, date, fileName) {
-        // Process bhavcopy (EOD) data - format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, PREV_CLOSE, etc.
-        const indices = [];
-        
-        console.log(`📊 Processing ${csvData.length} rows from bhavcopy file: ${fileName}`);
-        
-        // Debug: Log first row to see what fields are available
-        if (csvData.length > 0) {
-            console.log(`🔍 First row keys:`, Object.keys(csvData[0]));
-            console.log(`🔍 First row sample:`, csvData[0]);
-        }
-        
-        let skippedSymbol = 0;
-        let skippedSeries = 0;
-        let skippedClose = 0;
-        
-        csvData.forEach((row, index) => {
-            // Handle various field name variations
-            const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
-            const series = row['SERIES'] || row['Series'] || row['series'] || 'EQ';
-            
-            // Use cleanPrice for all numeric fields - handles null/undefined/empty safely
-            const close = this.cleanPrice(row['CLOSE'] || row['Close'] || row['close']);
-            const prevClose = this.cleanPrice(row['PREV_CLOSE'] || row['Prev Close'] || row['prev_close'] || row['PREVCLOSE']) || close;
-            const high = this.cleanPrice(row['HIGH'] || row['High'] || row['high']);
-            const low = this.cleanPrice(row['LOW'] || row['Low'] || row['low']);
-            const open = this.cleanPrice(row['OPEN'] || row['Open'] || row['open']);
-            const last = this.cleanPrice(row['LAST'] || row['Last'] || row['last']) || close;
-            const volume = this.cleanPrice(row['TOTTRDQTY'] || row['Tottrdqty'] || row['VOLUME'] || row['Volume'] || row['volume']) || 0;
-            const delivery = this.cleanPrice(row['DELIVERYQTY'] || row['Deliveryqty'] || row['DELIVERY'] || row['Delivery'] || row['delivery']) || 0;
-            const deliveryPercent = this.cleanPrice(row['DELIVERY_PER'] || row['Delivery %'] || row['delivery_percent'] || row['delivery_per']) || 0;
+        try {
+            const indices = [];
 
-            // Only process EQ series stocks with valid data
-            if (!symbol || symbol.trim() === '') {
-                skippedSymbol++;
-                if (index < 3) {
-                    console.log(`⚠️ Row ${index} skipped: invalid symbol`, { symbol, rowKeys: Object.keys(row) });
+            // counters
+            let skippedNoSymbol = 0;
+            let skippedNotEq = 0;
+            let skippedInvalidClose = 0;
+
+            // Find first meaningful row (skip empties) to detect DAT layout
+            let firstDataRow = null;
+            for (const r of csvData) {
+                if (r && (r.NAME || r.SYMBOL || r.COL2)) {
+                    firstDataRow = r;
+                    break;
                 }
-                return;
-            }
-            
-            if (series.toUpperCase() !== 'EQ') {
-                skippedSeries++;
-                if (index < 3) {
-                    console.log(`⚠️ Row ${index} skipped: not EQ series`, { symbol, series });
-                }
-                return;
             }
 
-            if (isNaN(close) || close <= 0) {
-                skippedClose++;
-                if (index < 3) {
-                    console.log(`⚠️ Row ${index} skipped: invalid close price`, { 
-                        symbol, 
-                        CLOSE: row['CLOSE'], 
-                        Close: row['Close'], 
-                        close: row['close'],
-                        parsedClose: close
-                    });
-                }
-                return;
+            // Detect DAT layout (NAME/SYMBOL/SERIES/MARKET) upfront
+            let isDatLayout = false;
+            if (firstDataRow) {
+                const c0 = (firstDataRow.NAME || firstDataRow.SYMBOL || '').trim();
+                const c1 = (firstDataRow.SYMBOL || firstDataRow.SERIES || '').trim();
+                const c2 = (firstDataRow.SERIES || firstDataRow.COL2 || '').trim();
+                
+                // NAME is long / weird, SYMBOL is shorter, SERIES <= 3 chars
+                const looksLikeName = c0 && (c0.includes('%') || c0.length > 15);
+                const looksLikeSymbol = c1 && c1.length >= 3 && c1.length <= 15;
+                const looksLikeSeries = c2 && c2.length <= 3;
+
+                isDatLayout = !!(looksLikeName && looksLikeSymbol && looksLikeSeries);
+                
+                console.log("🔍 DAT layout detection:", {
+                    firstDataRow: {
+                        NAME: firstDataRow.NAME,
+                        SYMBOL: firstDataRow.SYMBOL,
+                        SERIES: firstDataRow.SERIES,
+                        COL2: firstDataRow.COL2,
+                        COL3: firstDataRow.COL3
+                    },
+                    c0, c1, c2,
+                    looksLikeName,
+                    looksLikeSymbol,
+                    looksLikeSeries,
+                    isDatLayout,
+                });
             }
 
-            indices.push({
-                symbol: symbol.trim().toUpperCase(),
-                series: series.toUpperCase(),
-                open: open || 0,
-                high: high || 0,
-                low: low || 0,
-                close: close,
-                last: last || close,
-                prev_close: prevClose || close,
-                volume: volume || 0,
-                delivery: delivery || 0,
-                delivery_percent: deliveryPercent || 0,
-                // Also include normalized field names for compatibility
-                SYMBOL: symbol.trim().toUpperCase(),
-                SERIES: series.toUpperCase(),
-                OPEN: open || 0,
-                HIGH: high || 0,
-                LOW: low || 0,
-                CLOSE: close,
-                LAST: last || close,
-                PREV_CLOSE: prevClose || close,
-                TOTTRDQTY: volume || 0,
-                DELIVERYQTY: delivery || 0,
-                DELIVERY_PER: deliveryPercent || 0
+            csvData.forEach((row, index) => {
+                if (!row) return;
+
+                let name, symbol, series, market;
+
+                if (isDatLayout) {
+                    // 🔄 FORCE the correct mapping for NSE DAT
+                    // Column 0 = NAME, Column 1 = SYMBOL, Column 2 = SERIES, Column 3 = MARKET
+                    name = (row.NAME || row.SYMBOL || '').trim();  // If NAME exists, use it; else SYMBOL is the name
+                    symbol = (row.SYMBOL || row.SERIES || '').trim();  // If SYMBOL exists and is correct, use it; else SERIES is the symbol
+                    series = (row.SERIES || row.COL2 || '').trim();  // SERIES or COL2 is the true series
+                    market = (row.MARKET || row.COL3 || '').trim();  // MARKET or COL3
+                    
+                    // If we detected DAT layout but fields are still wrong, remap based on position
+                    if (!row.NAME && row.SYMBOL && row.COL2) {
+                        // Old mapping: SYMBOL=name, SERIES=symbol, COL2=series
+                        name = (row.SYMBOL || '').trim();
+                        symbol = (row.SERIES || '').trim();
+                        series = (row.COL2 || '').trim();
+                        market = (row.COL3 || '').trim();
+                    }
+                } else {
+                    // 🧱 Fallback to existing mapping
+                    name = (row.NAME || '').trim();
+                    symbol = (row.SYMBOL || '').trim();
+                    series = (row.SERIES || '').trim();
+                    market = (row.MARKET || '').trim();
+                }
+
+                if (index < 3) {
+                    console.log(`🔍 Row ${index} (normalized):`, { name, symbol, series, market, CLOSE: row.CLOSE });
+                }
+
+                // 1) Symbol check
+                if (!symbol) {
+                    skippedNoSymbol++;
+                    return;
+                }
+
+                // 2) Series filter – only EQ (use uppercase for comparison)
+                const seriesUpper = (series || '').toUpperCase().trim();
+                if (seriesUpper !== 'EQ') {
+                    skippedNotEq++;
+                    return;
+                }
+
+                // 3) Price parsing: prefer CLOSE, fall back to LAST
+                const closeStr =
+                    (row.CLOSE && String(row.CLOSE).trim()) ||
+                    (row.LAST && String(row.LAST).trim()) ||
+                    '';
+
+                const openStr = (row.OPEN && String(row.OPEN).trim()) || '';
+                const highStr = (row.HIGH && String(row.HIGH).trim()) || '';
+                const lowStr  = (row.LOW  && String(row.LOW).trim())  || '';
+
+                const prevCloseStr =
+                    (row.PREVCLOSE && String(row.PREVCLOSE).trim()) ||
+                    closeStr;
+
+                const close = parseFloat(closeStr);
+                const open  = parseFloat(openStr);
+                const high  = parseFloat(highStr);
+                const low   = parseFloat(lowStr);
+                const prevClose = parseFloat(prevCloseStr);
+
+                if (!Number.isFinite(close)) {
+                    skippedInvalidClose++;
+                    return;
+                }
+
+                indices.push({
+                    symbol,
+                    series: seriesUpper, // Use uppercase series
+                    date,
+                    open: Number.isFinite(open) ? open : null,
+                    high: Number.isFinite(high) ? high : null,
+                    low: Number.isFinite(low) ? low : null,
+                    close,
+                    prevClose: Number.isFinite(prevClose) ? prevClose : null,
+                    raw: row
+                });
             });
-        });
 
-        console.log(`📊 Processed ${indices.length} EQ stocks from bhavcopy file: ${fileName}`);
-        console.log(`   Skipped: ${skippedSymbol} (no symbol), ${skippedSeries} (not EQ), ${skippedClose} (invalid close)`);
-        
-        if (indices.length === 0 && csvData.length > 0) {
-            console.warn(`⚠️ WARNING: No stocks processed from ${csvData.length} parsed rows! Check field names.`);
-            console.warn(`   First row keys:`, Object.keys(csvData[0]));
-            console.warn(`   First row sample:`, csvData[0]);
+            console.log(`📊 Processed ${indices.length} EQ stocks from bhavcopy file: ${fileName}`, { isDatLayout });
+            console.log(
+                `   Skipped: ${skippedNoSymbol} (no symbol), ` +
+                `${skippedNotEq} (not EQ), ` +
+                `${skippedInvalidClose} (invalid close)`
+            );
+
+            if (indices.length === 0) {
+                console.warn(
+                    `⚠️ WARNING: No EQ stocks processed from ${csvData.length} parsed rows in ${fileName}!`
+                );
+                console.warn(`   Debug info:`, {
+                    isDatLayout,
+                    firstRowKeys: csvData.length > 0 ? Object.keys(csvData[0]) : [],
+                    firstRowSample: csvData.length > 0 ? {
+                        NAME: csvData[0].NAME,
+                        SYMBOL: csvData[0].SYMBOL,
+                        SERIES: csvData[0].SERIES,
+                        COL2: csvData[0].COL2,
+                        COL3: csvData[0].COL3
+                    } : null
+                });
+            } else {
+                // Log sample of processed items
+                console.log(`✅ Sample processed items (first 3):`, indices.slice(0, 3).map(item => ({
+                    symbol: item.symbol,
+                    series: item.series,
+                    close: item.close
+                })));
+            }
+
+            // Return in the expected format
+            return {
+                mood: null, // Bhavcopy doesn't have mood data
+                indices: indices,
+                vix: null,
+                advanceDecline: { advances: 0, declines: 0 },
+                timestamp: new Date(date).toISOString(),
+                source: 'uploaded',
+                fileName: fileName,
+                date: date
+            };
+        } catch (err) {
+            console.error('❌ Error while processing bhavcopy data:', err, fileName);
+            return {
+                mood: null,
+                indices: [],
+                vix: null,
+                advanceDecline: { advances: 0, declines: 0 },
+                timestamp: new Date(date).toISOString(),
+                source: 'uploaded',
+                fileName: fileName,
+                date: date
+            };
         }
-
-        return {
-            mood: null, // Bhavcopy doesn't have mood data
-            indices: indices,
-            vix: null,
-            advanceDecline: { advances: 0, declines: 0 },
-            timestamp: new Date(date).toISOString(),
-            source: 'uploaded',
-            fileName: fileName,
-            date: date
-        };
     }
 
     processPremarketData(csvData, date, fileName) {
@@ -3607,16 +3799,108 @@ class MarketMoodApp {
 
     async saveToDatabase(data, fileName, dataDate, type = 'indices') {
         try {
-            // Debug: Log what we're sending for premarket and bhavcopy
-            if (type === 'premarket' || type === 'bhav') {
-                console.log(`🔍 SAVING ${type.toUpperCase()} TO DB:`, {
+            const processedCount = data.count || data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0);
+            const indicesArray = data.indices || [];
+            
+            // Enhanced logging for bhavcopy
+            if (type === 'bhav') {
+                console.log(`🔍 SAVING BHAVCOPY TO DB:`, {
+                    fileName,
+                    date: dataDate,
+                    processedCount: processedCount,
+                    indicesArrayLength: indicesArray.length,
+                    indicesCount: data.indicesCount,
+                    count: data.count,
+                    hasIndices: Array.isArray(indicesArray),
+                    sampleItem: indicesArray.length > 0 ? {
+                        symbol: indicesArray[0].symbol,
+                        series: indicesArray[0].series,
+                        close: indicesArray[0].close,
+                        hasRaw: !!indicesArray[0].raw
+                    } : null
+                });
+                
+                // Guard: Don't save if no processed rows
+                if (processedCount === 0 || indicesArray.length === 0) {
+                    console.warn(`⚠️ Skipping save to MongoDB: bhavcopy has 0 processed EQ stocks.`);
+                    console.warn(`   File: ${fileName}, Date: ${dataDate}`);
+                    console.warn(`   Check: 1) Header mapping (SERIES should be at index 2), 2) EQ filter, 3) Close price validation`);
+                    return { success: false, error: 'No rows processed', skipped: true };
+                }
+                
+                // Validate data structure before sending
+                const validItems = indicesArray.filter(item => 
+                    item && 
+                    (item.symbol || item.SYMBOL) && 
+                    item.series === 'EQ' && 
+                    (item.close !== null && item.close !== undefined)
+                );
+                
+                if (validItems.length === 0) {
+                    console.warn(`⚠️ Skipping save: No valid EQ items found after validation.`);
+                    console.warn(`   Total items: ${indicesArray.length}, Valid items: ${validItems.length}`);
+                    return { success: false, error: 'No valid EQ items', skipped: true };
+                }
+                
+                console.log(`✅ Validated ${validItems.length} EQ items ready for database save`);
+            }
+            
+            // Debug logging for premarket
+            if (type === 'premarket') {
+                console.log(`🔍 SAVING PREMARKET TO DB:`, {
                     fileName,
                     date: dataDate,
                     indicesCount: data.indicesCount,
                     count: data.count,
                     dateDataPremarketCount: data.dateDataPremarketCount,
-                    indicesArrayLength: Array.isArray(data.indices) ? data.indices.length : 'not array',
-                    header: data.header
+                    indicesArrayLength: indicesArray.length
+                });
+            }
+            
+            // CRITICAL: Ensure indicesArray is always a valid array
+            if (!Array.isArray(indicesArray)) {
+                console.error(`❌ Invalid indicesArray:`, indicesArray);
+                indicesArray = [];
+            }
+            
+            // Calculate count from actual array length (don't trust stored values)
+            const actualIndicesCount = indicesArray.length;
+            
+            // For bhavcopy, validate we have data before sending
+            if (type === 'bhav' && actualIndicesCount === 0) {
+                console.warn(`⚠️ Cannot save bhavcopy: indicesArray is empty`);
+                console.warn(`   File: ${fileName}, Date: ${dataDate}`);
+                throw new Error('Bhavcopy has 0 processed EQ stocks - cannot save to database');
+            }
+            
+            const payload = {
+                fileName: fileName || 'uploaded.csv',
+                date: dataDate || new Date().toISOString().split('T')[0],
+                type: type || 'indices',
+                indices: indicesArray, // Always send the actual array
+                indicesCount: actualIndicesCount, // Always calculate from array length
+                count: actualIndicesCount,
+                dateDataPremarketCount: data.dateDataPremarketCount || actualIndicesCount,
+                header: data.header || null,
+                mood: data.mood,
+                vix: data.vix,
+                advanceDecline: data.advanceDecline,
+                timestamp: data.timestamp || new Date().toISOString(),
+                source: data.source || 'uploaded'
+            };
+            
+            // Debug log before sending
+            if (type === 'bhav') {
+                console.log(`📤 Sending bhavcopy to backend:`, {
+                    fileName: payload.fileName,
+                    date: payload.date,
+                    indicesArrayLength: indicesArray.length,
+                    indicesCount: payload.indicesCount,
+                    sampleItem: indicesArray.length > 0 ? {
+                        symbol: indicesArray[0].symbol,
+                        series: indicesArray[0].series,
+                        close: indicesArray[0].close
+                    } : null
                 });
             }
             
@@ -3625,29 +3909,26 @@ class MarketMoodApp {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    fileName: fileName || 'uploaded.csv',
-                    date: dataDate || new Date().toISOString().split('T')[0],
-                    type: type || 'indices',
-                    indices: data.indices || [],
-                    indicesCount: data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0),
-                    count: data.count || data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0),
-                    dateDataPremarketCount: data.dateDataPremarketCount || data.count || data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0),
-                    header: data.header || null,
-                    mood: data.mood,
-                    vix: data.vix,
-                    advanceDecline: data.advanceDecline,
-                    timestamp: data.timestamp || new Date().toISOString(),
-                    source: data.source || 'uploaded'
-                })
+                body: JSON.stringify(payload)
             });
 
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    console.log('✅ Data saved to MongoDB:', result.id);
+                    if (type === 'bhav') {
+                        console.log(`✅ Bhavcopy saved to MongoDB successfully!`);
+                        console.log(`   Document ID: ${result.id}`);
+                        console.log(`   Date: ${dataDate}`);
+                        console.log(`   EQ Stocks: ${result.dailyInsertCount || processedCount}`);
+                        console.log(`   File: ${fileName}`);
+                    } else {
+                        console.log('✅ Data saved to MongoDB:', result.id);
+                    }
                     if (result.warning) {
                         console.warn('⚠️', result.warning);
+                    }
+                    if (result.dailyInsertCount !== undefined) {
+                        console.log(`   Daily collection insert count: ${result.dailyInsertCount}`);
                     }
                 } else {
                     console.warn('⚠️ Database save returned:', result);
@@ -3655,10 +3936,18 @@ class MarketMoodApp {
                 return result;
             } else {
                 const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                throw new Error(errorData.message || `Failed to save: ${response.statusText}`);
+                const errorMsg = errorData.message || `Failed to save: ${response.statusText}`;
+                console.error(`❌ Database save failed (${response.status}):`, errorMsg);
+                throw new Error(errorMsg);
             }
         } catch (error) {
             console.error('❌ Error saving to database:', error);
+            if (type === 'bhav') {
+                console.error('   Bhavcopy save failed. Check:');
+                console.error('   1. MongoDB connection (MONGODB_URI environment variable)');
+                console.error('   2. Data format (indices array structure)');
+                console.error('   3. Network connectivity');
+            }
             // Don't throw - allow localStorage to work as fallback
             return { success: false, error: error.message };
         }
@@ -3675,6 +3964,105 @@ class MarketMoodApp {
             }
         }
         return null;
+    }
+
+    async checkBhavcopyUploadHistory() {
+        try {
+            console.log('🔍 Checking bhavcopy upload history...');
+            const response = await fetch('/api/save-uploaded-data?type=bhav');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success && result.data && result.data.length > 0) {
+                // Sort by uploadedAt (most recent first)
+                const sortedData = result.data.sort((a, b) => {
+                    const dateA = new Date(a.uploadedAt || 0);
+                    const dateB = new Date(b.uploadedAt || 0);
+                    return dateB - dateA;
+                });
+                
+                console.log(`\n📊 BHAVCOPY UPLOAD HISTORY (${sortedData.length} uploads):\n`);
+                
+                const validUploads = [];
+                const invalidUploads = [];
+                
+                sortedData.forEach((item, index) => {
+                    const uploadDate = new Date(item.uploadedAt);
+                    const uploadTime = uploadDate.toLocaleString();
+                    const count = item.indicesCount || 0;
+                    const status = count > 0 ? '✅ VALID' : '❌ INVALID (0 stocks)';
+                    
+                    console.log(`${index + 1}. Date: ${item.date} - ${status}`);
+                    console.log(`   File: ${item.fileName}`);
+                    console.log(`   EQ Stocks: ${count}`);
+                    console.log(`   Uploaded: ${uploadTime}`);
+                    console.log(`   ID: ${item.id}`);
+                    if (count === 0) {
+                        console.log(`   ⚠️  Issue: Processing failed - check header mapping and EQ filter`);
+                    }
+                    console.log('');
+                    
+                    if (count > 0) {
+                        validUploads.push(item);
+                    } else {
+                        invalidUploads.push(item);
+                    }
+                });
+                
+                console.log(`\n📈 SUMMARY:`);
+                console.log(`   ✅ Valid uploads (count > 0): ${validUploads.length}`);
+                console.log(`   ❌ Invalid uploads (count = 0): ${invalidUploads.length}`);
+                
+                if (validUploads.length > 0) {
+                    const lastValidUpload = validUploads[0];
+                    console.log(`\n✅ LAST VALID BHAVCOPY UPLOAD:`);
+                    console.log(`   📅 Date: ${lastValidUpload.date}`);
+                    console.log(`   📁 File: ${lastValidUpload.fileName}`);
+                    console.log(`   📈 EQ Stocks: ${lastValidUpload.indicesCount || 0}`);
+                    console.log(`   ⏰ Uploaded: ${new Date(lastValidUpload.uploadedAt).toLocaleString()}`);
+                } else {
+                    console.log(`\n⚠️  NO VALID BHAVCOPY UPLOADS FOUND!`);
+                    console.log(`   All ${sortedData.length} uploads have 0 processed stocks.`);
+                    console.log(`   This means processing is failing.`);
+                    console.log(`   Possible causes:`);
+                    console.log(`   1. Header mapping issue (SERIES not at index 2)`);
+                    console.log(`   2. EQ filter too strict`);
+                    console.log(`   3. Close price validation failing`);
+                    console.log(`   Solution: Clear browser cache and re-upload with fixed code.`);
+                }
+                
+                return {
+                    success: true,
+                    total: sortedData.length,
+                    valid: validUploads.length,
+                    invalid: invalidUploads.length,
+                    lastValidUpload: validUploads.length > 0 ? validUploads[0] : null,
+                    lastUpload: sortedData[0],
+                    allUploads: sortedData
+                };
+            } else {
+                console.log('⚠️ No bhavcopy uploads found in database.');
+                return {
+                    success: true,
+                    total: 0,
+                    valid: 0,
+                    invalid: 0,
+                    lastValidUpload: null,
+                    lastUpload: null,
+                    allUploads: []
+                };
+            }
+        } catch (error) {
+            console.error('❌ Error checking bhavcopy history:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 
     async checkAndShowDatePicker() {
@@ -4153,10 +4541,24 @@ class MarketMoodApp {
                             });
                         }
                         
-                        // Always update if count is higher OR if no ID is set yet (file exists)
-                        if (count > dateData.bhav.count || !dateData.bhav.id) {
-                            dateData.bhav.count = count;
-                            dateData.bhav.id = file.id;
+                        // Only update if count > 0 (valid processed data exists)
+                        // Don't set ID or count for files with 0 processed rows (failed processing)
+                        if (count > 0) {
+                            // Update if count is higher OR if no valid ID is set yet
+                            if (count > dateData.bhav.count || !dateData.bhav.id || dateData.bhav.count === 0) {
+                                dateData.bhav.count = count;
+                                dateData.bhav.id = file.id;
+                            }
+                        } else {
+                            // Count is 0 - this means processing failed
+                            // Don't overwrite existing valid data, but log for debugging
+                            if (normalizedDate === '2025-12-11' || normalizedDate === '2025-12-10') {
+                                console.warn(`⚠️ Bhavcopy file with 0 count found for ${normalizedDate}:`, {
+                                    fileId: file.id,
+                                    fileName: file.fileName,
+                                    reason: 'Processing likely failed - check header mapping and EQ filter'
+                                });
+                            }
                         }
                         // Keep the most recent uploadedAt
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
@@ -4409,26 +4811,18 @@ class MarketMoodApp {
                     
                     // For PREM: Show checkmark ONLY if count > 0 (actual data exists)
                     // Don't show checkmark just because a file ID exists - we need actual parsed data
-                    const hasPremarket = (dateData.premarket?.count || 0) > 0 || 
-                                       (dateData.dateDataPremarketCount || 0) > 0;
+                    const hasPremarket = (dateData.premarket?.count || 0) > 0;
                     
                     // Debug log for rendering
                     console.log(
                         `🎯 Rendering row for ${normalizedDate}: hasPremarket=${hasPremarket}, premarket=${dateData.premarket?.count || 0}, premarketId=${dateData.premarket?.id || 'none'}`
                     );
                     
-                    // SVG icons for bhav and premarket status
+                    // SVG icons for bhav status
                     const bhavCheckIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>`;
                     const bhavXIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>`;
-                    const premarketCheckIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>`;
-                    const premarketXIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>`;
@@ -4438,7 +4832,7 @@ class MarketMoodApp {
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
                         <td style="text-align: center; vertical-align: middle;" title="${hasBhav ? 'Bhavcopy data available' : 'No bhavcopy data uploaded'}">${hasBhav ? bhavCheckIcon : bhavXIcon}</td>
-                        <td style="text-align: center; vertical-align: middle;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? premarketCheckIcon : premarketXIcon}</td>
+                        <td style="text-align: center; vertical-align: middle; font-size: 1.2em;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? '✅' : '❌'}</td>
                         <td class="action-buttons">
                             <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -6487,7 +6881,19 @@ class MarketMoodApp {
             if (checkAuth()) {
                     console.log('Auth check passed, creating app instance...');
                 window.marketMoodApp = new MarketMoodApp();
-                    console.log('✅ MarketMoodApp initialized successfully');
+                
+                // Expose helper functions globally for console access
+                window.checkBhavcopyHistory = () => {
+                    if (window.marketMoodApp) {
+                        return window.marketMoodApp.checkBhavcopyUploadHistory();
+                    } else {
+                        console.error('App not initialized yet');
+                        return Promise.resolve({ success: false, error: 'App not initialized' });
+                    }
+                };
+                
+                console.log('✅ MarketMoodApp initialized successfully');
+                console.log('💡 Tip: Run checkBhavcopyHistory() in console to see your bhavcopy upload history');
                 } else {
                     console.log('Auth check failed, app not initialized');
                 }
