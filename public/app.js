@@ -4660,7 +4660,7 @@ class MarketMoodApp {
 
                 // Populate table - final check to ensure no duplicates
                 const addedDates = new Set();
-                let rowNumber = 0; // Track row number separately
+                // Removed rowNumber tracking - No column removed
                 
                 // Sort by date descending one more time to ensure consistency
                 const sortedData = [...finalGroupedData].sort((a, b) => {
@@ -4691,8 +4691,7 @@ class MarketMoodApp {
                     // Update dateData.date to normalized version
                     dateData.date = normalizedDate;
                     
-                    // Increment row number only for valid, unique dates
-                    rowNumber++;
+                    // No column removed - no need to track row number
                     
                     const row = document.createElement('tr');
                     
@@ -4717,11 +4716,11 @@ class MarketMoodApp {
                     const dateColor = '#f97316'; // Orange color
                     
                     // Check if data types have data
-                    // Show checkmark ONLY if count > 0 (data was actually parsed and stored)
-                    const hasBhav = (dateData.bhav?.count || 0) > 0;
-                    const hasPremarket = (dateData.premarket?.count || 0) > 0;
-                    const hasMarketActivity = (dateData.marketactivity?.count || 0) > 0;
-                    const hasWeek52 = (dateData.week52?.count || 0) > 0;
+                    // Show checkmark ONLY if count > 0 AND id exists (data was actually parsed and stored)
+                    const hasBhav = (dateData.bhav?.count || 0) > 0 && dateData.bhav?.id;
+                    const hasPremarket = (dateData.premarket?.count || 0) > 0 && dateData.premarket?.id;
+                    const hasMarketActivity = (dateData.marketactivity?.count || 0) > 0 && dateData.marketactivity?.id;
+                    const hasWeek52 = (dateData.week52?.count || 0) > 0 && dateData.week52?.id;
                     
                     // Debug log for rendering
                     console.log(
@@ -4739,13 +4738,12 @@ class MarketMoodApp {
                     
                     row.innerHTML = `
                         <td style="text-align: center;">
-                            <input type="radio" class="row-radio" name="row-${rowNumber}" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}" data-marketactivity-id="${dateData.marketactivity?.id || ''}" data-week52-id="${dateData.week52?.id || ''}">
+                            <input type="radio" class="row-radio" name="row-${index}" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}" data-marketactivity-id="${dateData.marketactivity?.id || ''}" data-week52-id="${dateData.week52?.id || ''}">
                         </td>
-                        <td>${rowNumber}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
                         <td style="text-align: center; vertical-align: middle;" title="${hasBhav ? 'Bhavcopy data available' : 'No bhavcopy data uploaded'}">${hasBhav ? bhavCheckIcon : bhavXIcon}</td>
-                        <td style="text-align: center; vertical-align: middle; font-size: 1.2em;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? '✅' : '❌'}</td>
+                        <td style="text-align: center; vertical-align: middle;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? bhavCheckIcon : bhavXIcon}</td>
                         <td style="text-align: center; vertical-align: middle;" title="${hasMarketActivity ? 'Market Activity data available' : 'No Market Activity data uploaded'}">${hasMarketActivity ? bhavCheckIcon : bhavXIcon}</td>
                         <td style="text-align: center; vertical-align: middle;" title="${hasWeek52 ? '52W High/Low data available' : 'No 52W data uploaded'}">${hasWeek52 ? bhavCheckIcon : bhavXIcon}</td>
                     `;
@@ -4784,14 +4782,14 @@ class MarketMoodApp {
                     }
                     
                     tableBody.appendChild(row);
-                    console.log(`Added row ${rowNumber} for date: ${normalizedDate}`);
+                    console.log(`Added row ${index + 1} for date: ${normalizedDate}`);
                 });
                 
                 // Final verification - check for any duplicates in the rendered table
                 const finalRows = Array.from(tableBody.querySelectorAll('tr'));
                 const finalDates = new Set();
                 finalRows.forEach((row, idx) => {
-                    const dateCell = row.querySelector('td:nth-child(3)'); // Date is now in 3rd column (after radio and No)
+                    const dateCell = row.querySelector('td:nth-child(2)'); // Date is now in 2nd column (after radio, No column removed)
                     if (dateCell) {
                         const dateText = dateCell.textContent.trim();
                         if (finalDates.has(dateText)) {
