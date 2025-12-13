@@ -4187,11 +4187,10 @@ class MarketMoodApp {
             actionButtons.style.display = 'none';
         }
         
-        // Reset select all checkbox
+        // Reset select all radio
         const selectAllCheckbox = document.getElementById('selectAllRows');
         if (selectAllCheckbox) {
             selectAllCheckbox.checked = false;
-            selectAllCheckbox.indeterminate = false;
         }
         
         // Debug: Log when function is called
@@ -4631,7 +4630,7 @@ class MarketMoodApp {
                     
                     row.innerHTML = `
                         <td style="text-align: center;">
-                            <input type="checkbox" class="row-checkbox" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}">
+                            <input type="radio" class="row-radio" name="row-${rowNumber}" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}">
                         </td>
                         <td>${rowNumber}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
@@ -4724,26 +4723,38 @@ class MarketMoodApp {
 
         if (!tableBody) return;
 
-        // Handle select all checkbox
+        // Handle select all radio button (acts as toggle for all rows)
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', (e) => {
                 const isChecked = e.target.checked;
-                tableBody.querySelectorAll('.row-checkbox').forEach(checkbox => {
-                    checkbox.checked = isChecked;
-                });
+                const allRadios = tableBody.querySelectorAll('.row-radio');
+                const checkedCount = tableBody.querySelectorAll('.row-radio:checked').length;
+                
+                if (isChecked) {
+                    // Select all if not all are selected
+                    if (checkedCount < allRadios.length) {
+                        allRadios.forEach(radio => {
+                            radio.checked = true;
+                        });
+                    }
+                } else {
+                    // Deselect all
+                    allRadios.forEach(radio => {
+                        radio.checked = false;
+                    });
+                }
                 this.updateActionButtonsVisibility();
             });
         }
 
-        // Handle individual row checkboxes
+        // Handle individual row radio buttons (allow multiple selection)
         tableBody.addEventListener('change', (e) => {
-            if (e.target.classList.contains('row-checkbox')) {
-                // Update select all checkbox state
+            if (e.target.classList.contains('row-radio')) {
+                // Update select all radio state
                 if (selectAllCheckbox) {
-                    const allCheckboxes = tableBody.querySelectorAll('.row-checkbox');
-                    const checkedCount = tableBody.querySelectorAll('.row-checkbox:checked').length;
-                    selectAllCheckbox.checked = checkedCount === allCheckboxes.length && allCheckboxes.length > 0;
-                    selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < allCheckboxes.length;
+                    const allRadios = tableBody.querySelectorAll('.row-radio');
+                    const checkedCount = tableBody.querySelectorAll('.row-radio:checked').length;
+                    selectAllCheckbox.checked = checkedCount === allRadios.length && allRadios.length > 0;
                 }
                 this.updateActionButtonsVisibility();
             }

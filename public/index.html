@@ -316,20 +316,18 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <h3 style="margin: 0;">Uploaded CSV Files</h3>
                         <div id="tableActionButtons" style="display: none; gap: 8px; align-items: center;">
-                            <button id="btnExportSelected" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" title="Export selected">
+                            <button id="btnExportSelected" class="btn-secondary" style="padding: 6px; font-size: 0.85rem; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;" title="Export selected">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                     <polyline points="7 10 12 15 17 10"></polyline>
                                     <line x1="12" y1="15" x2="12" y2="3"></line>
                                 </svg>
-                                Export
                             </button>
-                            <button id="btnDeleteSelected" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem; color: #ef4444;" title="Delete selected">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <button id="btnDeleteSelected" class="btn-secondary" style="padding: 6px; font-size: 0.85rem; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;" title="Delete selected">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
                                 </svg>
-                                Delete
                             </button>
                         </div>
                     </div>
@@ -338,7 +336,7 @@
                             <thead>
                                 <tr>
                                     <th style="width: 40px;">
-                                        <input type="checkbox" id="selectAllRows" title="Select all">
+                                        <input type="radio" id="selectAllRows" name="selectAll" title="Select all" class="select-all-radio">
                                     </th>
                                     <th>No</th>
                                     <th>Date</th>
