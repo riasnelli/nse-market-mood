@@ -2716,6 +2716,22 @@ class MarketMoodApp {
                             // Clear temporary storage
                             this._premarketParsedCount = null;
                             this._premarketHeader = null;
+                        } else if (uploadType === 'marketactivity') {
+                            // Process Market Activity (EOD) data
+                            processedData = this.processCSVData(parsedData, date, file.name);
+                            processedData.type = 'marketactivity';
+                            const maCount = processedData.indices?.length || 0;
+                            processedData.indicesCount = maCount;
+                            processedData.count = maCount;
+                            console.log(`📊 Saving Market Activity for date ${date} with count=${maCount}`);
+                        } else if (uploadType === '52w') {
+                            // Process 52W High/Low data
+                            processedData = this.processCSVData(parsedData, date, file.name);
+                            processedData.type = '52w';
+                            const week52Count = processedData.indices?.length || 0;
+                            processedData.indicesCount = week52Count;
+                            processedData.count = week52Count;
+                            console.log(`📊 Saving 52W High/Low for date ${date} with count=${week52Count}`);
                         } else {
                             // Default to indices processing
                             processedData = this.processCSVData(parsedData, date, file.name);
@@ -4198,8 +4214,8 @@ class MarketMoodApp {
         console.log('Table body cleared, child count:', tableBody.children.length);
 
         try {
-            // Fetch all uploaded files from all 3 collections
-            const [indicesResponse, bhavResponse, premarketResponse] = await Promise.all([
+            // Fetch all uploaded files from all 5 collections
+            const [indicesResponse, bhavResponse, premarketResponse, marketActivityResponse, week52Response] = await Promise.all([
                 fetch('/api/save-uploaded-data?type=indices').catch(err => {
                     console.error('Error fetching indices data:', err);
                     return { ok: false, json: async () => ({ success: false, data: [] }) };
@@ -4211,6 +4227,14 @@ class MarketMoodApp {
                 fetch('/api/save-uploaded-data?type=premarket').catch(err => {
                     console.error('Error fetching premarket data:', err);
                     return { ok: false, json: async () => ({ success: false, data: [] }) };
+                }),
+                fetch('/api/save-uploaded-data?type=marketactivity').catch(err => {
+                    console.error('Error fetching market activity data:', err);
+                    return { ok: false, json: async () => ({ success: false, data: [] }) };
+                }),
+                fetch('/api/save-uploaded-data?type=52w').catch(err => {
+                    console.error('Error fetching 52W data:', err);
+                    return { ok: false, json: async () => ({ success: false, data: [] }) };
                 })
             ]);
 
@@ -4218,6 +4242,8 @@ class MarketMoodApp {
             let indicesResult = { success: false, data: [] };
             let bhavResult = { success: false, data: [] };
             let premarketResult = { success: false, data: [] };
+            let marketActivityResult = { success: false, data: [] };
+            let week52Result = { success: false, data: [] };
 
             try {
                 if (indicesResponse.ok) {
@@ -4247,6 +4273,26 @@ class MarketMoodApp {
                 }
             } catch (err) {
                 console.error('Error parsing premarket response:', err);
+            }
+
+            try {
+                if (marketActivityResponse.ok) {
+                    marketActivityResult = await marketActivityResponse.json();
+                } else {
+                    console.warn('Market Activity API returned non-OK status:', marketActivityResponse.status);
+                }
+            } catch (err) {
+                console.error('Error parsing market activity response:', err);
+            }
+
+            try {
+                if (week52Response.ok) {
+                    week52Result = await week52Response.json();
+                } else {
+                    console.warn('52W API returned non-OK status:', week52Response.status);
+                }
+            } catch (err) {
+                console.error('Error parsing 52W response:', err);
             }
 
             // Debug: Log API responses
@@ -4296,6 +4342,8 @@ class MarketMoodApp {
                                 indices: { count: 0, id: null },
                                 bhav: { count: 0, id: null },
                                 premarket: { count: 0, id: null },
+                                marketactivity: { count: 0, id: null },
+                                week52: { count: 0, id: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
@@ -4324,6 +4372,8 @@ class MarketMoodApp {
                                 indices: { count: 0, id: null },
                                 bhav: { count: 0, id: null },
                                 premarket: { count: 0, id: null },
+                                marketactivity: { count: 0, id: null },
+                                week52: { count: 0, id: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
@@ -4380,6 +4430,8 @@ class MarketMoodApp {
                                 indices: { count: 0, id: null },
                                 bhav: { count: 0, id: null },
                                 premarket: { count: 0, id: null },
+                                marketactivity: { count: 0, id: null },
+                                week52: { count: 0, id: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
@@ -4425,6 +4477,64 @@ class MarketMoodApp {
                 });
             }
 
+            // Process market activity data
+            if (marketActivityResult.success && marketActivityResult.data) {
+                marketActivityResult.data.forEach(file => {
+                    const normalizedDate = normalizeDate(file.date);
+                    if (normalizedDate) {
+                        if (!dateMap.has(normalizedDate)) {
+                            dateMap.set(normalizedDate, {
+                                date: normalizedDate,
+                                indices: { count: 0, id: null },
+                                bhav: { count: 0, id: null },
+                                premarket: { count: 0, id: null },
+                                marketactivity: { count: 0, id: null },
+                                week52: { count: 0, id: null },
+                                uploadedAt: file.uploadedAt
+                            });
+                        }
+                        const dateData = dateMap.get(normalizedDate);
+                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        if (count > 0 && (count > dateData.marketactivity.count || !dateData.marketactivity.id)) {
+                            dateData.marketactivity.count = count;
+                            dateData.marketactivity.id = file.id;
+                        }
+                        if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
+                            dateData.uploadedAt = file.uploadedAt;
+                        }
+                    }
+                });
+            }
+
+            // Process 52W data
+            if (week52Result.success && week52Result.data) {
+                week52Result.data.forEach(file => {
+                    const normalizedDate = normalizeDate(file.date);
+                    if (normalizedDate) {
+                        if (!dateMap.has(normalizedDate)) {
+                            dateMap.set(normalizedDate, {
+                                date: normalizedDate,
+                                indices: { count: 0, id: null },
+                                bhav: { count: 0, id: null },
+                                premarket: { count: 0, id: null },
+                                marketactivity: { count: 0, id: null },
+                                week52: { count: 0, id: null },
+                                uploadedAt: file.uploadedAt
+                            });
+                        }
+                        const dateData = dateMap.get(normalizedDate);
+                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        if (count > 0 && (count > dateData.week52.count || !dateData.week52.id)) {
+                            dateData.week52.count = count;
+                            dateData.week52.id = file.id;
+                        }
+                        if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
+                            dateData.uploadedAt = file.uploadedAt;
+                        }
+                    }
+                });
+            }
+
             // Debug: Log what we have before final processing
             console.log('Date map after processing all types:', Array.from(dateMap.keys()));
             console.log('Date map entries:', Array.from(dateMap.entries()).map(([date, data]) => ({
@@ -4432,13 +4542,14 @@ class MarketMoodApp {
                 indices: data.indices.count,
                 bhav: data.bhav.count,
                 premarket: data.premarket.count,
-                premarketId: data.premarket.id
+                marketactivity: data.marketactivity.count,
+                week52: data.week52.count
             })));
             
             // Log summary for all dates
             console.log('📊 Data summary by date:');
             dateMap.forEach((dateData, dateKey) => {
-                console.log(`  ${dateKey}: indices=${dateData.indices.count}, bhav=${dateData.bhav.count}, premarket=${dateData.premarket.count}, premarketId=${dateData.premarket.id || 'none'}`);
+                console.log(`  ${dateKey}: indices=${dateData.indices.count}, bhav=${dateData.bhav.count}, premarket=${dateData.premarket.count}, ma=${dateData.marketactivity.count}, 52w=${dateData.week52.count}`);
             });
 
             // Use a more robust normalization function
@@ -4605,14 +4716,12 @@ class MarketMoodApp {
                     // Use orange color for date text
                     const dateColor = '#f97316'; // Orange color
                     
-                    // Check if Bhav and Pre-market have data
+                    // Check if data types have data
                     // Show checkmark ONLY if count > 0 (data was actually parsed and stored)
-                    // If count is 0, it means the file was uploaded but parsing failed (empty indices array)
                     const hasBhav = (dateData.bhav?.count || 0) > 0;
-                    
-                    // For PREM: Show checkmark ONLY if count > 0 (actual data exists)
-                    // Don't show checkmark just because a file ID exists - we need actual parsed data
                     const hasPremarket = (dateData.premarket?.count || 0) > 0;
+                    const hasMarketActivity = (dateData.marketactivity?.count || 0) > 0;
+                    const hasWeek52 = (dateData.week52?.count || 0) > 0;
                     
                     // Debug log for rendering
                     console.log(
@@ -4630,13 +4739,15 @@ class MarketMoodApp {
                     
                     row.innerHTML = `
                         <td style="text-align: center;">
-                            <input type="radio" class="row-radio" name="row-${rowNumber}" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}">
+                            <input type="radio" class="row-radio" name="row-${rowNumber}" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}" data-marketactivity-id="${dateData.marketactivity?.id || ''}" data-week52-id="${dateData.week52?.id || ''}">
                         </td>
                         <td>${rowNumber}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
                         <td style="text-align: center; vertical-align: middle;" title="${hasBhav ? 'Bhavcopy data available' : 'No bhavcopy data uploaded'}">${hasBhav ? bhavCheckIcon : bhavXIcon}</td>
                         <td style="text-align: center; vertical-align: middle; font-size: 1.2em;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? '✅' : '❌'}</td>
+                        <td style="text-align: center; vertical-align: middle;" title="${hasMarketActivity ? 'Market Activity data available' : 'No Market Activity data uploaded'}">${hasMarketActivity ? bhavCheckIcon : bhavXIcon}</td>
+                        <td style="text-align: center; vertical-align: middle;" title="${hasWeek52 ? '52W High/Low data available' : 'No 52W data uploaded'}">${hasWeek52 ? bhavCheckIcon : bhavXIcon}</td>
                     `;
                     
                     // Store row data for easy access
@@ -4644,6 +4755,8 @@ class MarketMoodApp {
                     row.dataset.indicesId = dateData.indices?.id || '';
                     row.dataset.bhavId = dateData.bhav?.id || '';
                     row.dataset.premarketId = dateData.premarket?.id || '';
+                    row.dataset.marketactivityId = dateData.marketactivity?.id || '';
+                    row.dataset.week52Id = dateData.week52?.id || '';
                     
                     // Final check before appending - ensure this date hasn't been added
                     const existingRows = Array.from(tableBody.querySelectorAll('tr'));
@@ -4678,7 +4791,7 @@ class MarketMoodApp {
                 const finalRows = Array.from(tableBody.querySelectorAll('tr'));
                 const finalDates = new Set();
                 finalRows.forEach((row, idx) => {
-                    const dateCell = row.querySelector('td:nth-child(2)');
+                    const dateCell = row.querySelector('td:nth-child(3)'); // Date is now in 3rd column (after radio and No)
                     if (dateCell) {
                         const dateText = dateCell.textContent.trim();
                         if (finalDates.has(dateText)) {
@@ -4804,11 +4917,15 @@ class MarketMoodApp {
                     const indicesId = row.dataset.indicesId;
                     const bhavId = row.dataset.bhavId;
                     const premarketId = row.dataset.premarketId;
+                    const marketActivityId = row.dataset.marketactivityId;
+                    const week52Id = row.dataset.week52Id;
 
                     const idsToDelete = [
                         { id: indicesId, type: 'indices' },
                         { id: bhavId, type: 'bhav' },
-                        { id: premarketId, type: 'premarket' }
+                        { id: premarketId, type: 'premarket' },
+                        { id: marketActivityId, type: 'marketactivity' },
+                        { id: week52Id, type: '52w' }
                     ].filter(item => item.id);
 
                     for (const item of idsToDelete) {

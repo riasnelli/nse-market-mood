@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
       const { fileName, date, indices, mood, vix, advanceDecline, timestamp, source, type } = req.body;
 
       // Validate type
-      const validTypes = ['indices', 'bhav', 'premarket'];
+      const validTypes = ['indices', 'bhav', 'premarket', 'marketactivity', '52w'];
       const uploadType = (type && validTypes.includes(type)) ? type : 'indices';
 
       if (!indices || !Array.isArray(indices)) {
