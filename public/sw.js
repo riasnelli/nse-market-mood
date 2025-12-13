@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nse-market-mood-v6'; // Bump version to clear old cache (v6: Upfront DAT layout detection with forced mapping)
+const CACHE_NAME = 'nse-market-mood-v7'; // Bump version to clear old cache (v7: Remove DAT support, add row selection)
 const urlsToCache = [
     '/',  // This will now point to public folder
     '/index.html',
