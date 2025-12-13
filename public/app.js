@@ -4203,10 +4203,11 @@ class MarketMoodApp {
             actionButtons.style.display = 'none';
         }
         
-        // Reset select all radio
+        // Reset select all checkbox
         const selectAllCheckbox = document.getElementById('selectAllRows');
         if (selectAllCheckbox) {
             selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
         }
         
         // Debug: Log when function is called
@@ -4834,30 +4835,16 @@ class MarketMoodApp {
 
         if (!tableBody) return;
 
-        // Handle select all radio button (acts as toggle for all rows)
+        // Handle select all checkbox (naturally supports toggle)
         if (selectAllCheckbox) {
-            // Use click event to handle toggle behavior
-            selectAllCheckbox.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
+            selectAllCheckbox.addEventListener('change', (e) => {
+                const isChecked = e.target.checked;
                 const allRadios = tableBody.querySelectorAll('.row-radio');
-                const checkedCount = tableBody.querySelectorAll('.row-radio:checked').length;
                 
-                // Toggle: if all are selected, deselect all. Otherwise, select all.
-                if (checkedCount === allRadios.length && allRadios.length > 0) {
-                    // All selected - deselect all
-                    allRadios.forEach(radio => {
-                        radio.checked = false;
-                    });
-                    selectAllCheckbox.checked = false;
-                } else {
-                    // Not all selected - select all
-                    allRadios.forEach(radio => {
-                        radio.checked = true;
-                    });
-                    selectAllCheckbox.checked = true;
-                }
+                // Select or deselect all based on checkbox state
+                allRadios.forEach(radio => {
+                    radio.checked = isChecked;
+                });
                 
                 // Update button visibility immediately
                 this.updateActionButtonsVisibility();
