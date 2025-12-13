@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const { getDailyIndicesCollection } = require('./lib/mongodb');
 
 // Get NSE API base URL from query parameter, environment variable, or use default
 function getNSEBaseUrl(req) {
@@ -406,6 +407,14 @@ module.exports = async (req, res) => {
       timestamp: marketStatus.timestamp || new Date().toISOString()
     };
     
+    // Automatically save indices data to MongoDB if we have valid data
+    try {
+      await saveIndicesDataToDatabase(allData.indices, allData.vix);
+    } catch (saveError) {
+      // Log error but don't fail the request
+      console.warn('⚠️ Failed to save indices data to database:', saveError.message);
+    }
+    
     res.status(200).json(processedData);
     
   } catch (error) {
@@ -511,4 +520,82 @@ function getMoodFromScore(score) {
   if (score >= 20) return { score, text: 'Bearish', emoji: '😟' };
   if (score >= 10) return { score, text: 'Very Bearish', emoji: '📉' };
   return { score, text: 'Extremely Bearish', emoji: '🐻' };
+}
+
+/**
+ * Save indices data to MongoDB daily_indices collection
+ * @param {Array} indices - Array of index data objects
+ * @param {Object} vix - VIX data object
+ */
+async function saveIndicesDataToDatabase(indices, vix) {
+  // Check if MongoDB is configured
+  const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
+  if (!mongoUri) {
+    console.log('MongoDB not configured, skipping data storage');
+    return;
+  }
+
+  // Skip if no indices data
+  if (!indices || indices.length === 0) {
+    console.log('No indices data to save');
+    return;
+  }
+
+  try {
+    const collection = await getDailyIndicesCollection();
+    
+    // Get today's date in YYYY-MM-DD format (IST timezone)
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const istOffset = 5.5 * 60 * 60000; // +5:30
+    const ist = new Date(utc + istOffset);
+    const todayDate = ist.toISOString().split('T')[0];
+    
+    // Check if data for today already exists
+    const existingData = await collection.findOne({ date: todayDate });
+    
+    if (existingData) {
+      console.log(`📊 Data for ${todayDate} already exists in database, skipping save`);
+      return;
+    }
+    
+    // Prepare data for storage
+    const indicesData = indices.map(idx => ({
+      symbol: idx.symbol,
+      lastPrice: idx.lastPrice,
+      change: idx.change,
+      pChange: idx.pChange,
+      timestamp: new Date().toISOString()
+    }));
+    
+    // Add VIX if available
+    if (vix && vix.last) {
+      indicesData.push({
+        symbol: 'INDIA VIX',
+        lastPrice: vix.last,
+        change: vix.change,
+        pChange: vix.pChange,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Insert data into daily_indices collection
+    const insertResult = await collection.insertMany(
+      indicesData.map(idx => ({
+        date: todayDate,
+        symbol: idx.symbol,
+        lastPrice: idx.lastPrice,
+        change: idx.change,
+        pChange: idx.pChange,
+        timestamp: idx.timestamp,
+        source: 'nse_api',
+        createdAt: new Date()
+      }))
+    );
+    
+    console.log(`✅ Saved ${insertResult.insertedCount} indices records to database for ${todayDate}`);
+  } catch (error) {
+    console.error('Error saving indices data to database:', error);
+    throw error;
+  }
 }
