@@ -551,11 +551,11 @@ async function saveIndicesDataToDatabase(indices, vix) {
     const ist = new Date(utc + istOffset);
     const todayDate = ist.toISOString().split('T')[0];
     
-    // Check if data for today already exists
-    const existingData = await collection.findOne({ date: todayDate });
+    // Check if data for today already exists (check count of documents for this date)
+    const existingCount = await collection.countDocuments({ date: todayDate });
     
-    if (existingData) {
-      console.log(`📊 Data for ${todayDate} already exists in database, skipping save`);
+    if (existingCount > 0) {
+      console.log(`📊 Data for ${todayDate} already exists in database (${existingCount} records), skipping save`);
       return;
     }
     
