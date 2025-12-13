@@ -4836,12 +4836,15 @@ class MarketMoodApp {
 
         // Handle select all radio button (acts as toggle for all rows)
         if (selectAllCheckbox) {
-            // Use click event to handle toggle behavior (radio buttons don't naturally uncheck)
+            // Use click event to handle toggle behavior
             selectAllCheckbox.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
                 const allRadios = tableBody.querySelectorAll('.row-radio');
                 const checkedCount = tableBody.querySelectorAll('.row-radio:checked').length;
                 
-                // If all are selected, deselect all. Otherwise, select all.
+                // Toggle: if all are selected, deselect all. Otherwise, select all.
                 if (checkedCount === allRadios.length && allRadios.length > 0) {
                     // All selected - deselect all
                     allRadios.forEach(radio => {
@@ -4855,8 +4858,9 @@ class MarketMoodApp {
                     });
                     selectAllCheckbox.checked = true;
                 }
+                
+                // Update button visibility immediately
                 this.updateActionButtonsVisibility();
-                e.preventDefault(); // Prevent default radio behavior
             });
         }
 
@@ -4877,11 +4881,12 @@ class MarketMoodApp {
                 // If it was already checked, uncheck it (toggle off)
                 if (wasChecked) {
                     e.preventDefault();
+                    e.stopPropagation();
                     e.target.checked = false;
                     delete e.target.dataset.wasChecked;
                 }
                 
-                // Update select all and button visibility after a short delay
+                // Update select all and button visibility
                 setTimeout(() => {
                     if (selectAllCheckbox) {
                         const allRadios = tableBody.querySelectorAll('.row-radio');
