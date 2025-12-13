@@ -54,6 +54,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/flush-uploaded-data.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
@@ -106,6 +110,10 @@
     {
       "src": "/api/index-history",
       "dest": "/api/index-history.js"
+    },
+    {
+      "src": "/api/flush-uploaded-data",
+      "dest": "/api/flush-uploaded-data.js"
     },
     {
       "src": "/(.*)",
