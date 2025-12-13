@@ -4986,18 +4986,22 @@ class MarketMoodApp {
         const actionButtons = document.getElementById('tableActionButtons');
         const selectedCount = this.getSelectedRows().length;
         
-        console.log('🔍 updateActionButtonsVisibility called:', { selectedCount, actionButtons: !!actionButtons });
+        console.log('🔍 updateActionButtonsVisibility called:', { 
+            selectedCount, 
+            actionButtons: !!actionButtons,
+            element: actionButtons 
+        });
         
         if (actionButtons) {
             if (selectedCount > 0) {
                 actionButtons.style.display = 'flex';
-                console.log('✅ Showing action buttons');
+                console.log('✅ Showing action buttons - selectedCount:', selectedCount);
             } else {
                 actionButtons.style.display = 'none';
-                console.log('❌ Hiding action buttons');
+                console.log('❌ Hiding action buttons - no selection');
             }
         } else {
-            console.warn('⚠️ tableActionButtons element not found!');
+            console.error('⚠️ tableActionButtons element not found! Check HTML structure.');
         }
     }
 
