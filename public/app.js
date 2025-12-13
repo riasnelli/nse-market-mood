@@ -2572,14 +2572,25 @@ class MarketMoodApp {
                     fileName.textContent = file.name;
                     this.updateUploadButtonState();
                     
-                    // Validate file type
+                    // Validate file type - CSV only for bhavcopy
                     const fileExtension = file.name.split('.').pop().toLowerCase();
-                    if (fileExtension !== 'csv' && fileExtension !== 'dat') {
-                        this.showUploadStatus('Please select a CSV or DAT file', 'error');
+                    const uploadType = document.getElementById('uploadType')?.value;
+                    
+                    if (fileExtension === 'dat') {
+                        // Reject .dat files with clear error message
+                        this.showUploadStatus('DAT bhavcopy files are no longer supported. Please upload the NSE CSV bhavcopy file (e.g., sec_bhavdata_full_YYYYMMDD.csv).', 'error');
+                        if (uploadDataBtn) uploadDataBtn.disabled = true;
+                        fileName.textContent = 'Choose CSV file...';
+                        csvFile.value = ''; // Clear the file input
+                        return;
+                    }
+                    
+                    if (fileExtension !== 'csv') {
+                        this.showUploadStatus('Please select a CSV file', 'error');
                         if (uploadDataBtn) uploadDataBtn.disabled = true;
                     }
                 } else {
-                    fileName.textContent = 'Choose CSV or DAT file...';
+                    fileName.textContent = 'Choose CSV file...';
                     this.updateUploadButtonState();
                 }
             });
@@ -2629,25 +2640,26 @@ class MarketMoodApp {
                     return;
                 }
                 
-                // Validate file type
+                // Validate file type - CSV only, reject .dat files
                 const fileExtension = file.name.split('.').pop().toLowerCase();
-                if (fileExtension !== 'csv' && fileExtension !== 'dat') {
-                    this.showUploadStatus('Please select a CSV or DAT file', 'error');
+                if (fileExtension === 'dat') {
+                    this.showUploadStatus('DAT bhavcopy files are no longer supported. Please upload the NSE CSV bhavcopy file (e.g., sec_bhavdata_full_YYYYMMDD.csv).', 'error');
+                    return;
+                }
+                if (fileExtension !== 'csv') {
+                    this.showUploadStatus('Please select a CSV file', 'error');
                     return;
                 }
 
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     try {
-                        // Detect file type and parse accordingly
+                        // CSV files only - .dat support removed
                         const fileExtension = file.name.split('.').pop().toLowerCase();
                         let parsedData;
                         
-                        if (fileExtension === 'dat') {
-                            parsedData = this.parseDATFile(e.target.result, file.name);
-                        } else {
-                            // For premarket files, use the robust NSE pre-open CSV parser
-                            if (uploadType === 'premarket') {
+                        // For premarket files, use the robust NSE pre-open CSV parser
+                        if (uploadType === 'premarket') {
                                 const { header, parsedRows } = this.parseNSEPremarketCSV(e.target.result, file.name);
                                 const parsedCount = Array.isArray(parsedRows) ? parsedRows.length : 0;
                                 console.log(`📊 Processing ${parsedCount} rows from NSE premarket CSV`);
@@ -2660,8 +2672,8 @@ class MarketMoodApp {
                                 this._premarketParsedCount = parsedCount;
                                 this._premarketHeader = header;
                             } else {
-                                // Default to standard CSV parsing for other types
-                            parsedData = this.parseCSV(e.target.result);
+                                // Default to standard CSV parsing for other types (including bhavcopy)
+                                parsedData = this.parseCSV(e.target.result);
                             }
                         }
                         
@@ -2819,13 +2831,58 @@ class MarketMoodApp {
         
         console.log(`🔍 Detected delimiter: ${delimiter === '\t' ? 'TAB' : delimiter} (counts: comma=${commaCount}, tab=${tabCount}, semicolon=${semicolonCount}, pipe=${pipeCount})`);
 
-        // Parse header using detected delimiter
-        const headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
-        console.log(`🔍 CSV headers (${headers.length} columns):`, headers);
+        // Check if first line is a header (contains common header keywords)
+        const firstLineUpper = firstLine.toUpperCase();
+        const hasHeaderKeywords = firstLineUpper.includes('SYMBOL') || 
+                                   firstLineUpper.includes('SERIES') || 
+                                   firstLineUpper.includes('OPEN') || 
+                                   firstLineUpper.includes('CLOSE') ||
+                                   firstLineUpper.includes('NAME') ||
+                                   firstLineUpper.includes('COMPANY');
+        
+        let headers;
+        let startIndex = 0;
+        
+        if (hasHeaderKeywords) {
+            // First line is a header - parse it
+            if (delimiter === ',') {
+                headers = this.parseCSVLine(firstLine).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
+            } else {
+                headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
+            }
+            startIndex = 1;
+            console.log(`✅ Detected CSV header row: ${headers.length} columns`);
+        } else {
+            // No header row - use standard NSE bhavcopy column mapping
+            // Standard format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
+            const firstRowValues = delimiter === ',' ? this.parseCSVLine(firstLine) : firstLine.split(delimiter);
+            const columnCount = firstRowValues.length;
+            
+            // Map columns to standard names
+            headers = [];
+            for (let i = 0; i < columnCount; i++) {
+                if (i === 0) headers.push('SYMBOL');
+                else if (i === 1) headers.push('SERIES');
+                else if (i === 2) headers.push('OPEN');
+                else if (i === 3) headers.push('HIGH');
+                else if (i === 4) headers.push('LOW');
+                else if (i === 5) headers.push('CLOSE');
+                else if (i === 6) headers.push('LAST');
+                else if (i === 7) headers.push('PREVCLOSE');
+                else if (i === 8) headers.push('TOTTRDQTY');
+                else if (i === 9) headers.push('TOTTRDVAL');
+                else if (i === 10) headers.push('TIMESTAMP');
+                else headers.push(`COL${i}`);
+            }
+            startIndex = 0;
+            console.log(`⚠️ No CSV header detected, using standard mapping: ${headers.length} columns`);
+        }
+        
+        console.log(`🔍 CSV headers (${headers.length} columns):`, headers.slice(0, 10));
         
         // Parse data rows
         const data = [];
-        for (let i = 1; i < lines.length; i++) {
+        for (let i = startIndex; i < lines.length; i++) {
             let values;
             if (delimiter === ',') {
                 values = this.parseCSVLine(lines[i]);
@@ -2833,10 +2890,13 @@ class MarketMoodApp {
                 values = lines[i].split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''));
             }
             
-            if (values.length === headers.length) {
+            if (values.length >= headers.length || values.length >= 6) {
+                // At least need SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE
                 const row = {};
                 headers.forEach((header, index) => {
-                    row[header] = values[index] || '';
+                    if (index < values.length) {
+                        row[header] = values[index].trim().replace(/^"|"$/g, '');
+                    }
                 });
                 data.push(row);
             } else if (values.length > 0 && i <= 3) {
@@ -2853,265 +2913,7 @@ class MarketMoodApp {
         return data;
     }
 
-    parseDATFile(datText, fileName = '') {
-        // .DAT files can have various formats. Try to detect the format:
-        // 1. CSV-like format (comma or tab separated)
-        // 2. Fixed-width format
-        // 3. Other delimited formats
-        
-        console.log('📄 Parsing DAT file...');
-        const lines = datText.split(/\r?\n/).filter(line => line.trim());
-        console.log(`📊 Total lines in DAT file: ${lines.length}`);
-        
-        if (lines.length < 1) {
-            throw new Error('DAT file is empty or invalid');
-        }
-
-        // Check if this is an FCM_INTRM_BC*.DAT file (specific format)
-        const isFCMIntrmBC = fileName && fileName.toUpperCase().includes('FCM_INTRM_BC') && fileName.toUpperCase().endsWith('.DAT');
-        
-        // Debug: Log first line
-        console.log('🔍 First line (first 500 chars):', lines[0]?.substring(0, 500));
-
-        // Check if it's CSV-like (contains commas or tabs)
-        const firstLine = lines[0];
-        const hasCommas = firstLine.includes(',');
-        const hasTabs = firstLine.includes('\t');
-        const hasPipes = firstLine.includes('|');
-        
-        let delimiter = ',';
-        if (hasTabs) {
-            delimiter = '\t';
-        } else if (hasPipes) {
-            delimiter = '|';
-        } else if (hasCommas) {
-            delimiter = ',';
-        } else {
-            // Try to detect delimiter by checking multiple lines
-            for (let i = 0; i < Math.min(5, lines.length); i++) {
-                if (lines[i].includes('\t')) {
-                    delimiter = '\t';
-                    break;
-                } else if (lines[i].includes('|')) {
-                    delimiter = '|';
-                    break;
-                } else if (lines[i].includes(',')) {
-                    delimiter = ',';
-                    break;
-                }
-            }
-        }
-
-        console.log(`🔍 Detected delimiter: "${delimiter === '\t' ? 'TAB' : delimiter}"`);
-
-        // Check if first line is a header or data
-        // NSE bhavcopy files typically don't have headers - they start with data
-        // Headers would contain words like "SYMBOL", "SERIES", "OPEN", "CLOSE", etc.
-        const firstLineUpper = firstLine.toUpperCase();
-        const hasHeaderKeywords = firstLineUpper.includes('SYMBOL') || 
-                                   firstLineUpper.includes('SERIES') || 
-                                   firstLineUpper.includes('OPEN') || 
-                                   firstLineUpper.includes('CLOSE');
-        
-        // Standard NSE bhavcopy column names (if no header row)
-        // NSE bhavcopy format: SYMBOL, SERIES, [extra fields], OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
-        // The actual format may have extra columns between SERIES and OPEN
-        const standardHeaders = [
-            'SYMBOL', 'SERIES', 'EXTRA1', 'EXTRA2', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST', 
-            'PREVCLOSE', 'TOTTRDQTY', 'TOTTRDVAL', 'TIMESTAMP', 
-            'TOTALTRADES', 'ISIN', 'UNUSED', 'UNUSED2', 'UNUSED3'
-        ];
-        
-        let headers;
-        let startIndex = 0;
-        
-        if (hasHeaderKeywords) {
-            // First line is a header
-            headers = this.parseDelimitedLine(firstLine, delimiter).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
-            startIndex = 1;
-            console.log(`✅ Detected header row: ${headers.length} columns`);
-        } else {
-            // No header row - try to detect column positions by analyzing first few rows
-            const firstRowValues = this.parseDelimitedLine(firstLine, delimiter);
-            const columnCount = firstRowValues.length;
-            
-            // Try to find where OPEN/HIGH/LOW/CLOSE are by looking for numeric patterns
-            // OPEN, HIGH, LOW, CLOSE should be consecutive numeric values
-            let openIndex = -1;
-            for (let i = 2; i < Math.min(columnCount - 3, 10); i++) {
-                const val1 = parseFloat(firstRowValues[i]?.replace(/,/g, '') || '0');
-                const val2 = parseFloat(firstRowValues[i + 1]?.replace(/,/g, '') || '0');
-                const val3 = parseFloat(firstRowValues[i + 2]?.replace(/,/g, '') || '0');
-                const val4 = parseFloat(firstRowValues[i + 3]?.replace(/,/g, '') || '0');
-                
-                // Check if these look like prices (positive numbers > 0)
-                if (val1 > 0 && val2 > 0 && val3 > 0 && val4 > 0 && 
-                    val1 < 1000000 && val2 < 1000000 && val3 < 1000000 && val4 < 1000000) {
-                    openIndex = i;
-                    break;
-                }
-            }
-            
-            // PRIORITY 1: Check if this is FCM_INTRM_BC*.DAT format FIRST
-            // This format has: NAME, SYMBOL, SERIES, MARKET, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, ...
-            const isFCMIntrmBC = fileName && fileName.toUpperCase().includes('FCM_INTRM_BC');
-            const is17ColsWithOpenAt4 = !hasHeaderKeywords && delimiter === ',' && openIndex === 4 && columnCount === 17;
-            
-            // ALWAYS log for debugging
-            console.log(`🔍 Header mapping conditions:`, {
-                fileName: fileName || 'NOT PROVIDED',
-                isFCMIntrmBC,
-                hasHeaderKeywords,
-                delimiter,
-                openIndex,
-                columnCount,
-                is17ColsWithOpenAt4,
-                conditionMatch: isFCMIntrmBC || is17ColsWithOpenAt4
-            });
-            
-            // PRIORITY 1: Force FCM_INTRM_BC mapping if filename matches OR if we have 17 cols with open at 4
-            if (isFCMIntrmBC || is17ColsWithOpenAt4) {
-                // FCM_INTRM_BC*.DAT format with exactly 17 columns: NAME, SYMBOL, SERIES, MARKET, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, ...
-                headers = [
-                    'NAME',
-                    'SYMBOL',
-                    'SERIES',
-                    'MARKET',
-                    'OPEN',
-                    'HIGH',
-                    'LOW',
-                    'CLOSE',
-                    'LAST',
-                    'PREVCLOSE',
-                    'TOTTRDQTY',
-                    'TOTTRDVAL',
-                    'TIMESTAMP',
-                    'TOTALTRADES',
-                    'DELIVQTY',
-                    'DELIVPER',
-                    'EXTRA'
-                ];
-                console.log(`✅ FCM_INTRM_BC*.DAT format detected (17 columns, priceStartIndex=4), using exact header mapping: NAME, SYMBOL, SERIES, MARKET, OPEN, HIGH, LOW, CLOSE...`);
-            } 
-            // PRIORITY 2: Generic mapping for other formats
-            else if (openIndex > 0) {
-                // Found price columns starting at openIndex
-                // Map: 0=SYMBOL, 1=SERIES, openIndex=OPEN, openIndex+1=HIGH, openIndex+2=LOW, openIndex+3=CLOSE
-                headers = [];
-                for (let i = 0; i < columnCount; i++) {
-                    if (i === 0) headers.push('SYMBOL');
-                    else if (i === 1) headers.push('SERIES');
-                    else if (i === openIndex) headers.push('OPEN');
-                    else if (i === openIndex + 1) headers.push('HIGH');
-                    else if (i === openIndex + 2) headers.push('LOW');
-                    else if (i === openIndex + 3) headers.push('CLOSE');
-                    else if (i === openIndex + 4) headers.push('LAST');
-                    else if (i === openIndex + 5) headers.push('PREVCLOSE');
-                    else if (i === openIndex + 6) headers.push('TOTTRDQTY');
-                    else if (i === openIndex + 7) headers.push('TOTTRDVAL');
-                    else headers.push(`COL${i}`);
-                }
-                console.log(`✅ No header row detected, found price columns starting at index ${openIndex}, mapped ${headers.length} columns`);
-                
-                // CRITICAL FIX: Double-check after generic mapping - if we have 17 cols with openIndex=4, 
-                // this MUST be FCM_INTRM_BC format and we need to remap headers
-                if (columnCount === 17 && openIndex === 4 && delimiter === ',' && !hasHeaderKeywords) {
-                    console.log(`🔄 CRITICAL: Detected 17 columns with openIndex=4 AFTER generic mapping - forcing FCM_INTRM_BC header remapping!`);
-                    headers = [
-                        'NAME',
-                        'SYMBOL',
-                        'SERIES',
-                        'MARKET',
-                        'OPEN',
-                        'HIGH',
-                        'LOW',
-                        'CLOSE',
-                        'LAST',
-                        'PREVCLOSE',
-                        'TOTTRDQTY',
-                        'TOTTRDVAL',
-                        'TIMESTAMP',
-                        'TOTALTRADES',
-                        'DELIVQTY',
-                        'DELIVPER',
-                        'EXTRA'
-                    ];
-                    console.log(`✅ FCM_INTRM_BC*.DAT format FORCED (17 columns, priceStartIndex=4), using exact header mapping: NAME, SYMBOL, SERIES, MARKET, OPEN, HIGH, LOW, CLOSE...`);
-                }
-            } else {
-                // Fallback: use standard mapping
-                headers = standardHeaders.slice(0, columnCount);
-                console.log(`⚠️ No header row detected, using standard mapping (may be incorrect): ${headers.length} columns`);
-            }
-            
-            startIndex = 0; // Start from first line (it's data, not header)
-        }
-        
-        console.log(`🔍 Headers (${headers.length}):`, headers.slice(0, 10));
-        
-        // Parse data rows
-        const data = [];
-        let skippedRows = 0;
-        for (let i = startIndex; i < lines.length; i++) {
-            const values = this.parseDelimitedLine(lines[i], delimiter);
-            if (values.length >= headers.length || values.length >= 6) { // At least need SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE
-                const row = {};
-                headers.forEach((header, index) => {
-                    if (index < values.length) {
-                    row[header] = values[index].trim().replace(/^"|"$/g, '');
-                    }
-                });
-                data.push(row);
-            } else {
-                skippedRows++;
-                if (i <= 3) {
-                    console.log(`⚠️ Row ${i} skipped: ${values.length} values vs ${headers.length} headers`);
-                }
-            }
-        }
-        
-        console.log(`✅ Parsed ${data.length} rows from DAT file (skipped ${skippedRows} rows)`);
-        if (data.length > 0) {
-            console.log(`🔍 First row keys:`, Object.keys(data[0]));
-            console.log(`🔍 First row sample:`, {
-                NAME: data[0]['NAME'],
-                SYMBOL: data[0]['SYMBOL'],
-                SERIES: data[0]['SERIES'],
-                COL2: data[0]['COL2'],
-                COL3: data[0]['COL3'],
-                MARKET: data[0]['MARKET'],
-                CLOSE: data[0]['CLOSE'],
-                OPEN: data[0]['OPEN'],
-                HIGH: data[0]['HIGH'],
-                LOW: data[0]['LOW']
-            });
-            
-            // Find and log first EQ row for verification
-            const eqRow = data.find(row => {
-                const series = (row.SERIES || row.COL2 || '').trim();
-                return series === 'EQ';
-            });
-            if (eqRow) {
-                console.log(`🔎 First EQ row after parsing:`, {
-                    NAME: eqRow.NAME,
-                    SYMBOL: eqRow.SYMBOL,
-                    SERIES: eqRow.SERIES || eqRow.COL2,
-                    OPEN: eqRow.OPEN,
-                    HIGH: eqRow.HIGH,
-                    LOW: eqRow.LOW,
-                    CLOSE: eqRow.CLOSE
-                });
-            } else {
-                console.warn(`⚠️ No EQ row found in parsed data - check SERIES/COL2 field mapping`);
-            }
-            
-            // Find and log the first EQ row for verification
-            const eqSample = data.find(row => (row.SERIES || '').trim() === 'EQ');
-            console.log("🔎 EQ sample row after mapping:", eqSample);
-        }
-
-        return data;
-    }
+    // parseDATFile removed - DAT files no longer supported. Use CSV files only.
 
     parseDelimitedLine(line, delimiter) {
         // Parse a line with a specific delimiter (handles quoted values)
@@ -3497,76 +3299,49 @@ class MarketMoodApp {
             let skippedNotEq = 0;
             let skippedInvalidClose = 0;
 
-            // Find first meaningful row (skip empties) to detect DAT layout
-            let firstDataRow = null;
-            for (const r of csvData) {
-                if (r && (r.NAME || r.SYMBOL || r.COL2)) {
-                    firstDataRow = r;
-                    break;
+            // CSV bhavcopy files - detect by filename pattern or column structure
+            // Expected NSE CSV bhavcopy patterns:
+            // - sec_bhavdata_full_YYYYMMDD.csv
+            // - cm*.csv
+            const isBhavcopyCSV = fileName && (
+                fileName.toUpperCase().includes('SEC_BHAVDATA') ||
+                fileName.toUpperCase().includes('BHAVDATA') ||
+                (fileName.toUpperCase().startsWith('CM') && fileName.toUpperCase().endsWith('.CSV'))
+            );
+            
+            // Check if CSV has expected bhavcopy columns
+            const hasBhavcopyColumns = csvData.length > 0 && csvData[0] && (
+                csvData[0].SYMBOL || csvData[0].symbol ||
+                csvData[0].OPEN || csvData[0].open ||
+                csvData[0].CLOSE || csvData[0].close ||
+                csvData[0].SERIES || csvData[0].series
+            );
+            
+            if (isBhavcopyCSV || hasBhavcopyColumns) {
+                console.log(`📊 Processing CSV bhavcopy file: ${fileName}`);
+                if (csvData.length > 0) {
+                    console.log(`🔍 First row keys:`, Object.keys(csvData[0]));
+                    console.log(`🔍 First row sample:`, {
+                        SYMBOL: csvData[0].SYMBOL || csvData[0].symbol,
+                        SERIES: csvData[0].SERIES || csvData[0].series,
+                        OPEN: csvData[0].OPEN || csvData[0].open,
+                        CLOSE: csvData[0].CLOSE || csvData[0].close
+                    });
                 }
-            }
-
-            // Detect DAT layout (NAME/SYMBOL/SERIES/MARKET) upfront
-            let isDatLayout = false;
-            if (firstDataRow) {
-                const c0 = (firstDataRow.NAME || firstDataRow.SYMBOL || '').trim();
-                const c1 = (firstDataRow.SYMBOL || firstDataRow.SERIES || '').trim();
-                const c2 = (firstDataRow.SERIES || firstDataRow.COL2 || '').trim();
-                
-                // NAME is long / weird, SYMBOL is shorter, SERIES <= 3 chars
-                const looksLikeName = c0 && (c0.includes('%') || c0.length > 15);
-                const looksLikeSymbol = c1 && c1.length >= 3 && c1.length <= 15;
-                const looksLikeSeries = c2 && c2.length <= 3;
-
-                isDatLayout = !!(looksLikeName && looksLikeSymbol && looksLikeSeries);
-                
-                console.log("🔍 DAT layout detection:", {
-                    firstDataRow: {
-                        NAME: firstDataRow.NAME,
-                        SYMBOL: firstDataRow.SYMBOL,
-                        SERIES: firstDataRow.SERIES,
-                        COL2: firstDataRow.COL2,
-                        COL3: firstDataRow.COL3
-                    },
-                    c0, c1, c2,
-                    looksLikeName,
-                    looksLikeSymbol,
-                    looksLikeSeries,
-                    isDatLayout,
-                });
             }
 
             csvData.forEach((row, index) => {
                 if (!row) return;
 
-                let name, symbol, series, market;
-
-                if (isDatLayout) {
-                    // 🔄 FORCE the correct mapping for NSE DAT
-                    // Column 0 = NAME, Column 1 = SYMBOL, Column 2 = SERIES, Column 3 = MARKET
-                    name = (row.NAME || row.SYMBOL || '').trim();  // If NAME exists, use it; else SYMBOL is the name
-                    symbol = (row.SYMBOL || row.SERIES || '').trim();  // If SYMBOL exists and is correct, use it; else SERIES is the symbol
-                    series = (row.SERIES || row.COL2 || '').trim();  // SERIES or COL2 is the true series
-                    market = (row.MARKET || row.COL3 || '').trim();  // MARKET or COL3
-                    
-                    // If we detected DAT layout but fields are still wrong, remap based on position
-                    if (!row.NAME && row.SYMBOL && row.COL2) {
-                        // Old mapping: SYMBOL=name, SERIES=symbol, COL2=series
-                        name = (row.SYMBOL || '').trim();
-                        symbol = (row.SERIES || '').trim();
-                        series = (row.COL2 || '').trim();
-                        market = (row.COL3 || '').trim();
-                    }
-                } else {
-                    // 🧱 Fallback to existing mapping
-                    name = (row.NAME || '').trim();
-                    symbol = (row.SYMBOL || '').trim();
-                    series = (row.SERIES || '').trim();
-                    market = (row.MARKET || '').trim();
-                }
+                // CSV bhavcopy uses standard field names: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, etc.
+                // Normalize field names (handle both uppercase and lowercase)
+                const symbol = (row.SYMBOL || row.symbol || '').trim();
+                const series = (row.SERIES || row.series || '').trim();
+                const name = (row.NAME || row.name || symbol || '').trim(); // Optional name field
+                const market = (row.MARKET || row.market || '').trim(); // Optional market field
 
                 if (index < 3) {
-                    console.log(`🔍 Row ${index} (normalized):`, { name, symbol, series, market, CLOSE: row.CLOSE });
+                    console.log(`🔍 Row ${index} (CSV bhavcopy):`, { symbol, series, CLOSE: row.CLOSE || row.close });
                 }
 
                 // 1) Symbol check
@@ -3583,26 +3358,41 @@ class MarketMoodApp {
                 }
 
                 // 3) Price parsing: prefer CLOSE, fall back to LAST
+                // Normalize field names (handle both uppercase and lowercase from CSV)
                 const closeStr =
                     (row.CLOSE && String(row.CLOSE).trim()) ||
+                    (row.close && String(row.close).trim()) ||
                     (row.LAST && String(row.LAST).trim()) ||
+                    (row.last && String(row.last).trim()) ||
                     '';
 
-                const openStr = (row.OPEN && String(row.OPEN).trim()) || '';
-                const highStr = (row.HIGH && String(row.HIGH).trim()) || '';
-                const lowStr  = (row.LOW  && String(row.LOW).trim())  || '';
+                const openStr = 
+                    (row.OPEN && String(row.OPEN).trim()) || 
+                    (row.open && String(row.open).trim()) || 
+                    '';
+                const highStr = 
+                    (row.HIGH && String(row.HIGH).trim()) || 
+                    (row.high && String(row.high).trim()) || 
+                    '';
+                const lowStr = 
+                    (row.LOW && String(row.LOW).trim()) || 
+                    (row.low && String(row.low).trim()) || 
+                    '';
 
                 const prevCloseStr =
                     (row.PREVCLOSE && String(row.PREVCLOSE).trim()) ||
+                    (row.prevClose && String(row.prevClose).trim()) ||
+                    (row.PREV_CLOSE && String(row.PREV_CLOSE).trim()) ||
                     closeStr;
 
-                const close = parseFloat(closeStr);
-                const open  = parseFloat(openStr);
-                const high  = parseFloat(highStr);
-                const low   = parseFloat(lowStr);
-                const prevClose = parseFloat(prevCloseStr);
+                // Remove commas and parse as float
+                const close = this.cleanPrice(closeStr);
+                const open = this.cleanPrice(openStr);
+                const high = this.cleanPrice(highStr);
+                const low = this.cleanPrice(lowStr);
+                const prevClose = this.cleanPrice(prevCloseStr);
 
-                if (!Number.isFinite(close)) {
+                if (close === null || !Number.isFinite(close) || close <= 0) {
                     skippedInvalidClose++;
                     return;
                 }
@@ -3620,7 +3410,7 @@ class MarketMoodApp {
                 });
             });
 
-            console.log(`📊 Processed ${indices.length} EQ stocks from bhavcopy file: ${fileName}`, { isDatLayout });
+            console.log(`📊 Processed ${indices.length} EQ stocks from bhavcopy CSV file: ${fileName}`);
             console.log(
                 `   Skipped: ${skippedNoSymbol} (no symbol), ` +
                 `${skippedNotEq} (not EQ), ` +
@@ -4392,6 +4182,19 @@ class MarketMoodApp {
         }
         tableBody.innerHTML = '';
         
+        // Hide action buttons when table is cleared
+        const actionButtons = document.getElementById('tableActionButtons');
+        if (actionButtons) {
+            actionButtons.style.display = 'none';
+        }
+        
+        // Reset select all checkbox
+        const selectAllCheckbox = document.getElementById('selectAllRows');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        }
+        
         // Debug: Log when function is called
         console.log('updateUploadedDataInfo called');
         console.log('Table body cleared, child count:', tableBody.children.length);
@@ -4828,32 +4631,26 @@ class MarketMoodApp {
                     </svg>`;
                     
                     row.innerHTML = `
+                        <td style="text-align: center;">
+                            <input type="checkbox" class="row-checkbox" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}">
+                        </td>
                         <td>${rowNumber}</td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
                         <td style="text-align: center; vertical-align: middle;" title="${hasBhav ? 'Bhavcopy data available' : 'No bhavcopy data uploaded'}">${hasBhav ? bhavCheckIcon : bhavXIcon}</td>
                         <td style="text-align: center; vertical-align: middle; font-size: 1.2em;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? '✅' : '❌'}</td>
-                        <td class="action-buttons">
-                            <button class="btn-export" data-date="${dateData.date}" title="Export as CSV">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="7 10 12 15 17 10"></polyline>
-                                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                                </svg>
-                            </button>
-                            <button class="btn-delete" data-date="${dateData.date}" data-indices-id="${dateData.indices?.id || ''}" data-bhav-id="${dateData.bhav?.id || ''}" data-premarket-id="${dateData.premarket?.id || ''}" title="Delete">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                </svg>
-                            </button>
-                        </td>
                     `;
+                    
+                    // Store row data for easy access
+                    row.dataset.date = dateData.date;
+                    row.dataset.indicesId = dateData.indices?.id || '';
+                    row.dataset.bhavId = dateData.bhav?.id || '';
+                    row.dataset.premarketId = dateData.premarket?.id || '';
                     
                     // Final check before appending - ensure this date hasn't been added
                     const existingRows = Array.from(tableBody.querySelectorAll('tr'));
                     const dateAlreadyInTable = existingRows.some(tr => {
-                        const dateCell = tr.querySelector('td:nth-child(2)');
+                        const dateCell = tr.querySelector('td:nth-child(3)'); // Date is now in 3rd column (after checkbox and No)
                         if (dateCell) {
                             const cellText = dateCell.textContent.trim();
                             // Extract date from formatted text (DD/MM format)
@@ -4897,48 +4694,8 @@ class MarketMoodApp {
                 
                 console.log(`Final table has ${tableBody.children.length} unique rows`);
 
-                // Add event listeners for export and delete buttons
-                tableBody.querySelectorAll('.btn-export').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const date = e.currentTarget.getAttribute('data-date');
-                        // Export all types for this date
-                        this.exportCSV(null, date);
-                    });
-                });
-
-                tableBody.querySelectorAll('.btn-delete').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        const date = e.currentTarget.getAttribute('data-date');
-                        const indicesId = e.currentTarget.getAttribute('data-indices-id');
-                        const bhavId = e.currentTarget.getAttribute('data-bhav-id');
-                        const premarketId = e.currentTarget.getAttribute('data-premarket-id');
-                        
-                        // Delete all types for this date
-                        const idsToDelete = [
-                            { id: indicesId, type: 'indices' },
-                            { id: bhavId, type: 'bhav' },
-                            { id: premarketId, type: 'premarket' }
-                        ].filter(item => item.id);
-                        
-                        if (idsToDelete.length === 0) {
-                            this.showUploadStatus('No data to delete for this date', 'error');
-                            return;
-                        }
-                        
-                        // Confirm deletion
-                        if (!confirm(`Delete all uploaded data for ${date}?`)) {
-                            return;
-                        }
-                        
-                        // Delete all types
-                        for (const item of idsToDelete) {
-                            await this.deleteUploadedFile(item.id, item.type);
-                        }
-                        
-                        // Refresh the table
-                        this.updateUploadedDataInfo();
-                    });
-                });
+                // Setup row selection handlers
+                this.setupRowSelectionHandlers();
             } else {
                 // No data found
                 if (tableEl) tableEl.style.display = 'none';
@@ -4956,6 +4713,121 @@ class MarketMoodApp {
         } finally {
             // Always clear the flag when done
             this._updatingUploadedDataInfo = false;
+        }
+    }
+
+    setupRowSelectionHandlers() {
+        const tableBody = document.getElementById('uploadedFilesTableBody');
+        const selectAllCheckbox = document.getElementById('selectAllRows');
+        const actionButtons = document.getElementById('tableActionButtons');
+        const btnExportSelected = document.getElementById('btnExportSelected');
+        const btnDeleteSelected = document.getElementById('btnDeleteSelected');
+
+        if (!tableBody) return;
+
+        // Handle select all checkbox
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => {
+                const isChecked = e.target.checked;
+                tableBody.querySelectorAll('.row-checkbox').forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                });
+                this.updateActionButtonsVisibility();
+            });
+        }
+
+        // Handle individual row checkboxes
+        tableBody.addEventListener('change', (e) => {
+            if (e.target.classList.contains('row-checkbox')) {
+                // Update select all checkbox state
+                if (selectAllCheckbox) {
+                    const allCheckboxes = tableBody.querySelectorAll('.row-checkbox');
+                    const checkedCount = tableBody.querySelectorAll('.row-checkbox:checked').length;
+                    selectAllCheckbox.checked = checkedCount === allCheckboxes.length && allCheckboxes.length > 0;
+                    selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < allCheckboxes.length;
+                }
+                this.updateActionButtonsVisibility();
+            }
+        });
+
+        // Handle export selected
+        if (btnExportSelected) {
+            btnExportSelected.addEventListener('click', () => {
+                const selectedRows = this.getSelectedRows();
+                if (selectedRows.length === 0) {
+                    this.showUploadStatus('Please select at least one row to export', 'error');
+                    return;
+                }
+
+                // Export each selected date
+                selectedRows.forEach(row => {
+                    const date = row.dataset.date;
+                    if (date) {
+                        this.exportCSV(null, date);
+                    }
+                });
+            });
+        }
+
+        // Handle delete selected
+        if (btnDeleteSelected) {
+            btnDeleteSelected.addEventListener('click', async () => {
+                const selectedRows = this.getSelectedRows();
+                if (selectedRows.length === 0) {
+                    this.showUploadStatus('Please select at least one row to delete', 'error');
+                    return;
+                }
+
+                const dates = selectedRows.map(row => row.dataset.date).filter(Boolean);
+                if (dates.length === 0) {
+                    this.showUploadStatus('No valid dates selected', 'error');
+                    return;
+                }
+
+                if (!confirm(`Delete all uploaded data for ${dates.length} selected date(s)?`)) {
+                    return;
+                }
+
+                // Delete all selected rows
+                for (const row of selectedRows) {
+                    const date = row.dataset.date;
+                    const indicesId = row.dataset.indicesId;
+                    const bhavId = row.dataset.bhavId;
+                    const premarketId = row.dataset.premarketId;
+
+                    const idsToDelete = [
+                        { id: indicesId, type: 'indices' },
+                        { id: bhavId, type: 'bhav' },
+                        { id: premarketId, type: 'premarket' }
+                    ].filter(item => item.id);
+
+                    for (const item of idsToDelete) {
+                        await this.deleteUploadedFile(item.id, item.type);
+                    }
+                }
+
+                // Refresh the table
+                this.updateUploadedDataInfo();
+            });
+        }
+    }
+
+    getSelectedRows() {
+        const tableBody = document.getElementById('uploadedFilesTableBody');
+        if (!tableBody) return [];
+        
+        const selectedCheckboxes = tableBody.querySelectorAll('.row-checkbox:checked');
+        return Array.from(selectedCheckboxes).map(checkbox => {
+            return checkbox.closest('tr');
+        }).filter(Boolean);
+    }
+
+    updateActionButtonsVisibility() {
+        const actionButtons = document.getElementById('tableActionButtons');
+        const selectedCount = this.getSelectedRows().length;
+        
+        if (actionButtons) {
+            actionButtons.style.display = selectedCount > 0 ? 'flex' : 'none';
         }
     }
 
