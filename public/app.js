@@ -4759,7 +4759,7 @@ class MarketMoodApp {
                     // Final check before appending - ensure this date hasn't been added
                     const existingRows = Array.from(tableBody.querySelectorAll('tr'));
                     const dateAlreadyInTable = existingRows.some(tr => {
-                        const dateCell = tr.querySelector('td:nth-child(3)'); // Date is now in 3rd column (after checkbox and No)
+                        const dateCell = tr.querySelector('td:nth-child(2)'); // Date is now in 2nd column (after radio, No column removed)
                         if (dateCell) {
                             const cellText = dateCell.textContent.trim();
                             // Extract date from formatted text (DD/MM format)
@@ -4836,29 +4836,64 @@ class MarketMoodApp {
 
         // Handle select all radio button (acts as toggle for all rows)
         if (selectAllCheckbox) {
-            selectAllCheckbox.addEventListener('change', (e) => {
-                const isChecked = e.target.checked;
+            // Use click event to handle toggle behavior (radio buttons don't naturally uncheck)
+            selectAllCheckbox.addEventListener('click', (e) => {
                 const allRadios = tableBody.querySelectorAll('.row-radio');
                 const checkedCount = tableBody.querySelectorAll('.row-radio:checked').length;
                 
-                if (isChecked) {
-                    // Select all if not all are selected
-                    if (checkedCount < allRadios.length) {
-                        allRadios.forEach(radio => {
-                            radio.checked = true;
-                        });
-                    }
-                } else {
-                    // Deselect all
+                // If all are selected, deselect all. Otherwise, select all.
+                if (checkedCount === allRadios.length && allRadios.length > 0) {
+                    // All selected - deselect all
                     allRadios.forEach(radio => {
                         radio.checked = false;
                     });
+                    selectAllCheckbox.checked = false;
+                } else {
+                    // Not all selected - select all
+                    allRadios.forEach(radio => {
+                        radio.checked = true;
+                    });
+                    selectAllCheckbox.checked = true;
                 }
                 this.updateActionButtonsVisibility();
+                e.preventDefault(); // Prevent default radio behavior
             });
         }
 
-        // Handle individual row radio buttons (allow multiple selection)
+        // Handle individual row radio buttons (allow multiple selection and toggle unselect)
+        // Use mousedown to capture state before radio's default behavior
+        tableBody.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('row-radio')) {
+                // Store if it was checked before the click
+                e.target.dataset.wasChecked = e.target.checked;
+            }
+        });
+        
+        // Handle click to implement toggle behavior for radio buttons
+        tableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('row-radio')) {
+                const wasChecked = e.target.dataset.wasChecked === 'true';
+                
+                // If it was already checked, uncheck it (toggle off)
+                if (wasChecked) {
+                    e.preventDefault();
+                    e.target.checked = false;
+                    delete e.target.dataset.wasChecked;
+                }
+                
+                // Update select all and button visibility after a short delay
+                setTimeout(() => {
+                    if (selectAllCheckbox) {
+                        const allRadios = tableBody.querySelectorAll('.row-radio');
+                        const checkedCount = tableBody.querySelectorAll('.row-radio:checked').length;
+                        selectAllCheckbox.checked = checkedCount === allRadios.length && allRadios.length > 0;
+                    }
+                    this.updateActionButtonsVisibility();
+                }, 10);
+            }
+        });
+        
+        // Also handle change event as fallback
         tableBody.addEventListener('change', (e) => {
             if (e.target.classList.contains('row-radio')) {
                 // Update select all radio state
@@ -4941,9 +4976,9 @@ class MarketMoodApp {
         const tableBody = document.getElementById('uploadedFilesTableBody');
         if (!tableBody) return [];
         
-        const selectedCheckboxes = tableBody.querySelectorAll('.row-checkbox:checked');
-        return Array.from(selectedCheckboxes).map(checkbox => {
-            return checkbox.closest('tr');
+        const selectedRadios = tableBody.querySelectorAll('.row-radio:checked');
+        return Array.from(selectedRadios).map(radio => {
+            return radio.closest('tr');
         }).filter(Boolean);
     }
 
@@ -4951,8 +4986,18 @@ class MarketMoodApp {
         const actionButtons = document.getElementById('tableActionButtons');
         const selectedCount = this.getSelectedRows().length;
         
+        console.log('🔍 updateActionButtonsVisibility called:', { selectedCount, actionButtons: !!actionButtons });
+        
         if (actionButtons) {
-            actionButtons.style.display = selectedCount > 0 ? 'flex' : 'none';
+            if (selectedCount > 0) {
+                actionButtons.style.display = 'flex';
+                console.log('✅ Showing action buttons');
+            } else {
+                actionButtons.style.display = 'none';
+                console.log('❌ Hiding action buttons');
+            }
+        } else {
+            console.warn('⚠️ tableActionButtons element not found!');
         }
     }
 
