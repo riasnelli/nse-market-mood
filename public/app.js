@@ -2675,7 +2675,6 @@ class MarketMoodApp {
                                 // Default to standard CSV parsing for other types (including bhavcopy)
                                 parsedData = this.parseCSV(e.target.result);
                             }
-                        }
                         
                         // Process data based on upload type
                         let processedData;
@@ -2756,7 +2755,7 @@ class MarketMoodApp {
                             csvFile.value = '';
                         }
                         if (fileName) {
-                            fileName.textContent = 'Choose CSV or DAT file...';
+                            fileName.textContent = 'Choose CSV file...';
                         }
                         this.updateUploadButtonState();
                         
