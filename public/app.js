@@ -378,10 +378,7 @@ class MarketMoodApp {
                         const currentBgStr = currentBg ? String(currentBg) : '';
                         
                         if (currentBgStr !== bgGradientStr || currentColor !== bgColor) {
-                            // Only log occasionally to reduce console spam (10% of the time)
-                            if (Math.random() < 0.1) {
-                                console.log('🔄 Syncing safe area overlay - mismatch detected');
-                            }
+                            // Silently sync to avoid console spam
                             this.ensureSafeAreaOverlay(bgColor, bgGradient);
                         }
                     } else {
