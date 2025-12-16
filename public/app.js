@@ -6114,12 +6114,8 @@ class MarketMoodApp {
                 generateUrl += `${date ? '&' : '?'}strategy=${this.selectedStrategy}`;
             }
         
-        // Try generate-signals first, fallback to test-generate-signals
+        // Use generate-signals endpoint
         let response = await fetch(generateUrl);
-        if (!response.ok) {
-            console.log('⚠️ generate-signals failed, trying test-generate-signals...');
-            response = await fetch('/api/test-generate-signals');
-        }
         
         if (!response.ok) {
             // Don't throw - return null to allow graceful fallback
@@ -6349,7 +6345,7 @@ class MarketMoodApp {
         try {
             // Generate signals for the latest date
             console.log('Generating signals for latest date...');
-            const response = await fetch('/api/test-generate-signals');
+            const response = await fetch('/api/generate-signals');
 
             signalsLoading.style.display = 'none';
 

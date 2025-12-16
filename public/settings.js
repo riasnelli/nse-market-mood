@@ -936,7 +936,7 @@ class SettingsManager {
         }
 
         try {
-            const response = await fetch('/api/test-dhan', {
+            const response = await fetch('/api/dhan-data', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
