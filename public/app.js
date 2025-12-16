@@ -2652,10 +2652,18 @@ class MarketMoodApp {
 
         // Upload button
         if (uploadDataBtn && csvFile && dataDate) {
-            uploadDataBtn.addEventListener('click', () => {
+            uploadDataBtn.addEventListener('click', async () => {
+                console.log('📤 Upload button clicked');
                 const file = csvFile.files[0];
                 const date = dataDate.value;
                 const uploadType = document.getElementById('uploadType')?.value;
+                
+                console.log('📤 Upload details:', { 
+                    hasFile: !!file, 
+                    fileName: file?.name, 
+                    date, 
+                    uploadType 
+                });
                 
                 // Validate all required fields
                 if (!file) {
@@ -2815,11 +2823,32 @@ class MarketMoodApp {
                             }, 2000);
                         }
                     } catch (error) {
-                        console.error('Error processing file:', error);
+                        console.error('❌ Error processing file:', error);
+                        console.error('Error stack:', error.stack);
                         this.showUploadStatus('Error processing file: ' + error.message, 'error');
+                        
+                        // Re-enable button on error
+                        if (uploadDataBtn) {
+                            uploadDataBtn.disabled = false;
+                            uploadDataBtn.textContent = 'Upload Data';
+                        }
                     }
                 };
+                
+                // Show loading state
+                if (uploadDataBtn) {
+                    uploadDataBtn.disabled = true;
+                    uploadDataBtn.textContent = 'Uploading...';
+                }
+                this.showUploadStatus('Processing file...', 'info');
+                
                 reader.readAsText(file);
+            });
+        } else {
+            console.error('❌ Upload button or required elements not found!', {
+                uploadDataBtn: !!uploadDataBtn,
+                csvFile: !!csvFile,
+                dataDate: !!dataDate
             });
         }
 
@@ -5104,18 +5133,45 @@ class MarketMoodApp {
         }
     }
 
-    showUploadStatus(message, type) {
+    showUploadStatus(message, type = 'info') {
         const statusEl = document.getElementById('uploadStatus');
         if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.textContent = message;
+            
+            // Set colors based on type
+            const colors = {
+                success: { bg: '#d1fae5', border: '#10b981', text: '#065f46' },
+                error: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' },
+                warning: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
+                info: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }
+            };
+            
+            const color = colors[type] || colors.info;
+            statusEl.style.background = color.bg;
+            statusEl.style.border = `1px solid ${color.border}`;
+            statusEl.style.color = color.text;
+            statusEl.style.padding = '12px';
+            statusEl.style.borderRadius = '8px';
+            statusEl.style.marginTop = '10px';
             statusEl.className = `upload-status ${type}`;
+            
+            // Log to console for debugging
+            if (type === 'error') {
+                console.error('❌ Upload error:', message);
+            } else if (type === 'success') {
+                console.log('✅ Upload success:', message);
+            }
             
             if (type === 'success') {
                 setTimeout(() => {
                     statusEl.style.display = 'none';
-                }, 3000);
+                }, 5000);
             }
+        } else {
+            // Fallback if element not found
+            console.error('Upload status element not found!', message);
+            alert(message);
         }
     }
 
