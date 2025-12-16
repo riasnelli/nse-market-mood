@@ -546,7 +546,13 @@ class MarketMoodApp {
             this.logoutMenuBtn.addEventListener('click', () => this.handleLogout());
         }
         if (this.downloadCsvsBtn) {
-            this.downloadCsvsBtn.addEventListener('click', () => this.openDownloadCsvsModal());
+            console.log('✅ Download CSVs button found and initialized');
+            this.downloadCsvsBtn.addEventListener('click', () => {
+                console.log('Download CSVs button clicked');
+                this.openDownloadCsvsModal();
+            });
+        } else {
+            console.error('❌ Download CSVs button NOT found in DOM!');
         }
         if (this.startDownloadBtn) {
             this.startDownloadBtn.addEventListener('click', () => this.startDownloadCsvs());
