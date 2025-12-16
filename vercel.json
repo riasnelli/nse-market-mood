@@ -10,14 +10,6 @@
       "use": "@vercel/node"
     },
     {
-      "src": "api/test-dhan.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/manifest.js",
-      "use": "@vercel/node"
-    },
-    {
       "src": "api/save-uploaded-data.js",
       "use": "@vercel/node"
     },
@@ -43,10 +35,6 @@
     },
     {
       "src": "api/check-date-data.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/test-generate-signals.js",
       "use": "@vercel/node"
     },
     {
@@ -76,10 +64,6 @@
       "dest": "/api/dhan-data.js"
     },
     {
-      "src": "/api/test-dhan",
-      "dest": "/api/test-dhan.js"
-    },
-    {
       "src": "/api/save-uploaded-data",
       "dest": "/api/save-uploaded-data.js"
     },
@@ -106,10 +90,6 @@
     {
       "src": "/api/check-date-data",
       "dest": "/api/check-date-data.js"
-    },
-    {
-      "src": "/api/test-generate-signals",
-      "dest": "/api/test-generate-signals.js"
     },
     {
       "src": "/api/index-history",
