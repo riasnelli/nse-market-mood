@@ -382,8 +382,7 @@ class MarketMoodApp {
                             this.ensureSafeAreaOverlay(bgColor, bgGradient);
                         }
                     } else {
-                        // Recreate if missing
-                        console.log('⚠️ Safe area overlay missing, recreating...');
+                        // Recreate if missing (silently)
                         this.ensureSafeAreaOverlay(bgColor, bgGradient);
                     }
                 } else {
@@ -475,6 +474,22 @@ class MarketMoodApp {
         this.startDownloadBtn = document.getElementById('startDownloadBtn');
         this.downloadProgressSection = document.getElementById('downloadProgressSection');
         this.fileProgressContainer = document.getElementById('fileProgressContainer');
+        
+        // Debug: Check if Download CSVs button exists
+        if (this.downloadCsvsBtn) {
+            console.log('✅ Download CSVs button found in DOM');
+            // Ensure button is visible
+            this.downloadCsvsBtn.style.display = '';
+            this.downloadCsvsBtn.style.visibility = 'visible';
+        } else {
+            console.error('❌ Download CSVs button NOT found! Checking DOM...');
+            const menuOptions = document.querySelector('.menu-options');
+            if (menuOptions) {
+                console.log('Menu options container found:', menuOptions);
+                const allButtons = menuOptions.querySelectorAll('button');
+                console.log('All buttons in menu:', Array.from(allButtons).map(b => ({ id: b.id, text: b.textContent.trim() })));
+            }
+        }
 
         if (this.refreshBtn) {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
