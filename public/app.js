@@ -472,6 +472,12 @@ class MarketMoodApp {
         this.settingsMenuBtn = document.getElementById('settingsMenuBtn');
         this.logoutMenuBtn = document.getElementById('logoutMenuBtn');
         this.aiConnectModal = document.getElementById('aiConnectModal');
+        this.downloadCsvsBtn = document.getElementById('downloadCsvsBtn');
+        this.downloadCsvsModal = document.getElementById('downloadCsvsModal');
+        this.closeDownloadCsvs = document.getElementById('closeDownloadCsvs');
+        this.startDownloadBtn = document.getElementById('startDownloadBtn');
+        this.downloadProgressSection = document.getElementById('downloadProgressSection');
+        this.fileProgressContainer = document.getElementById('fileProgressContainer');
 
         if (this.refreshBtn) {
             this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
@@ -539,9 +545,18 @@ class MarketMoodApp {
         if (this.logoutMenuBtn) {
             this.logoutMenuBtn.addEventListener('click', () => this.handleLogout());
         }
+        if (this.downloadCsvsBtn) {
+            this.downloadCsvsBtn.addEventListener('click', () => this.openDownloadCsvsModal());
+        }
+        if (this.startDownloadBtn) {
+            this.startDownloadBtn.addEventListener('click', () => this.startDownloadCsvs());
+        }
 
         // Setup menu modal close handlers
         this.setupMenuModal();
+        
+        // Setup download CSVs modal handlers
+        this.setupDownloadCsvsModal();
         
         // Setup AI Connect modal handlers
         this.setupAiConnectModal();
@@ -6883,6 +6898,244 @@ class MarketMoodApp {
             }
             console.log('✓ Updated to NSE India display');
         }
+    }
+
+    openDownloadCsvsModal() {
+        // Close menu modal first
+        if (this.menuModal) {
+            this.menuModal.classList.remove('show');
+        }
+        
+        // Open download CSVs modal
+        if (this.downloadCsvsModal) {
+            this.downloadCsvsModal.classList.add('show');
+            this.lockBodyScroll();
+            
+            // Load saved Google Sheets config
+            const savedSheetId = localStorage.getItem('googleSheetId');
+            const savedSheetName = localStorage.getItem('googleSheetName');
+            const savedApiKey = localStorage.getItem('googleApiKey');
+            
+            if (savedSheetId) document.getElementById('googleSheetId').value = savedSheetId;
+            if (savedSheetName) document.getElementById('googleSheetName').value = savedSheetName;
+            if (savedApiKey) document.getElementById('googleApiKey').value = savedApiKey;
+        }
+    }
+
+    setupDownloadCsvsModal() {
+        if (this.closeDownloadCsvs && this.downloadCsvsModal) {
+            this.closeDownloadCsvs.addEventListener('click', () => {
+                this.downloadCsvsModal.classList.remove('show');
+                this.unlockBodyScroll();
+            });
+        }
+
+        // Close on backdrop click
+        if (this.downloadCsvsModal) {
+            this.downloadCsvsModal.addEventListener('click', (e) => {
+                if (e.target === this.downloadCsvsModal) {
+                    this.downloadCsvsModal.classList.remove('show');
+                    this.unlockBodyScroll();
+                }
+            });
+        }
+    }
+
+    async startDownloadCsvs() {
+        // Get selected report types
+        const checkboxes = document.querySelectorAll('.report-checkbox:checked');
+        const reportTypes = Array.from(checkboxes).map(cb => cb.value);
+
+        if (reportTypes.length === 0) {
+            this.showDownloadStatus('Please select at least one report to download', 'error');
+            return;
+        }
+
+        // Get Google Sheets config
+        const googleSheetId = document.getElementById('googleSheetId').value.trim();
+        const googleSheetName = document.getElementById('googleSheetName').value.trim() || 'Sheet1';
+        const googleApiKey = document.getElementById('googleApiKey').value.trim();
+
+        // Save config to localStorage
+        if (googleSheetId) localStorage.setItem('googleSheetId', googleSheetId);
+        if (googleSheetName) localStorage.setItem('googleSheetName', googleSheetName);
+        if (googleApiKey) localStorage.setItem('googleApiKey', googleApiKey);
+
+        // Disable start button
+        if (this.startDownloadBtn) {
+            this.startDownloadBtn.disabled = true;
+            this.startDownloadBtn.textContent = 'Downloading...';
+        }
+
+        // Show progress section
+        if (this.downloadProgressSection) {
+            this.downloadProgressSection.style.display = 'block';
+        }
+
+        // Clear previous progress
+        if (this.fileProgressContainer) {
+            this.fileProgressContainer.innerHTML = '';
+        }
+
+        // Create progress bars for each file
+        const fileProgress = {};
+        const reportNames = {
+            'bhavcopy': 'Full Bhavcopy',
+            'marketactivity': 'Market Activity Report',
+            '52w': '52 Week High/Low Report'
+        };
+
+        reportTypes.forEach(reportType => {
+            const reportName = reportNames[reportType] || reportType;
+            const progressId = `progress-${reportType}`;
+            
+            const progressDiv = document.createElement('div');
+            progressDiv.id = progressId;
+            progressDiv.style.cssText = 'padding: 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;';
+            progressDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 0.9rem; font-weight: 600; color: #333;">${reportName}</span>
+                    <span id="${progressId}-percent" style="font-size: 0.85rem; font-weight: 600; color: #667eea;">0%</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                    <div id="${progressId}-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.3s ease; border-radius: 4px;"></div>
+                </div>
+                <div id="${progressId}-status" style="margin-top: 6px; font-size: 0.8rem; color: #666;">Initializing...</div>
+            `;
+            
+            if (this.fileProgressContainer) {
+                this.fileProgressContainer.appendChild(progressDiv);
+            }
+
+            fileProgress[reportType] = {
+                element: progressDiv,
+                percent: 0,
+                status: 'Initializing...'
+            };
+        });
+
+        // Update progress for a specific file
+        const updateFileProgress = (reportType, percent, status) => {
+            if (fileProgress[reportType]) {
+                fileProgress[reportType].percent = percent;
+                fileProgress[reportType].status = status;
+                
+                const progressId = `progress-${reportType}`;
+                const barEl = document.getElementById(`${progressId}-bar`);
+                const percentEl = document.getElementById(`${progressId}-percent`);
+                const statusEl = document.getElementById(`${progressId}-status`);
+                
+                if (barEl) barEl.style.width = `${percent}%`;
+                if (percentEl) percentEl.textContent = `${Math.round(percent)}%`;
+                if (statusEl) statusEl.textContent = status;
+            }
+        };
+
+        // Update overall progress
+        const updateOverallProgress = () => {
+            const totalPercent = Object.values(fileProgress).reduce((sum, p) => sum + p.percent, 0) / reportTypes.length;
+            const overallBar = document.getElementById('overallProgressBar');
+            const overallPercent = document.getElementById('overallProgressPercentage');
+            
+            if (overallBar) overallBar.style.width = `${totalPercent}%`;
+            if (overallPercent) overallPercent.textContent = `${Math.round(totalPercent)}%`;
+        };
+
+        try {
+            // Simulate progress for each file
+            for (const reportType of reportTypes) {
+                updateFileProgress(reportType, 10, 'Connecting to NSE...');
+                updateOverallProgress();
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                updateFileProgress(reportType, 30, 'Downloading CSV...');
+                updateOverallProgress();
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            // Make API call
+            updateFileProgress(reportTypes[0], 50, 'Processing request...');
+            updateOverallProgress();
+
+            const response = await fetch('/api/download-nse-csvs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    reportTypes,
+                    googleSheetId: googleSheetId || null,
+                    googleSheetName: googleSheetName || 'Sheet1',
+                    googleApiKey: googleApiKey || null
+                })
+            });
+
+            const data = await response.json();
+
+            // Update progress based on results
+            if (data.success) {
+                data.results.forEach((result, index) => {
+                    const reportType = result.reportType;
+                    if (result.success) {
+                        updateFileProgress(reportType, 100, `✅ Downloaded (${(result.size / 1024).toFixed(2)} KB)`);
+                    } else {
+                        updateFileProgress(reportType, 0, `❌ Failed: ${result.error || 'Unknown error'}`);
+                    }
+                });
+
+                // Check Google Sheets upload
+                if (data.googleSheets) {
+                    if (data.googleSheets.success) {
+                        this.showDownloadStatus(`✅ Successfully downloaded ${data.downloaded} file(s) and uploaded to Google Sheets!`, 'success');
+                    } else {
+                        this.showDownloadStatus(`✅ Downloaded ${data.downloaded} file(s), but Google Sheets upload failed: ${data.googleSheets.error}`, 'warning');
+                    }
+                } else {
+                    this.showDownloadStatus(`✅ Successfully downloaded ${data.downloaded} file(s)!`, 'success');
+                }
+            } else {
+                this.showDownloadStatus(`❌ Error: ${data.error}`, 'error');
+                reportTypes.forEach(reportType => {
+                    updateFileProgress(reportType, 0, `❌ Failed: ${data.error}`);
+                });
+            }
+
+            updateOverallProgress();
+        } catch (error) {
+            console.error('Error downloading CSVs:', error);
+            this.showDownloadStatus(`❌ Error: ${error.message}`, 'error');
+            reportTypes.forEach(reportType => {
+                updateFileProgress(reportType, 0, `❌ Error: ${error.message}`);
+            });
+        } finally {
+            // Re-enable start button
+            if (this.startDownloadBtn) {
+                this.startDownloadBtn.disabled = false;
+                this.startDownloadBtn.textContent = 'Start Download';
+            }
+        }
+    }
+
+    showDownloadStatus(message, type = 'info') {
+        const statusEl = document.getElementById('downloadStatus');
+        if (!statusEl) return;
+
+        statusEl.style.display = 'block';
+        statusEl.style.padding = '12px';
+        statusEl.style.borderRadius = '8px';
+        
+        const colors = {
+            success: { bg: '#d1fae5', border: '#10b981', text: '#065f46' },
+            error: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' },
+            warning: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
+            info: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }
+        };
+
+        const color = colors[type] || colors.info;
+        statusEl.style.background = color.bg;
+        statusEl.style.border = `1px solid ${color.border}`;
+        statusEl.style.color = color.text;
+        statusEl.textContent = message;
     }
 }
 

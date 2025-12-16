@@ -58,6 +58,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/download-nse-csvs.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
@@ -114,6 +118,10 @@
     {
       "src": "/api/flush-uploaded-data",
       "dest": "/api/flush-uploaded-data.js"
+    },
+    {
+      "src": "/api/download-nse-csvs",
+      "dest": "/api/download-nse-csvs.js"
     },
     {
       "src": "/(.*)",
