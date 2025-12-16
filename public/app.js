@@ -2929,6 +2929,16 @@ class MarketMoodApp {
             }
             startIndex = 1;
             console.log(`✅ Detected CSV header row: ${headers.length} columns`);
+            console.log(`   Headers:`, headers.slice(0, 15));
+            
+            // Check if SERIES column exists
+            const hasSeries = headers.includes('SERIES');
+            if (!hasSeries) {
+                console.warn(`⚠️ SERIES column not found in header! Available headers:`, headers);
+            } else {
+                const seriesIndex = headers.indexOf('SERIES');
+                console.log(`✅ SERIES column found at index ${seriesIndex}`);
+            }
         } else {
             // No header row - use standard NSE bhavcopy column mapping
             // Standard format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
@@ -3407,31 +3417,84 @@ class MarketMoodApp {
                 }
             }
 
+            // Debug: Log all available column names from first row
+            if (csvData.length > 0) {
+                const allKeys = Object.keys(csvData[0]);
+                console.log(`🔍 All available columns in CSV:`, allKeys);
+                console.log(`🔍 First row full data:`, csvData[0]);
+                
+                // Check for SERIES column variations
+                const seriesVariations = ['SERIES', 'series', 'Series', 'SERIES1', 'SERIES2', 'SERIES_CODE', 'SERIESCODE'];
+                const foundSeriesKey = seriesVariations.find(key => csvData[0].hasOwnProperty(key));
+                if (foundSeriesKey) {
+                    console.log(`✅ Found SERIES column as: "${foundSeriesKey}"`);
+                } else {
+                    console.warn(`⚠️ SERIES column not found! Available columns:`, allKeys);
+                }
+            }
+
             csvData.forEach((row, index) => {
                 if (!row) return;
 
                 // CSV bhavcopy uses standard field names: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, etc.
-                // Normalize field names (handle both uppercase and lowercase)
-                const symbol = (row.SYMBOL || row.symbol || '').trim();
-                const series = (row.SERIES || row.series || '').trim();
-                const name = (row.NAME || row.name || symbol || '').trim(); // Optional name field
-                const market = (row.MARKET || row.market || '').trim(); // Optional market field
+                // Normalize field names (handle both uppercase and lowercase, and variations)
+                const symbol = (row.SYMBOL || row.symbol || row.Symbol || row['SYMBOL'] || '').trim();
+                
+                // Try multiple variations of SERIES column name
+                const series = (row.SERIES || row.series || row.Series || row.SERIES1 || row.SERIES2 || 
+                               row.SERIES_CODE || row.SERIESCODE || row['SERIES'] || '').trim();
+                
+                const name = (row.NAME || row.name || row.Name || symbol || '').trim(); // Optional name field
+                const market = (row.MARKET || row.market || row.Market || '').trim(); // Optional market field
 
-                if (index < 3) {
-                    console.log(`🔍 Row ${index} (CSV bhavcopy):`, { symbol, series, CLOSE: row.CLOSE || row.close });
+                if (index < 5) {
+                    console.log(`🔍 Row ${index} (CSV bhavcopy):`, { 
+                        symbol, 
+                        series, 
+                        seriesRaw: row.SERIES || row.series || row.Series || 'NOT FOUND',
+                        CLOSE: row.CLOSE || row.close,
+                        allKeys: Object.keys(row).slice(0, 10)
+                    });
                 }
 
                 // 1) Symbol check
-                if (!symbol) {
+                if (!symbol || symbol === 'SYMBOL' || symbol.toUpperCase() === 'SYMBOL') {
                     skippedNoSymbol++;
+                    if (index < 3) {
+                        console.log(`   ⏭️ Skipping row ${index}: no valid symbol (got: "${symbol}")`);
+                    }
                     return;
                 }
 
                 // 2) Series filter – only EQ (use uppercase for comparison)
+                // Also handle empty series - some CSV formats might not have SERIES column
                 const seriesUpper = (series || '').toUpperCase().trim();
-                if (seriesUpper !== 'EQ') {
+                
+                // If SERIES is empty, check if this might be a CSV without SERIES column
+                // Some NSE CSV formats might have all rows as EQ by default
+                if (!series || series === '') {
+                    // Check if we can infer from other columns or if all rows should be treated as EQ
+                    // For now, we'll skip rows without SERIES to be safe
+                    // But log it for debugging
+                    if (index < 10) {
+                        console.warn(`⚠️ Row ${index} (${symbol}): SERIES column is empty. Available columns:`, Object.keys(row));
+                    }
                     skippedNotEq++;
                     return;
+                }
+                
+                // Filter: only process EQ series
+                if (seriesUpper !== 'EQ') {
+                    skippedNotEq++;
+                    if (index < 5) {
+                        console.log(`   ⏭️ Skipping row ${index} (${symbol}): series="${seriesUpper}" (not EQ)`);
+                    }
+                    return;
+                }
+                
+                // Successfully found EQ row
+                if (index < 3) {
+                    console.log(`   ✅ Row ${index} (${symbol}): Valid EQ stock found`);
                 }
 
                 // 3) Price parsing: prefer CLOSE, fall back to LAST
@@ -3490,25 +3553,43 @@ class MarketMoodApp {
             console.log(`📊 Processed ${indices.length} EQ stocks from bhavcopy CSV file: ${fileName}`);
             console.log(
                 `   Skipped: ${skippedNoSymbol} (no symbol), ` +
-                `${skippedNotEq} (not EQ), ` +
+                `${skippedNotEq} (not EQ or empty series), ` +
                 `${skippedInvalidClose} (invalid close)`
             );
 
             if (indices.length === 0) {
-                console.warn(
-                    `⚠️ WARNING: No EQ stocks processed from ${csvData.length} parsed rows in ${fileName}!`
+                console.error(
+                    `❌ ERROR: No EQ stocks processed from ${csvData.length} parsed rows in ${fileName}!`
                 );
-                console.warn(`   Debug info:`, {
-                    isDatLayout,
+                console.error(`   Debug info:`, {
+                    totalRows: csvData.length,
                     firstRowKeys: csvData.length > 0 ? Object.keys(csvData[0]) : [],
                     firstRowSample: csvData.length > 0 ? {
-                        NAME: csvData[0].NAME,
-                        SYMBOL: csvData[0].SYMBOL,
-                        SERIES: csvData[0].SERIES,
-                        COL2: csvData[0].COL2,
-                        COL3: csvData[0].COL3
-                    } : null
+                        allColumns: Object.keys(csvData[0]),
+                        SYMBOL: csvData[0].SYMBOL || csvData[0].symbol,
+                        SERIES: csvData[0].SERIES || csvData[0].series,
+                        CLOSE: csvData[0].CLOSE || csvData[0].close,
+                        first10Values: Object.values(csvData[0]).slice(0, 10)
+                    } : null,
+                    skippedCounts: {
+                        noSymbol: skippedNoSymbol,
+                        notEq: skippedNotEq,
+                        invalidClose: skippedInvalidClose
+                    }
                 });
+                
+                // Show sample of first few rows to help debug
+                if (csvData.length > 0) {
+                    console.error(`   Sample rows (first 3):`);
+                    csvData.slice(0, 3).forEach((row, idx) => {
+                        console.error(`     Row ${idx}:`, {
+                            keys: Object.keys(row),
+                            SYMBOL: row.SYMBOL || row.symbol,
+                            SERIES: row.SERIES || row.series,
+                            CLOSE: row.CLOSE || row.close
+                        });
+                    });
+                }
             } else {
                 // Log sample of processed items
                 console.log(`✅ Sample processed items (first 3):`, indices.slice(0, 3).map(item => ({
