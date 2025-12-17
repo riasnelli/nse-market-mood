@@ -3566,9 +3566,10 @@ class MarketMoodApp {
                 const closeStr =
                     (row.CLOSE && String(row.CLOSE).trim()) ||
                     (row.close && String(row.close).trim()) ||
-                    (row.CLOSE_PRIC && String(row.CLOSE_PRIC).trim()) ||
+                    (row.CLOSE_PRIC && String(row.CLOSE_PRIC).trim()) || // Truncated version from NSE
                     (row.CLOSE_PRICE && String(row.CLOSE_PRICE).trim()) ||
                     (row.close_price && String(row.close_price).trim()) ||
+                    (row.close_pric && String(row.close_pric).trim()) || // Lowercase truncated
                     (row.LAST_PRICE && String(row.LAST_PRICE).trim()) ||
                     (row.last_price && String(row.last_price).trim()) ||
                     (row.LAST && String(row.LAST).trim()) ||
@@ -3614,15 +3615,23 @@ class MarketMoodApp {
                     return;
                 }
 
+                // Extract volume and delivery data if available
+                const volume = this.cleanPrice(row.TTL_TRD_QN || row.TOTTRDQTY || row.VOLUME || row.volume || row.tottrdqty || '');
+                const delivery = this.cleanPrice(row.DELIV_QTY || row.DELIVERY || row.delivery || row.deliveryqty || '');
+                const deliveryPercent = this.cleanPrice(row.DELIV_PER || row.DELIVERY_PER || row.delivery_percent || row.delivery_per || '');
+
                 indices.push({
                     symbol,
-                    series: seriesUpper, // Use uppercase series
+                    series: seriesUpper || 'EQ', // Use uppercase series, default to EQ if missing
                     date,
                     open: Number.isFinite(open) ? open : null,
                     high: Number.isFinite(high) ? high : null,
                     low: Number.isFinite(low) ? low : null,
                     close,
                     prevClose: Number.isFinite(prevClose) ? prevClose : null,
+                    volume: Number.isFinite(volume) ? volume : null,
+                    delivery: Number.isFinite(delivery) ? delivery : null,
+                    delivery_percent: Number.isFinite(deliveryPercent) ? deliveryPercent : null,
                     raw: row
                 });
             });
