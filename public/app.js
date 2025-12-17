@@ -5190,7 +5190,7 @@ class MarketMoodApp {
 
     async deleteUploadedFile(fileId, type = 'indices') {
         try {
-            const response = await fetch(`/api/save-uploaded-data?id=${fileId}&type=${type}`, {
+            const response = await apiConfig.fetch(`/api/save-uploaded-data?id=${fileId}&type=${type}`, {
                 method: 'DELETE'
             });
             const result = await response.json();
