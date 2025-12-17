@@ -194,7 +194,7 @@ function checkMarketStatusByTime() {
   };
 }
 
-module.exports = const { authMiddleware } = require('./lib/auth');
+const { authMiddleware } = require('./lib/auth');
 
 const handler = async (req, res) => {
 
@@ -345,7 +345,8 @@ const handler = async (req, res) => {
       allData.marketBreadth.declines = marketBreadthData.declines || 0;
     }
     
-    results.slice(0, -1).forEach((data, index) => {
+    // Process indices results (excluding the last one which is market breadth)
+    results.slice(0, -2).forEach((data, index) => {
       if (data && data.data && data.data.length > 0) {
         if (index < indices.length) {
           // This is an index
@@ -356,26 +357,24 @@ const handler = async (req, res) => {
               lastPrice: indexData.lastPrice,
               change: indexData.change,
               pChange: indexData.pChange
-    });
-  }
-};
-
-module.exports = authMiddleware({
-  requireAuth: false, // Public read endpoint, but rate limited
-  rateLimitType: 'public' // 100 requests per minute
-})(handler); else if (index === indices.length) {
-          // This is VIX
-          const vixData = data.data.find(item => item.symbol === 'INDIA VIX');
-          if (vixData) {
-            allData.vix = {
-              last: vixData.lastPrice,
-              change: vixData.change,
-              pChange: vixData.pChange
-            };
+            });
           }
         }
       }
     });
+    
+    // Process VIX (second to last result)
+    const vixData = results[results.length - 2];
+    if (vixData && vixData.data && vixData.data.length > 0) {
+      const vix = vixData.data.find(item => item.symbol === 'INDIA VIX');
+      if (vix) {
+        allData.vix = {
+          last: vix.lastPrice,
+          change: vix.change,
+          pChange: vix.pChange
+        };
+      }
+    }
     
     console.log(`NSE data fetched successfully: ${allData.indices.length} indices`);
     console.log(`Market Breadth: Advances=${allData.marketBreadth.advances}, Declines=${allData.marketBreadth.declines}`);
@@ -421,27 +420,18 @@ module.exports = authMiddleware({
     // Check market status even on error
     const marketStatus = await checkMarketStatus(req).catch(() => checkMarketStatusByTime());
     
-    // Return mock data as fallback
-    const mockData = {
-      mood: { score: 65, text: 'Bullish', emoji: '😊' },
-      indices: [
-        { symbol: 'NIFTY 50', lastPrice: 21500.45, change: 125.50, pChange: 0.59, advances: 28, declines: 17 },
-        { symbol: 'NIFTY BANK', lastPrice: 47500.75, change: 280.25, pChange: 0.59, advances: 0, declines: 0 },
-        { symbol: 'NIFTY IT', lastPrice: 35000.25, change: 150.30, pChange: 0.43, advances: 0, declines: 0 }
-      ],
-      vix: { last: 14.25, change: -0.35, pChange: -2.40 },
-      advanceDecline: { advances: 28, declines: 17 },
-      timestamp: new Date().toISOString(),
-      note: 'Using mock data - API failed',
+    // Return error response instead of mock data
+    res.status(500).json({
+      error: 'Failed to fetch NSE data',
+      message: error.message || 'NSE API request failed',
       marketStatus: {
         isOpen: marketStatus.isOpen,
         verified: marketStatus.verified,
         reason: marketStatus.reason,
         timestamp: new Date().toISOString()
-      }
-    };
-    
-    res.status(200).json(mockData);
+      },
+      timestamp: new Date().toISOString()
+    });
   }
 };
 
@@ -592,3 +582,8 @@ async function saveIndicesDataToDatabase(indices, vix) {
     throw error;
   }
 }
+
+module.exports = authMiddleware({
+  requireAuth: false, // Public read endpoint, but rate limited
+  rateLimitType: 'public' // 100 requests per minute
+})(handler);
