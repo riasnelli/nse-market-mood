@@ -3318,7 +3318,16 @@ class MarketMoodApp {
             }
             
             const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
-            if (!symbol || symbol === 'SYMBOL' || symbol.toUpperCase().includes('SYMBOL')) {
+            
+            // Skip header rows more aggressively
+            if (!symbol || 
+                symbol === 'SYMBOL' || 
+                symbol.toUpperCase().includes('SYMBOL') || 
+                symbol.startsWith(',') ||
+                symbol.includes('PREV. CLOSE') ||
+                symbol.includes('IEP') ||
+                symbol.includes('CHNG') ||
+                symbol.includes('FINAL')) {
                 continue; // skip bad/header-like rows
             }
             
