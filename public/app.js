@@ -3513,26 +3513,41 @@ class MarketMoodApp {
                 // Also handle empty series - some CSV formats might not have SERIES column
                 const seriesUpper = (series || '').toUpperCase().trim();
                 
-                // If SERIES is empty, check if this might be a CSV without SERIES column
-                // Some NSE CSV formats might have all rows as EQ by default
-                if (!series || series === '') {
-                    // Check if we can infer from other columns or if all rows should be treated as EQ
-                    // For now, we'll skip rows without SERIES to be safe
-                    // But log it for debugging
+                // Check if SERIES column exists in the CSV at all
+                const hasSeriesColumn = csvData.length > 0 && (
+                    csvData[0].hasOwnProperty('SERIES') || 
+                    csvData[0].hasOwnProperty('series') || 
+                    csvData[0].hasOwnProperty('Series') ||
+                    csvData[0].hasOwnProperty('SERIES1') ||
+                    csvData[0].hasOwnProperty('SERIES_CODE')
+                );
+                
+                // If SERIES column doesn't exist in CSV, assume all rows are EQ
+                // (NSE bhavcopy CSV files typically only contain EQ stocks)
+                if (!hasSeriesColumn) {
+                    // No SERIES column - assume all are EQ stocks (common for bhavcopy CSV)
+                    if (index === 0) {
+                        console.log(`ℹ️ No SERIES column found in CSV - assuming all rows are EQ stocks`);
+                    }
+                    // Continue processing as EQ
+                } else if (!series || series === '') {
+                    // SERIES column exists but this row has empty value - skip it
                     if (index < 10) {
                         console.warn(`⚠️ Row ${index} (${symbol}): SERIES column is empty. Available columns:`, Object.keys(row));
                     }
                     skippedNotEq++;
                     return;
-                }
-                
-                // Filter: only process EQ series
-                if (seriesUpper !== 'EQ') {
-                    skippedNotEq++;
-                    if (index < 5) {
-                        console.log(`   ⏭️ Skipping row ${index} (${symbol}): series="${seriesUpper}" (not EQ)`);
+                } else {
+                    // SERIES column exists and has value - filter for EQ only
+                    // Be more lenient: trim whitespace, handle variations like "EQ ", " eq", etc.
+                    const normalizedSeries = seriesUpper.replace(/\s+/g, '');
+                    if (normalizedSeries !== 'EQ') {
+                        skippedNotEq++;
+                        if (index < 5) {
+                            console.log(`   ⏭️ Skipping row ${index} (${symbol}): series="${seriesUpper}" (not EQ)`);
+                        }
+                        return;
                     }
-                    return;
                 }
                 
                 // Successfully found EQ row
