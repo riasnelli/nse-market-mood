@@ -3557,30 +3557,49 @@ class MarketMoodApp {
 
                 // 3) Price parsing: prefer CLOSE, fall back to LAST
                 // Normalize field names (handle both uppercase and lowercase from CSV)
+                // Support multiple column name variations:
+                // - CLOSE, CLOSE_PRIC, CLOSE_PRICE, LAST_PRICE, LAST
+                // - OPEN, OPEN_PRICE
+                // - HIGH, HIGH_PRICE
+                // - LOW, LOW_PRICE
+                // - PREVCLOSE, PREV_CLOSE, PREVCLOSE_PRICE
                 const closeStr =
                     (row.CLOSE && String(row.CLOSE).trim()) ||
                     (row.close && String(row.close).trim()) ||
+                    (row.CLOSE_PRIC && String(row.CLOSE_PRIC).trim()) ||
+                    (row.CLOSE_PRICE && String(row.CLOSE_PRICE).trim()) ||
+                    (row.close_price && String(row.close_price).trim()) ||
+                    (row.LAST_PRICE && String(row.LAST_PRICE).trim()) ||
+                    (row.last_price && String(row.last_price).trim()) ||
                     (row.LAST && String(row.LAST).trim()) ||
                     (row.last && String(row.last).trim()) ||
                     '';
 
                 const openStr = 
                     (row.OPEN && String(row.OPEN).trim()) || 
-                    (row.open && String(row.open).trim()) || 
+                    (row.open && String(row.open).trim()) ||
+                    (row.OPEN_PRICE && String(row.OPEN_PRICE).trim()) ||
+                    (row.open_price && String(row.open_price).trim()) ||
                     '';
                 const highStr = 
                     (row.HIGH && String(row.HIGH).trim()) || 
-                    (row.high && String(row.high).trim()) || 
+                    (row.high && String(row.high).trim()) ||
+                    (row.HIGH_PRICE && String(row.HIGH_PRICE).trim()) ||
+                    (row.high_price && String(row.high_price).trim()) ||
                     '';
                 const lowStr = 
                     (row.LOW && String(row.LOW).trim()) || 
-                    (row.low && String(row.low).trim()) || 
+                    (row.low && String(row.low).trim()) ||
+                    (row.LOW_PRICE && String(row.LOW_PRICE).trim()) ||
+                    (row.low_price && String(row.low_price).trim()) ||
                     '';
 
                 const prevCloseStr =
                     (row.PREVCLOSE && String(row.PREVCLOSE).trim()) ||
                     (row.prevClose && String(row.prevClose).trim()) ||
                     (row.PREV_CLOSE && String(row.PREV_CLOSE).trim()) ||
+                    (row.prev_close && String(row.prev_close).trim()) ||
+                    (row.PREVCLOSE_PRICE && String(row.PREVCLOSE_PRICE).trim()) ||
                     closeStr;
 
                 // Remove commas and parse as float
