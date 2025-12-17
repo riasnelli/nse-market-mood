@@ -1032,19 +1032,54 @@ class MarketMoodApp {
     }
 
     useMockData() {
-        console.log('Using mock data as fallback');
-        const mockData = {
-            mood: { score: 65, text: 'Bullish 😊', emoji: '😊' },
-            indices: [
-                { symbol: 'NIFTY 50', lastPrice: 21500.45, change: 125.50, pChange: 0.59, advances: 28, declines: 17 },
-                { symbol: 'NIFTY BANK', lastPrice: 47500.75, change: 280.25, pChange: 0.59, advances: 0, declines: 0 },
-                { symbol: 'NIFTY IT', lastPrice: 35000.25, change: 150.30, pChange: 0.43, advances: 0, declines: 0 }
-            ],
-            vix: { last: 14.25, change: -0.35, pChange: -2.40 },
-            advanceDecline: { advances: 28, declines: 17 },
-            note: 'Mock Data'
-        };
-        this.updateUI(mockData);
+        console.log('No data available - showing empty state');
+        this.showNoDataState();
+    }
+
+    showNoDataState() {
+        // Clear indices grids
+        const mainGrid = document.getElementById('mainIndicesGrid');
+        const allIndicesGrid = document.getElementById('allIndicesGrid');
+        const tableBody = document.getElementById('indicesTableBody');
+        if (mainGrid) mainGrid.innerHTML = '';
+        if (allIndicesGrid) allIndicesGrid.innerHTML = '';
+        if (tableBody) tableBody.innerHTML = '';
+
+        // Update mood card to show "No Data Available" with grey face
+        const moodEmoji = document.getElementById('moodEmoji');
+        const moodText = document.getElementById('moodText');
+        const scoreFill = document.getElementById('scoreFill');
+        const scoreText = document.getElementById('scoreText');
+        const moodExplanation = document.getElementById('moodExplanation');
+
+        if (moodEmoji) moodEmoji.textContent = '⚪'; // Grey circle emoji
+        if (moodText) moodText.textContent = 'No Data Available';
+        if (scoreFill) scoreFill.style.width = '0%';
+        if (scoreText) scoreText.textContent = '-/-';
+        if (moodExplanation) moodExplanation.textContent = 'Market data is currently unavailable. Please try again later.';
+
+        // Clear advance/decline
+        const advances = document.getElementById('advances');
+        const declines = document.getElementById('declines');
+        if (advances) advances.textContent = '-';
+        if (declines) declines.textContent = '-';
+
+        // Set neutral grey background
+        const defaultGrey = '#9ca3af'; // Neutral grey
+        const greyGradient = `linear-gradient(135deg, ${defaultGrey} 0%, #6b7280 100%)`;
+        
+        // Update greeting area background directly
+        const moodGreetingArea = document.querySelector('.mood-greeting-area');
+        if (moodGreetingArea) {
+            moodGreetingArea.style.setProperty('background', greyGradient, 'important');
+            moodGreetingArea.style.setProperty('background-color', defaultGrey, 'important');
+        }
+        
+        // Update theme color
+        this.updateThemeColor(defaultGrey, greyGradient);
+
+        // Hide loading
+        this.setLoading(false);
     }
 
     showErrorInUI(errorMessage) {
