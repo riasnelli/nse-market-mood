@@ -10,39 +10,15 @@
       "use": "@vercel/node"
     },
     {
-      "src": "api/save-uploaded-data.js",
+      "src": "api/data.js",
       "use": "@vercel/node"
     },
     {
-      "src": "api/get-uploaded-data.js",
+      "src": "api/signals.js",
       "use": "@vercel/node"
     },
     {
-      "src": "api/get-uploaded-dates.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/get-latest-signal-date.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/get-signals.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/generate-signals.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/check-date-data.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/index-history.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/flush-uploaded-data.js",
+      "src": "api/market.js",
       "use": "@vercel/node"
     },
     {
@@ -64,40 +40,16 @@
       "dest": "/api/dhan-data.js"
     },
     {
-      "src": "/api/save-uploaded-data",
-      "dest": "/api/save-uploaded-data.js"
+      "src": "/api/data",
+      "dest": "/api/data.js"
     },
     {
-      "src": "/api/get-uploaded-data",
-      "dest": "/api/get-uploaded-data.js"
+      "src": "/api/signals",
+      "dest": "/api/signals.js"
     },
     {
-      "src": "/api/get-uploaded-dates",
-      "dest": "/api/get-uploaded-dates.js"
-    },
-    {
-      "src": "/api/get-latest-signal-date",
-      "dest": "/api/get-latest-signal-date.js"
-    },
-    {
-      "src": "/api/get-signals",
-      "dest": "/api/get-signals.js"
-    },
-    {
-      "src": "/api/generate-signals",
-      "dest": "/api/generate-signals.js"
-    },
-    {
-      "src": "/api/check-date-data",
-      "dest": "/api/check-date-data.js"
-    },
-    {
-      "src": "/api/index-history",
-      "dest": "/api/index-history.js"
-    },
-    {
-      "src": "/api/flush-uploaded-data",
-      "dest": "/api/flush-uploaded-data.js"
+      "src": "/api/market",
+      "dest": "/api/market.js"
     },
     {
       "src": "/api/download-nse-csvs",

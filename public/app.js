@@ -721,7 +721,7 @@ class MarketMoodApp {
             this.updateMoodLoadingStatus('Loading 14-day trend data...');
             console.log('📊 Loading index history data...');
             
-            const response = await fetch('/api/index-history');
+            const response = await fetch('/api/market?action=history');
             if (response.ok) {
                 const data = await response.json();
                 this.indexTrends = data || {};
@@ -784,7 +784,15 @@ class MarketMoodApp {
                 if (selectedDate) {
                     try {
                         console.log('Loading uploaded data from database for date:', selectedDate);
-                        const response = await fetch(`/api/get-uploaded-data?date=${encodeURIComponent(selectedDate)}`);
+                        // Add cache-busting to ensure fresh data
+                        const cacheBuster = `&_=${Date.now()}`;
+                        const response = await fetch(`/api/data?action=get&date=${encodeURIComponent(selectedDate)}${cacheBuster}`, {
+                            cache: 'no-store',
+                            headers: {
+                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                'Pragma': 'no-cache'
+                            }
+                        });
                         if (response.ok) {
                             const data = await response.json();
                             if (data && data.indices && data.indices.length > 0) {
@@ -3852,12 +3860,12 @@ class MarketMoodApp {
                 });
             }
             
-            const response = await apiConfig.fetch('/api/save-uploaded-data', {
+            const response = await apiConfig.fetch('/api/data?action=save', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ ...payload, action: 'save' })
             });
 
             if (response.ok) {
@@ -3917,7 +3925,7 @@ class MarketMoodApp {
     async checkBhavcopyUploadHistory() {
         try {
             console.log('🔍 Checking bhavcopy upload history...');
-            const response = await fetch('/api/save-uploaded-data?type=bhav');
+            const response = await fetch('/api/data?action=get&type=bhav');
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -4016,7 +4024,7 @@ class MarketMoodApp {
     async checkAndShowDatePicker() {
         // Check if there's any uploaded data in the database
         try {
-            const response = await fetch('/api/save-uploaded-data');
+            const response = await fetch('/api/data');
             const result = await response.json();
             
             if (this.calendarTriggerBtn) {
@@ -4256,7 +4264,7 @@ class MarketMoodApp {
             }
 
             // Fetch data from database by date with full data
-            const response = await fetch(`/api/save-uploaded-data?date=${dateToLoad}&full=true`);
+            const response = await fetch(`/api/data?action=get&date=${dateToLoad}&full=true`);
             const result = await response.json();
 
             if (result.success && result.data && result.data.length > 0) {
@@ -4360,23 +4368,23 @@ class MarketMoodApp {
         try {
             // Fetch all uploaded files from all 5 collections
             const [indicesResponse, bhavResponse, premarketResponse, marketActivityResponse, week52Response] = await Promise.all([
-                fetch('/api/save-uploaded-data?type=indices').catch(err => {
+                fetch('/api/data?action=get&type=indices').catch(err => {
                     console.error('Error fetching indices data:', err);
                     return { ok: false, json: async () => ({ success: false, data: [] }) };
                 }),
-                fetch('/api/save-uploaded-data?type=bhav').catch(err => {
+                fetch('/api/data?action=get&type=bhav').catch(err => {
                     console.error('Error fetching bhav data:', err);
                     return { ok: false, json: async () => ({ success: false, data: [] }) };
                 }),
-                fetch('/api/save-uploaded-data?type=premarket').catch(err => {
+                fetch('/api/data?action=get&type=premarket').catch(err => {
                     console.error('Error fetching premarket data:', err);
                     return { ok: false, json: async () => ({ success: false, data: [] }) };
                 }),
-                fetch('/api/save-uploaded-data?type=marketactivity').catch(err => {
+                fetch('/api/data?action=get&type=marketactivity').catch(err => {
                     console.error('Error fetching market activity data:', err);
                     return { ok: false, json: async () => ({ success: false, data: [] }) };
                 }),
-                fetch('/api/save-uploaded-data?type=52w').catch(err => {
+                fetch('/api/data?action=get&type=52w').catch(err => {
                     console.error('Error fetching 52W data:', err);
                     return { ok: false, json: async () => ({ success: false, data: [] }) };
                 })
@@ -5143,7 +5151,7 @@ class MarketMoodApp {
     async exportCSV(fileId, date) {
         try {
             // Fetch full data for the file
-            const response = await fetch(`/api/save-uploaded-data?id=${fileId}&full=true`);
+            const response = await fetch(`/api/data?action=get&id=${fileId}&full=true`);
             const result = await response.json();
 
             if (result.success && result.data && result.data.length > 0) {
@@ -5190,7 +5198,7 @@ class MarketMoodApp {
 
     async deleteUploadedFile(fileId, type = 'indices') {
         try {
-            const response = await apiConfig.fetch(`/api/save-uploaded-data?id=${fileId}&type=${type}`, {
+            const response = await apiConfig.fetch(`/api/data?id=${fileId}&type=${type}`, {
                 method: 'DELETE'
             });
             const result = await response.json();
@@ -5732,10 +5740,10 @@ class MarketMoodApp {
             }
             } // Close if (moodPageView) block
             
-            // Load/refresh data
+            // Load/refresh data - always fetch fresh data when switching to mood view
             requestAnimationFrame(() => {
-                if (this.lastMarketData) {
-                    this.updateUI(this.lastMarketData);
+                // Force refresh to get latest data instead of using cached
+                this.loadData().then(() => {
                     if (this.chartsEnabled) {
                         this.loadIndexHistory().catch(err => 
                             console.warn('Index history loading failed:', err)
@@ -5744,15 +5752,13 @@ class MarketMoodApp {
                     if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
                         this.startPolling();
                     }
-                } else {
-                    this.loadData().then(() => {
-                        if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
-                            this.startPolling();
-                        }
-                    }).catch(err => {
-                        console.error('Error loading data:', err);
-                    });
-                }
+                }).catch(err => {
+                    console.error('Error loading data:', err);
+                    // Fallback to cached data if available
+                    if (this.lastMarketData) {
+                        this.updateUI(this.lastMarketData);
+                    }
+                });
                 
                 // Scroll to top after a brief delay
                 setTimeout(() => {
@@ -5956,7 +5962,7 @@ class MarketMoodApp {
                 } else {
                     // Try to get latest available date from API
                     try {
-                        const latestDateResponse = await fetch('/api/get-latest-signal-date');
+                        const latestDateResponse = await fetch('/api/signals?operation=latest');
                         if (latestDateResponse.ok) {
                             const latestDateData = await latestDateResponse.json();
                             if (latestDateData.latest_complete_date) {
@@ -5979,13 +5985,13 @@ class MarketMoodApp {
             this.updateSignalsStatus({ date: targetDate });
 
             // First, try to get existing signals for this date
-            let url = '/api/get-signals';
+            let url = '/api/signals?operation=get';
             if (targetDate) {
-                url = `/api/get-signals?date=${targetDate}`;
+                url = `/api/signals?operation=get&date=${targetDate}`;
             }
             // Add strategy parameter
             if (this.selectedStrategy) {
-                url += `${targetDate ? '&' : '?'}strategy=${this.selectedStrategy}`;
+                url += `${targetDate ? '&' : '&'}strategy=${this.selectedStrategy}`;
             }
 
             console.log('🔍 Fetching existing signals from:', url);
@@ -6242,13 +6248,13 @@ class MarketMoodApp {
     async generateSignalsForDate(date) {
         console.log('🔄 Generating signals for date:', date);
         
-            let generateUrl = '/api/generate-signals';
+            let generateUrl = '/api/signals?operation=generate';
             if (date) {
-                generateUrl = `/api/generate-signals?date=${date}`;
+                generateUrl = `/api/signals?operation=generate&date=${date}`;
             }
             // Add strategy parameter
             if (this.selectedStrategy) {
-                generateUrl += `${date ? '&' : '?'}strategy=${this.selectedStrategy}`;
+                generateUrl += `${date ? '&' : '&'}strategy=${this.selectedStrategy}`;
             }
         
         // Use generate-signals endpoint
@@ -6482,7 +6488,7 @@ class MarketMoodApp {
         try {
             // Generate signals for the latest date
             console.log('Generating signals for latest date...');
-            const response = await fetch('/api/generate-signals');
+            const response = await fetch('/api/signals?operation=generate');
 
             signalsLoading.style.display = 'none';
 
@@ -6693,7 +6699,7 @@ class MarketMoodApp {
             // Get latest date if not provided
             if (!date) {
                 try {
-                    const latestDateResponse = await fetch('/api/get-latest-signal-date');
+                    const latestDateResponse = await fetch('/api/signals?operation=latest');
                     if (!latestDateResponse.ok) {
                         console.warn('get-latest-signal-date API not available, using today\'s date');
                         // Use today's date as fallback
@@ -6732,7 +6738,7 @@ class MarketMoodApp {
             }
 
             // Fetch data availability
-            const response = await fetch(`/api/check-date-data?date=${date}`);
+            const response = await fetch(`/api/market?action=check-date&date=${date}`);
 
             dataAvailabilityLoading.style.display = 'none';
 

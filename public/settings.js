@@ -262,7 +262,7 @@ class SettingsManager {
         // Get dates from database first (this is where all uploaded files are stored)
         try {
             // Try the new endpoint first
-            const datesResponse = await fetch('/api/get-uploaded-dates');
+            const datesResponse = await fetch('/api/data?action=dates');
             if (datesResponse.ok) {
                 const dbDates = await datesResponse.json();
                 if (dbDates && Array.isArray(dbDates) && dbDates.length > 0) {
@@ -278,7 +278,7 @@ class SettingsManager {
             
             // Fallback: also try the save-uploaded-data endpoint to get all files
             if (dates.length === 0) {
-                const filesResponse = await fetch('/api/save-uploaded-data');
+                const filesResponse = await fetch('/api/data');
                 if (filesResponse.ok) {
                     const result = await filesResponse.json();
                     if (result.success && result.data && Array.isArray(result.data)) {
@@ -328,7 +328,7 @@ class SettingsManager {
     async loadUploadedDataByDate(date) {
         try {
             // Try to load from database first
-            const response = await fetch(`/api/get-uploaded-data?date=${encodeURIComponent(date)}`);
+            const response = await fetch(`/api/data?action=get&date=${encodeURIComponent(date)}`);
             if (response.ok) {
                 const data = await response.json();
                 if (data && data.indices) {

@@ -19,7 +19,7 @@ async function getSignals() {
       console.log(`\n🔍 Trying: ${baseUrl}`);
       
       // First check data availability
-      const checkUrl = `${baseUrl}/api/check-date-data?date=${today}`;
+      const checkUrl = `${baseUrl}/api/market?action=check-date&date=${today}`;
       console.log(`Checking data availability: ${checkUrl}`);
       
       const checkResponse = await fetch(checkUrl, { timeout: 10000 });
@@ -33,7 +33,7 @@ async function getSignals() {
       }
       
       // Try get-signals first (might already be generated)
-      const getSignalsUrl = `${baseUrl}/api/get-signals?date=${today}`;
+      const getSignalsUrl = `${baseUrl}/api/signals?operation=get&date=${today}`;
       console.log(`\n🔍 Checking for existing signals: ${getSignalsUrl}`);
       
       let response = await fetch(getSignalsUrl, { timeout: 10000 });
@@ -45,7 +45,7 @@ async function getSignals() {
           response = { ok: true, json: async () => existingData };
         } else {
           // Generate signals
-          const generateUrl = `${baseUrl}/api/generate-signals?date=${today}`;
+          const generateUrl = `${baseUrl}/api/signals?operation=generate&date=${today}`;
           console.log(`\n🔄 Generating signals: ${generateUrl}`);
           response = await fetch(generateUrl, { timeout: 30000 });
         }
