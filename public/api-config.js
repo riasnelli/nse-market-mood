@@ -16,13 +16,14 @@ class ApiConfig {
     // Try to get from localStorage first (user-configured)
     this.apiKey = localStorage.getItem('nseMarketMoodApiKey');
     
-    // If not in localStorage, try to get from a secure source
-    // In production, this could be from a secure cookie or server-side config
+    // If not in localStorage, use default key that matches backend default
+    // This allows basic operations to work without manual configuration
     if (!this.apiKey) {
-      // For now, use a default key that should be changed in production
-      // This should be set via environment variable on the server
-      console.warn('⚠️ API key not found in localStorage. Some operations may fail.');
-      console.warn('💡 Set API key in localStorage: localStorage.setItem("nseMarketMoodApiKey", "your-key")');
+      // Use the same default key as the backend (from api/lib/auth.js)
+      // In production, this should be set via environment variable
+      this.apiKey = 'default-secret-key-change-in-production';
+      localStorage.setItem('nseMarketMoodApiKey', this.apiKey);
+      console.log('ℹ️ Using default API key. For production, set a custom key via environment variable.');
     }
   }
 
