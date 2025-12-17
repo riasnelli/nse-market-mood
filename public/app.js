@@ -4567,18 +4567,6 @@ class MarketMoodApp {
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
                         
-                        // Debug log for bhav data
-                        if (normalizedDate === '2025-12-11' || normalizedDate === '2025-12-10' || normalizedDate === '2025-12-01') {
-                            console.log(`🔍 Bhav data for ${normalizedDate}:`, {
-                                fileId: file.id,
-                                fileName: file.fileName,
-                                indicesCount: file.indicesCount,
-                                indicesArrayLength: Array.isArray(file.indices) ? file.indices.length : 'not array',
-                                finalCount: count,
-                                dateDataCurrentCount: dateData.bhav.count
-                            });
-                        }
-                        
                         // Only update if count > 0 (valid processed data exists)
                         // Don't set ID or count for files with 0 processed rows (failed processing)
                         if (count > 0) {
@@ -4587,17 +4575,8 @@ class MarketMoodApp {
                                 dateData.bhav.count = count;
                                 dateData.bhav.id = file.id;
                             }
-                        } else {
-                            // Count is 0 - this means processing failed
-                            // Don't overwrite existing valid data, but log for debugging
-                            if (normalizedDate === '2025-12-11' || normalizedDate === '2025-12-10') {
-                                console.warn(`⚠️ Bhavcopy file with 0 count found for ${normalizedDate}:`, {
-                                    fileId: file.id,
-                                    fileName: file.fileName,
-                                    reason: 'Processing likely failed - check header mapping and EQ filter'
-                                });
-                            }
                         }
+                        // Silently skip files with 0 count (processing failed) - no need to log each one
                         // Keep the most recent uploadedAt
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
                             dateData.uploadedAt = file.uploadedAt;
@@ -4636,19 +4615,7 @@ class MarketMoodApp {
                             count = file.indices.length;
                         }
                         
-                        // Debug log for premarket data
-                        if (normalizedDate === '2025-12-11' || normalizedDate === '2025-12-10') {
-                            console.log(`🔍 Premarket data for ${normalizedDate}:`, {
-                                fileId: file.id,
-                                fileName: file.fileName,
-                                dateDataPremarketCount: file.dateDataPremarketCount,
-                                count: file.count,
-                                indicesCount: file.indicesCount,
-                                indicesArray: Array.isArray(file.indices) ? file.indices.length : 'not array',
-                                finalCount: count,
-                                dateDataCurrentCount: dateData.premarket.count
-                            });
-                        }
+                        // Silently process premarket data - no verbose debug logs
                         
                         // Always update if count is higher OR if no ID is set yet (file exists)
                         if (count > dateData.premarket.count || !dateData.premarket.id) {
