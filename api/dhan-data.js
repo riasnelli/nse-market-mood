@@ -1,20 +1,7 @@
 const fetch = require('node-fetch');
+const { authMiddleware } = require('./lib/auth');
 
-module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  // Handle OPTIONS request for CORS
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
+const handler = async (req, res) => {
 
   try {
     // Get credentials from request body, query params, or environment
@@ -514,6 +501,11 @@ module.exports = async (req, res) => {
     res.status(200).json(errorResponse);
   }
 };
+
+module.exports = authMiddleware({
+  requireAuth: false, // Public read endpoint (uses its own Dhan API auth), but rate limited
+  rateLimitType: 'public' // 100 requests per minute
+})(handler);
 
 function processDhanData(data) {
   try {

@@ -194,21 +194,9 @@ function checkMarketStatusByTime() {
   };
 }
 
-module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+module.exports = const { authMiddleware } = require('./lib/auth');
 
-  // Handle OPTIONS request for CORS
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
+const handler = async (req, res) => {
 
   try {
     console.log('Fetching NSE data...');
@@ -368,9 +356,14 @@ module.exports = async (req, res) => {
               lastPrice: indexData.lastPrice,
               change: indexData.change,
               pChange: indexData.pChange
-            });
-          }
-        } else if (index === indices.length) {
+    });
+  }
+};
+
+module.exports = authMiddleware({
+  requireAuth: false, // Public read endpoint, but rate limited
+  rateLimitType: 'public' // 100 requests per minute
+})(handler); else if (index === indices.length) {
           // This is VIX
           const vixData = data.data.find(item => item.symbol === 'INDIA VIX');
           if (vixData) {

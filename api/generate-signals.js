@@ -5,6 +5,7 @@ const {
   getSignalRunCollection,
   getUploadedDataCollection
 } = require('./lib/mongodb');
+const { authMiddleware } = require('./lib/auth');
 
 // Try to load uuid, but don't fail if it's not available
 let uuidv4;
@@ -662,21 +663,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
   }
 }
 
-module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  // Handle OPTIONS request for CORS
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
+const handler = async (req, res) => {
 
   try {
     const date = req.query.date || new Date().toISOString().split('T')[0];
@@ -724,6 +711,11 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = authMiddleware({
+  requireAuth: req => req.method === 'POST', // Require auth for POST, allow GET without auth
+  rateLimitType: req => req.method === 'POST' ? 'write' : 'public'
+})(handler);
 
 /**
  * Mean Reversion signal generator

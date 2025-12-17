@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const { authMiddleware } = require('./lib/auth');
 
 /**
  * API endpoint to download CSVs from NSE India all-reports page
@@ -6,23 +7,10 @@ const fetch = require('node-fetch');
  * 1. Scrapes the NSE all-reports page to find CSV download links
  * 2. Downloads the selected CSV files
  * 3. Optionally uploads them to Google Sheets
+ * 
+ * SECURITY: Requires API key authentication (write operation)
  */
-module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  // Handle OPTIONS request for CORS
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
+const handler = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({
       success: false,
@@ -212,6 +200,11 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = authMiddleware({
+  requireAuth: true, // Require auth for this operation
+  rateLimitType: 'write' // Stricter rate limit (20 requests/minute)
+})(handler);
 
 /**
  * Upload CSV data to Google Sheets

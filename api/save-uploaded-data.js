@@ -5,23 +5,9 @@ const {
   getPreMarketDataCollection
 } = require('./lib/mongodb');
 const { ObjectId } = require('mongodb');
+const { authMiddleware } = require('./lib/auth');
 
-module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,DELETE');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  // Handle OPTIONS request for CORS
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
+const handler = async (req, res) => {
   try {
     // Check if MongoDB is configured
     // Support both MONGODB_URI and storage_MONGODB_URI (Vercel Storage naming)
@@ -545,4 +531,13 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = authMiddleware({
+  requireAuth: req => req.method === 'POST' || req.method === 'DELETE', // Require auth for write operations
+  rateLimitType: req => {
+    if (req.method === 'DELETE') return 'critical';
+    if (req.method === 'POST') return 'write';
+    return 'public';
+  }
+})(handler);
 

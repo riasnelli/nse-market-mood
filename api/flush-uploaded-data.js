@@ -1,4 +1,5 @@
 const { connectToDatabase } = require('./lib/mongodb');
+const { authMiddleware } = require('./lib/auth');
 
 /**
  * API endpoint to flush/delete all CSV uploaded data from MongoDB
@@ -15,23 +16,10 @@ const { connectToDatabase } = require('./lib/mongodb');
  * - premarket_data (auto-stored data)
  * - signals (generated signals)
  * - signal_runs (signal run metadata)
+ * 
+ * SECURITY: Requires API key authentication (critical operation)
  */
-module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  // Handle OPTIONS request for CORS
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
+const handler = async (req, res) => {
   // Only allow POST method
   if (req.method !== 'POST') {
     return res.status(405).json({
@@ -112,3 +100,8 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports = authMiddleware({
+  requireAuth: true, // Always require auth for this critical operation
+  rateLimitType: 'critical' // Very strict rate limit (5 requests/minute)
+})(handler);

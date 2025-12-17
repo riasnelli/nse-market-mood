@@ -3852,7 +3852,7 @@ class MarketMoodApp {
                 });
             }
             
-            const response = await fetch('/api/save-uploaded-data', {
+            const response = await apiConfig.fetch('/api/save-uploaded-data', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
