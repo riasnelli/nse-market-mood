@@ -318,12 +318,8 @@ const handler = async (req, res) => {
         });
       }
 
-      if (!date && !id) {
-        return res.status(400).json({
-          error: 'Date or ID parameter is required',
-          message: 'Please provide a date or id query parameter'
-        });
-      }
+      // Allow querying without date/id to get all documents (for listing all files)
+      // Only require date/id when action=get is explicitly used with a specific query
 
       // Get type from query parameter, default to 'indices'
       const uploadType = type || 'indices';
@@ -385,17 +381,29 @@ const handler = async (req, res) => {
       
       console.log(`Found ${documents.length} documents for type: ${uploadType}`);
 
+      // If querying by specific date or id and no results, return 404
+      // If querying all files and no results, return empty array (like original save-uploaded-data.js)
       if (documents.length === 0) {
-        return res.status(404).json({
-          error: 'Data not found',
-          message: id ? `No data found with ID: ${id}` : `No data found for date: ${date}`
-        });
+        if (date || id) {
+          return res.status(404).json({
+            error: 'Data not found',
+            message: id ? `No data found with ID: ${id}` : `No data found for date: ${date}`
+          });
+        } else {
+          // Querying all files - return empty array
+          return res.status(200).json({
+            success: true,
+            data: [],
+            count: 0
+          });
+        }
       }
 
       // Return the data in the expected format (matching get-uploaded-data.js)
       // When querying by date (not id), always return the most recent document in single format
       // unless full=true is specified
-      if ((date && !id && !full) || (documents.length === 1 && !full)) {
+      // When querying all files (no date/id), return array format
+      if (date && !id && !full) {
         // Single document or date query - return in get-uploaded-data format (most recent if multiple)
         const data = documents[0]; // Already sorted by uploadedAt: -1, so [0] is most recent
         return res.status(200).json({
