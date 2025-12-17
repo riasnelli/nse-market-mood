@@ -3249,18 +3249,44 @@ class MarketMoodApp {
         }
         
         // 2. First non-empty line is the header row
-        const headerLine = nonEmptyLines[0];
-        // Use proper CSV parser to handle quoted fields
-        let headerCells = parseCSVLine(headerLine)
-            .map(h => h.replace(/^"+|"+$/g, '').trim())
-            .filter(h => h); // Remove empty cells
+        // NSE premarket CSV might have header split across lines or in a different format
+        // Try to detect if header is on first line or needs to be reconstructed
+        let headerLine = nonEmptyLines[0];
+        let headerCells = [];
         
-        // If header parsing failed (only 1 column), try splitting by comma directly
-        // This handles cases where the CSV has a different format
+        // Check if first line looks like a partial header (starts with "SYMBOL" but incomplete)
+        if (headerLine.trim().startsWith('"SYMBOL') || headerLine.trim().startsWith('SYMBOL')) {
+            // Try to reconstruct header from first few lines
+            // NSE premarket CSV header format: SYMBOL, PREV. CLOSE, IEP, CHNG, %CHNG, FINAL, etc.
+            const firstFewLines = nonEmptyLines.slice(0, 3).join(' ');
+            // Try to extract header from combined lines
+            const combinedHeader = firstFewLines.split(',').map(h => h.replace(/^"+|"+$/g, '').trim()).filter(h => h && !h.match(/^\d/));
+            
+            if (combinedHeader.length > 1) {
+                headerCells = combinedHeader;
+                console.log('🔍 Reconstructed header from multiple lines');
+            } else {
+                // Fallback: Use standard NSE premarket header
+                headerCells = ['SYMBOL', 'PREV. CLOSE', 'IEP', 'CHNG', '%CHNG', 'FINAL', 'FINAL QUANTITY'];
+                console.log('🔍 Using standard NSE premarket header');
+            }
+        } else {
+            // Normal header parsing
+            headerCells = parseCSVLine(headerLine)
+                .map(h => h.replace(/^"+|"+$/g, '').trim())
+                .filter(h => h);
+        }
+        
+        // If still only 1 column, try splitting by comma directly
         if (headerCells.length <= 1 && headerLine.includes(',')) {
             console.warn('⚠️ Header parsing may have failed, trying alternative method');
-            // Try splitting by comma and cleaning
             headerCells = headerLine.split(',').map(h => h.replace(/^"+|"+$/g, '').trim()).filter(h => h);
+        }
+        
+        // Final fallback: Use standard NSE premarket header
+        if (headerCells.length <= 1) {
+            headerCells = ['SYMBOL', 'PREV. CLOSE', 'IEP', 'CHNG', '%CHNG', 'FINAL', 'FINAL QUANTITY'];
+            console.log('🔍 Using fallback standard NSE premarket header');
         }
         
         console.log('🔍 Fixed header cells:', headerCells);
@@ -3327,21 +3353,37 @@ class MarketMoodApp {
         const indices = [];
         let vixData = null;
 
-        csvData.forEach(row => {
+        csvData.forEach((row, index) => {
             // Support multiple column name formats:
             // NSE Indices CSV: "INDEX NAME", "CLOSING INDEX VALUE", "CHANGE(%)"
             // Generic format: "Name", "LTP", "Change(%)"
             const name = row['INDEX NAME'] || row['Index Name'] || row['Name'] || row['name'] || row['SYMBOL'] || row['symbol'] || '';
-            const ltp = parseFloat((row['CLOSING INDEX VALUE'] || row['Closing Index Value'] || row['LTP'] || row['ltp'] || row['CLOSE'] || row['close'] || row['LAST_PRICE'] || row['last_price'] || '0').replace(/,/g, ''));
-            const changePercent = parseFloat((row['CHANGE(%)'] || row['Change(%)'] || row['Change (%)'] || row['change'] || row['CHANGE'] || row['change'] || row['pChange'] || '0').replace(/%/g, '').replace(/\(/g, '').replace(/\)/g, ''));
+            
+            // Try multiple column name variations for price
+            const ltpStr = row['CLOSING INDEX VALUE'] || row['Closing Index Value'] || row['CLOSING INDEX'] || 
+                          row['LTP'] || row['ltp'] || row['CLOSE'] || row['close'] || 
+                          row['LAST_PRICE'] || row['last_price'] || row['LAST'] || row['last'] || '0';
+            const ltp = parseFloat(String(ltpStr).replace(/,/g, '').trim());
+            
+            // Try multiple column name variations for change percent
+            const changePercentStr = row['CHANGE(%)'] || row['Change(%)'] || row['CHANGE (%)'] || 
+                                    row['Change (%)'] || row['CHANGE'] || row['change'] || 
+                                    row['pChange'] || row['PCHANGE'] || row['%CHANGE'] || '0';
+            const changePercent = parseFloat(String(changePercentStr).replace(/,/g, '').replace(/%/g, '').replace(/\(/g, '').replace(/\)/g, '').trim());
 
             // Skip rows with empty name, but allow 0 values for ltp and changePercent
-            if (!name || name.trim() === '') {
+            if (!name || name.trim() === '' || name === 'INDEX NAME' || name === 'INDEX DATE') {
+                if (index < 3) {
+                    console.log(`⏭️ Skipping row ${index}: empty or header name (${name})`);
+                }
                 return; // Skip invalid rows
             }
             
             // Allow 0 values, but check if ltp is actually a number
             if (isNaN(ltp) || isNaN(changePercent)) {
+                if (index < 3) {
+                    console.log(`⏭️ Skipping row ${index}: invalid numbers (ltp=${ltp}, change=${changePercent})`);
+                }
                 return; // Skip invalid rows
             }
 
