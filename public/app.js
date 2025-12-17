@@ -7208,7 +7208,7 @@ class MarketMoodApp {
             updateFileProgress(reportTypes[0], 50, 'Processing request...');
             updateOverallProgress();
 
-            const response = await fetch('/api/download-nse-csvs', {
+            const response = await apiConfig.fetch('/api/download-nse-csvs', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
