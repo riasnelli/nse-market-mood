@@ -2816,6 +2816,14 @@ class MarketMoodApp {
                             processedData.indicesCount = week52Count;
                             processedData.count = week52Count;
                             console.log(`📊 Saving 52W High/Low for date ${date} with count=${week52Count}`);
+                        } else if (uploadType === 'indices') {
+                            // Process Indices CSV (NSE format with INDEX NAME, CLOSING INDEX VALUE, etc.)
+                            processedData = this.processCSVData(parsedData, date, file.name);
+                            processedData.type = 'indices';
+                            const indicesCount = processedData.indices?.length || 0;
+                            processedData.indicesCount = indicesCount;
+                            processedData.count = indicesCount;
+                            console.log(`📊 Saving Indices for date ${date} with count=${indicesCount}`);
                         } else {
                             // Default to indices processing
                             processedData = this.processCSVData(parsedData, date, file.name);
@@ -3243,9 +3251,17 @@ class MarketMoodApp {
         // 2. First non-empty line is the header row
         const headerLine = nonEmptyLines[0];
         // Use proper CSV parser to handle quoted fields
-        const headerCells = parseCSVLine(headerLine)
+        let headerCells = parseCSVLine(headerLine)
             .map(h => h.replace(/^"+|"+$/g, '').trim())
             .filter(h => h); // Remove empty cells
+        
+        // If header parsing failed (only 1 column), try splitting by comma directly
+        // This handles cases where the CSV has a different format
+        if (headerCells.length <= 1 && headerLine.includes(',')) {
+            console.warn('⚠️ Header parsing may have failed, trying alternative method');
+            // Try splitting by comma and cleaning
+            headerCells = headerLine.split(',').map(h => h.replace(/^"+|"+$/g, '').trim()).filter(h => h);
+        }
         
         console.log('🔍 Fixed header cells:', headerCells);
         console.log(`✅ Detected ${headerCells.length} columns`);
@@ -3312,9 +3328,12 @@ class MarketMoodApp {
         let vixData = null;
 
         csvData.forEach(row => {
-            const name = row['Name'] || row['name'] || '';
-            const ltp = parseFloat((row['LTP'] || row['ltp'] || '0').replace(/,/g, ''));
-            const changePercent = parseFloat((row['Change(%)'] || row['Change (%)'] || row['change'] || '0').replace(/%/g, ''));
+            // Support multiple column name formats:
+            // NSE Indices CSV: "INDEX NAME", "CLOSING INDEX VALUE", "CHANGE(%)"
+            // Generic format: "Name", "LTP", "Change(%)"
+            const name = row['INDEX NAME'] || row['Index Name'] || row['Name'] || row['name'] || row['SYMBOL'] || row['symbol'] || '';
+            const ltp = parseFloat((row['CLOSING INDEX VALUE'] || row['Closing Index Value'] || row['LTP'] || row['ltp'] || row['CLOSE'] || row['close'] || row['LAST_PRICE'] || row['last_price'] || '0').replace(/,/g, ''));
+            const changePercent = parseFloat((row['CHANGE(%)'] || row['Change(%)'] || row['Change (%)'] || row['change'] || row['CHANGE'] || row['change'] || row['pChange'] || '0').replace(/%/g, '').replace(/\(/g, '').replace(/\)/g, ''));
 
             // Skip rows with empty name, but allow 0 values for ltp and changePercent
             if (!name || name.trim() === '') {
@@ -6293,17 +6312,34 @@ class MarketMoodApp {
     async generateSignalsForDate(date) {
         console.log('🔄 Generating signals for date:', date);
         
-            let generateUrl = '/api/signals?operation=generate';
-            if (date) {
-                generateUrl = `/api/signals?operation=generate&date=${date}`;
-            }
-            // Add strategy parameter
-            if (this.selectedStrategy) {
-                generateUrl += `${date ? '&' : '&'}strategy=${this.selectedStrategy}`;
-            }
+        // Build request body and URL
+        const requestBody = {
+            operation: 'generate',
+            date: date || undefined,
+            strategy: this.selectedStrategy || 'momentum_gap'
+        };
         
-        // Use generate-signals endpoint
-        let response = await fetch(generateUrl);
+        // Remove undefined fields
+        Object.keys(requestBody).forEach(key => requestBody[key] === undefined && delete requestBody[key]);
+        
+        let generateUrl = '/api/signals';
+        if (date) {
+            generateUrl += `?date=${date}`;
+            if (this.selectedStrategy) {
+                generateUrl += `&strategy=${this.selectedStrategy}`;
+            }
+        } else if (this.selectedStrategy) {
+            generateUrl += `?strategy=${this.selectedStrategy}`;
+        }
+        
+        // Use POST method for generate operation (as required by API)
+        let response = await fetch(generateUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
         
         if (!response.ok) {
             // Don't throw - return null to allow graceful fallback
