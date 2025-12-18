@@ -3590,6 +3590,17 @@ class MarketMoodApp {
             console.log(`🔍 First row sample:`, csvData[0]);
         }
 
+        // Auto-detect format: Check if this is actually an indices file (has INDEX column)
+        // Some MA files are actually indices files with INDEX, PREVIOUS CL, OPEN, HIGH, LOW, CLOSE columns
+        const hasIndexColumn = csvData.some(row => row['INDEX'] || row['Index'] || row['index']);
+        const hasSymbolColumn = csvData.some(row => row['SYMBOL'] || row['Symbol'] || row['symbol']);
+        
+        if (hasIndexColumn && !hasSymbolColumn) {
+            console.log(`🔍 Detected indices format in MA file - will process as indices data`);
+            // Process as indices format (INDEX, PREVIOUS CL, OPEN, HIGH, LOW, CLOSE)
+            return this.processMarketActivityAsIndices(csvData, date, fileName);
+        }
+
         csvData.forEach((row, index) => {
             // Market Activity CSV typically has: SYMBOL, SERIES, and various price/volume columns
             const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
@@ -3678,6 +3689,124 @@ class MarketMoodApp {
 
         return {
             mood: null, // Market Activity doesn't have mood
+            indices: indices,
+            vix: null,
+            advanceDecline: { advances: 0, declines: 0 },
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
+    }
+
+    processMarketActivityAsIndices(csvData, date, fileName) {
+        const indices = [];
+        let skippedCount = 0;
+
+        console.log(`📊 Processing Market Activity as indices format: ${fileName}`);
+        
+        csvData.forEach((row, index) => {
+            // Indices format: INDEX, PREVIOUS CL, OPEN, HIGH, LOW, CLOSE, GAIN/LOSS
+            const indexName = row['INDEX'] || row['Index'] || row['index'] || '';
+            
+            // Skip rows with empty index name or header rows
+            if (!indexName || indexName.trim() === '' || indexName === 'INDEX' || indexName.toUpperCase() === 'INDEX') {
+                skippedCount++;
+                if (index < 5) {
+                    console.log(`⏭️ Skipping row ${index}: empty or header index (${indexName})`);
+                }
+                return;
+            }
+            
+            // Skip date rows, disclaimer rows, or summary rows
+            if (indexName.includes('Dec-2025') || indexName.includes('Disclaimer') || 
+                indexName.includes('Nifty witnessed') || indexName.includes('Traded Value') ||
+                indexName.includes('Traded Quan') || indexName.includes('Number of Tr') ||
+                indexName.length > 100) {
+                skippedCount++;
+                if (index < 5) {
+                    console.log(`⏭️ Skipping row ${index}: date/disclaimer/summary row (${indexName.substring(0, 50)})`);
+                }
+                return;
+            }
+
+            // Extract price data
+            const closeStr = row['CLOSE'] || row['Close'] || row['close'] || '0';
+            const close = parseFloat(String(closeStr).replace(/,/g, '').trim());
+            
+            const prevCloseStr = row['PREVIOUS CL'] || row['Previous CL'] || row['PREVIOUS CLOSE'] || row['PREV CLOSE'] || row['PREV_CLOSE'] || '0';
+            const prevClose = parseFloat(String(prevCloseStr).replace(/,/g, '').trim()) || close;
+            
+            const openStr = row['OPEN'] || row['Open'] || row['open'] || '0';
+            const open = parseFloat(String(openStr).replace(/,/g, '').trim()) || null;
+            
+            const highStr = row['HIGH'] || row['High'] || row['high'] || '0';
+            const high = parseFloat(String(highStr).replace(/,/g, '').trim()) || null;
+            
+            const lowStr = row['LOW'] || row['Low'] || row['low'] || '0';
+            const low = parseFloat(String(lowStr).replace(/,/g, '').trim()) || null;
+            
+            // Calculate change and pChange
+            const gainLossStr = row['GAIN/LOSS'] || row['Gain/Loss'] || row['GAIN_LOSS'] || row['CHANGE'] || row['Change'] || '0';
+            const gainLoss = parseFloat(String(gainLossStr).replace(/,/g, '').trim()) || 0;
+            
+            const change = gainLoss || (close - prevClose);
+            const pChange = prevClose > 0 ? ((change / prevClose) * 100) : 0;
+
+            // Validate - must have at least index name and close price
+            if (isNaN(close) || close <= 0) {
+                skippedCount++;
+                if (index < 5) {
+                    console.log(`⏭️ Skipping row ${index}: no valid close price for ${indexName}`);
+                }
+                return;
+            }
+
+            // Normalize index name
+            let normalizedName = indexName.trim();
+            const nameUpper = normalizedName.toUpperCase();
+            
+            if (nameUpper === 'NIFTY 50' || nameUpper === 'NIFTY50') {
+                normalizedName = 'NIFTY 50';
+            } else if (nameUpper === 'NIFTY BANK' || nameUpper === 'NIFTYBANK') {
+                normalizedName = 'NIFTY BANK';
+            } else if (nameUpper === 'NIFTY IT' || nameUpper === 'NIFTYIT') {
+                normalizedName = 'NIFTY IT';
+            } else if (nameUpper.includes('VIX')) {
+                normalizedName = 'INDIA VIX';
+            }
+
+            // Create market activity entry (as indices data)
+            indices.push({
+                symbol: normalizedName,
+                series: 'INDEX', // Market activity indices don't have series
+                close: close,
+                last_price: close,
+                open: open,
+                high: high,
+                low: low,
+                prevClose: prevClose,
+                change: change,
+                pChange: pChange,
+                date: date,
+                source: 'uploaded_marketactivity'
+            });
+        });
+
+        console.log(`📊 Processed ${indices.length} Market Activity indices from CSV file: ${fileName}`);
+        console.log(`   Skipped ${skippedCount} rows due to invalid data or headers.`);
+        
+        if (indices.length === 0 && skippedCount > 0) {
+            console.warn(`⚠️ WARNING: No valid Market Activity indices processed from ${csvData.length} parsed rows!`);
+            console.warn(`   Expected columns: INDEX, PREVIOUS CL, OPEN, HIGH, LOW, CLOSE, GAIN/LOSS`);
+            console.warn(`   First row keys:`, csvData.length > 0 ? Object.keys(csvData[0]) : 'N/A');
+            if (csvData.length > 0) {
+                console.warn(`   First row sample:`, csvData[0]);
+            }
+        }
+
+        return {
+            mood: null,
             indices: indices,
             vix: null,
             advanceDecline: { advances: 0, declines: 0 },
