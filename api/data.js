@@ -431,9 +431,11 @@ const handler = async (req, res) => {
             id: doc._id.toString(),
             fileName: doc.fileName,
             date: doc.date,
+            type: doc.type || uploadType, // CRITICAL: Include type field for frontend validation
             indicesCount: actualCount,
             indices: full === 'true' ? stocks : undefined, // Only include if full=true
             uploadedAt: doc.uploadedAt,
+            updatedAt: doc.updatedAt,
             mood: doc.mood,
             source: doc.source
           };
