@@ -2301,13 +2301,15 @@ class MarketMoodApp {
             console.log('✅ Created safeAreaOverlay element');
         }
         
-        // ALWAYS read from mood-greeting-area as the source of truth
+        // ALWAYS read from greeting area as the source of truth (mood or signals page)
         const moodGreetingArea = document.querySelector('.mood-greeting-area');
+        const signalsGreetingArea = document.querySelector('.signals-greeting-area');
+        const greetingArea = moodGreetingArea || signalsGreetingArea;
         let finalColor = color || '#667eea';
         let finalGrad = gradient || `linear-gradient(135deg, ${finalColor} 0%, ${finalColor} 100%)`;
         
-        if (moodGreetingArea) {
-            const computedStyle = getComputedStyle(moodGreetingArea);
+        if (greetingArea) {
+            const computedStyle = getComputedStyle(greetingArea);
             const bgGradient = computedStyle.backgroundImage || computedStyle.background;
             const bgColor = computedStyle.backgroundColor;
             
