@@ -4871,16 +4871,26 @@ class MarketMoodApp {
                         return; // Skip files that aren't actually marketactivity
                     }
                     
-                    // Also filter out indices files that were incorrectly saved as marketactivity
-                    // Check file name patterns to exclude indices files
+                    // Also filter out indices files and 52W files that were incorrectly saved as marketactivity
+                    // Check file name patterns to exclude indices files and 52W files
                     const fileName = (file.fileName || '').toLowerCase();
                     const isIndicesFile = fileName.includes('ind_close') || 
                                          (fileName.includes('indices') && !fileName.includes('market')) ||
                                          (fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices'));
+                    const is52WFile = fileName.includes('52_wk') || 
+                                      fileName.includes('52wk') || 
+                                      fileName.includes('52_week') ||
+                                      fileName.includes('52week') ||
+                                      (fileName.includes('52') && fileName.includes('wk'));
                     
                     if (isIndicesFile) {
                         console.warn(`⚠️ Skipping indices file incorrectly saved as marketactivity: ${file.fileName} (type: ${file.type})`);
                         return; // Skip this file - it's an indices file, not marketactivity
+                    }
+                    
+                    if (is52WFile) {
+                        console.warn(`⚠️ Skipping 52W file incorrectly saved as marketactivity: ${file.fileName} (type: ${file.type})`);
+                        return; // Skip this file - it's a 52W file, not marketactivity
                     }
                     
                     const normalizedDate = normalizeDate(file.date);
@@ -4898,9 +4908,9 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file
+                        // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file or 52W file
                         // This ensures we only show green checkmark for actual marketactivity files
-                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile) {
+                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile && !is52WFile) {
                             if (count > dateData.marketactivity.count || !dateData.marketactivity.id) {
                             dateData.marketactivity.count = count;
                             dateData.marketactivity.id = file.id;
@@ -4934,16 +4944,25 @@ class MarketMoodApp {
                         return; // Skip files that aren't actually 52w
                     }
                     
-                    // Also filter out indices files that were incorrectly saved as 52w
-                    // Check file name patterns to exclude indices files
+                    // Also filter out indices files and MA files that were incorrectly saved as 52w
+                    // Check file name patterns to exclude indices files and MA files
                     const fileName = (file.fileName || '').toLowerCase();
                     const isIndicesFile = fileName.includes('ind_close') || 
                                          (fileName.includes('indices') && !fileName.includes('52')) ||
                                          (fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices'));
+                    const isMAFile = (fileName.includes('ma') && !fileName.includes('52')) ||
+                                    fileName.includes('market_activity') ||
+                                    fileName.includes('marketactivity') ||
+                                    (fileName.includes('market') && fileName.includes('activity') && !fileName.includes('52'));
                     
                     if (isIndicesFile) {
                         console.warn(`⚠️ Skipping indices file incorrectly saved as 52w: ${file.fileName} (type: ${file.type})`);
                         return; // Skip this file - it's an indices file, not 52w
+                    }
+                    
+                    if (isMAFile) {
+                        console.warn(`⚠️ Skipping MA file incorrectly saved as 52w: ${file.fileName} (type: ${file.type})`);
+                        return; // Skip this file - it's an MA file, not 52w
                     }
                     
                     const normalizedDate = normalizeDate(file.date);
@@ -4961,9 +4980,9 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file
+                        // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file or MA file
                         // This ensures we only show green checkmark for actual 52w files
-                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile) {
+                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile && !isMAFile) {
                             if (count > dateData.week52.count || !dateData.week52.id) {
                             dateData.week52.count = count;
                             dateData.week52.id = file.id;
