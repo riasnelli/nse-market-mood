@@ -2838,13 +2838,18 @@ class MarketMoodApp {
                             this._premarketParsedCount = null;
                             this._premarketHeader = null;
                         } else if (uploadType === 'marketactivity') {
-                            // Process Market Activity (EOD) data
-                            processedData = this.processCSVData(parsedData, date, file.name);
+                            // Process Market Activity (EOD) data - has SYMBOL, SERIES format
+                            processedData = this.processMarketActivityCSV(parsedData, date, file.name);
                             processedData.type = 'marketactivity';
                             const maCount = processedData.indices?.length || 0;
                             processedData.indicesCount = maCount;
                             processedData.count = maCount;
                             console.log(`📊 Saving Market Activity for date ${date} with count=${maCount}`);
+                            
+                            // Don't save if no data processed
+                            if (maCount === 0) {
+                                throw new Error('Market Activity file processed 0 rows - check file format. Expected columns: SYMBOL, SERIES, and price/volume data');
+                            }
                         } else if (uploadType === '52w') {
                             // Process 52W High/Low data
                             processedData = this.processCSVData(parsedData, date, file.name);
