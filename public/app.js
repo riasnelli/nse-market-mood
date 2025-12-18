@@ -3467,6 +3467,28 @@ class MarketMoodApp {
             }
         });
 
+        // Log processing results
+        console.log(`📊 Processed ${indices.length} indices from CSV file: ${fileName}`);
+        if (indices.length > 0) {
+            console.log(`✅ Sample processed indices (first 3):`, indices.slice(0, 3).map(item => ({
+                symbol: item.symbol,
+                last_price: item.last_price,
+                pChange: item.pChange,
+                date: item.date
+            })));
+        } else {
+            console.warn(`⚠️ WARNING: No indices processed from ${csvData.length} CSV rows!`);
+            console.warn(`   Check column names: INDEX NAME, CLOSING INDEX VALUE, CHANGE(%)`);
+            if (csvData.length > 0) {
+                console.warn(`   First row keys:`, Object.keys(csvData[0]));
+                console.warn(`   First row sample:`, {
+                    'INDEX NAME': csvData[0]['INDEX NAME'],
+                    'CLOSING INDEX VALUE': csvData[0]['CLOSING INDEX VALUE'],
+                    'CHANGE(%)': csvData[0]['CHANGE(%)']
+                });
+            }
+        }
+
         // Calculate mood from NIFTY 50
         const nifty50 = indices.find(idx => 
             idx.symbol.toUpperCase().includes('NIFTY 50') || 
