@@ -4736,11 +4736,11 @@ class MarketMoodApp {
                         if (!dateMap.has(normalizedDate)) {
                             dateMap.set(normalizedDate, {
                                 date: normalizedDate,
-                                indices: { count: 0, id: null },
-                                bhav: { count: 0, id: null },
-                                premarket: { count: 0, id: null },
-                                marketactivity: { count: 0, id: null },
-                                week52: { count: 0, id: null },
+                                indices: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                bhav: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                premarket: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                marketactivity: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                week52: { count: 0, id: null, fileName: null, uploadedAt: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
@@ -4749,6 +4749,8 @@ class MarketMoodApp {
                         if (count > dateData.indices.count) {
                             dateData.indices.count = count;
                             dateData.indices.id = file.id;
+                            dateData.indices.fileName = file.fileName || 'Unknown';
+                            dateData.indices.uploadedAt = file.uploadedAt || file.updatedAt || null;
                         }
                         // Keep the most recent uploadedAt
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
@@ -4766,11 +4768,11 @@ class MarketMoodApp {
                         if (!dateMap.has(normalizedDate)) {
                             dateMap.set(normalizedDate, {
                                 date: normalizedDate,
-                                indices: { count: 0, id: null },
-                                bhav: { count: 0, id: null },
-                                premarket: { count: 0, id: null },
-                                marketactivity: { count: 0, id: null },
-                                week52: { count: 0, id: null },
+                                indices: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                bhav: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                premarket: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                marketactivity: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                week52: { count: 0, id: null, fileName: null, uploadedAt: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
@@ -4784,6 +4786,8 @@ class MarketMoodApp {
                             if (count > dateData.bhav.count || !dateData.bhav.id || dateData.bhav.count === 0) {
                                 dateData.bhav.count = count;
                                 dateData.bhav.id = file.id;
+                                dateData.bhav.fileName = file.fileName || 'Unknown';
+                                dateData.bhav.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             }
                         }
                         // Silently skip files with 0 count (processing failed) - no need to log each one
@@ -4803,11 +4807,11 @@ class MarketMoodApp {
                         if (!dateMap.has(normalizedDate)) {
                             dateMap.set(normalizedDate, {
                                 date: normalizedDate,
-                                indices: { count: 0, id: null },
-                                bhav: { count: 0, id: null },
-                                premarket: { count: 0, id: null },
-                                marketactivity: { count: 0, id: null },
-                                week52: { count: 0, id: null },
+                                indices: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                bhav: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                premarket: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                marketactivity: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                week52: { count: 0, id: null, fileName: null, uploadedAt: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
@@ -4831,6 +4835,8 @@ class MarketMoodApp {
                         if (count > dateData.premarket.count || !dateData.premarket.id) {
                             dateData.premarket.count = count;
                             dateData.premarket.id = file.id;
+                            dateData.premarket.fileName = file.fileName || 'Unknown';
+                            dateData.premarket.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             dateData.dateDataPremarketCount = count;
                         }
                         // Keep the most recent uploadedAt
@@ -4849,11 +4855,11 @@ class MarketMoodApp {
                         if (!dateMap.has(normalizedDate)) {
                             dateMap.set(normalizedDate, {
                                 date: normalizedDate,
-                                indices: { count: 0, id: null },
-                                bhav: { count: 0, id: null },
-                                premarket: { count: 0, id: null },
-                                marketactivity: { count: 0, id: null },
-                                week52: { count: 0, id: null },
+                                indices: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                bhav: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                premarket: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                marketactivity: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                week52: { count: 0, id: null, fileName: null, uploadedAt: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
@@ -4862,6 +4868,8 @@ class MarketMoodApp {
                         if (count > 0 && (count > dateData.marketactivity.count || !dateData.marketactivity.id)) {
                             dateData.marketactivity.count = count;
                             dateData.marketactivity.id = file.id;
+                            dateData.marketactivity.fileName = file.fileName || 'Unknown';
+                            dateData.marketactivity.uploadedAt = file.uploadedAt || file.updatedAt || null;
                         }
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
                             dateData.uploadedAt = file.uploadedAt;
@@ -4878,11 +4886,11 @@ class MarketMoodApp {
                         if (!dateMap.has(normalizedDate)) {
                             dateMap.set(normalizedDate, {
                                 date: normalizedDate,
-                                indices: { count: 0, id: null },
-                                bhav: { count: 0, id: null },
-                                premarket: { count: 0, id: null },
-                                marketactivity: { count: 0, id: null },
-                                week52: { count: 0, id: null },
+                                indices: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                bhav: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                premarket: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                marketactivity: { count: 0, id: null, fileName: null, uploadedAt: null },
+                                week52: { count: 0, id: null, fileName: null, uploadedAt: null },
                                 uploadedAt: file.uploadedAt
                             });
                         }
@@ -4891,6 +4899,8 @@ class MarketMoodApp {
                         if (count > 0 && (count > dateData.week52.count || !dateData.week52.id)) {
                             dateData.week52.count = count;
                             dateData.week52.id = file.id;
+                            dateData.week52.fileName = file.fileName || 'Unknown';
+                            dateData.week52.uploadedAt = file.uploadedAt || file.updatedAt || null;
                         }
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
                             dateData.uploadedAt = file.uploadedAt;
@@ -5086,22 +5096,63 @@ class MarketMoodApp {
                     const hasMarketActivity = (dateData.marketactivity?.count || 0) > 0 && dateData.marketactivity?.id;
                     const hasWeek52 = (dateData.week52?.count || 0) > 0 && dateData.week52?.id;
                     
-                    // Debug log for rendering - show all data types
+                    // Helper function to format timestamp for tooltip
+                    const formatTimestamp = (timestamp) => {
+                        if (!timestamp) return 'Unknown';
+                        try {
+                            const date = new Date(timestamp);
+                            return date.toLocaleString('en-IN', { 
+                                year: 'numeric', 
+                                month: 'short', 
+                                day: 'numeric', 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                            });
+                        } catch (e) {
+                            return timestamp;
+                        }
+                    };
+                    
+                    // Create detailed tooltips with file name and upload time
+                    const bhavTooltip = hasBhav 
+                        ? `Bhavcopy: ${dateData.bhav.fileName || 'Unknown file'}\nUploaded: ${formatTimestamp(dateData.bhav.uploadedAt)}\nCount: ${dateData.bhav.count} stocks`
+                        : 'No bhavcopy data uploaded';
+                    const premarketTooltip = hasPremarket
+                        ? `Premarket: ${dateData.premarket.fileName || 'Unknown file'}\nUploaded: ${formatTimestamp(dateData.premarket.uploadedAt)}\nCount: ${dateData.premarket.count} items`
+                        : 'No premarket data uploaded';
+                    const maTooltip = hasMarketActivity
+                        ? `Market Activity: ${dateData.marketactivity.fileName || 'Unknown file'}\nUploaded: ${formatTimestamp(dateData.marketactivity.uploadedAt)}\nCount: ${dateData.marketactivity.count} items`
+                        : 'No Market Activity data uploaded';
+                    const week52Tooltip = hasWeek52
+                        ? `52W High/Low: ${dateData.week52.fileName || 'Unknown file'}\nUploaded: ${formatTimestamp(dateData.week52.uploadedAt)}\nCount: ${dateData.week52.count} items`
+                        : 'No 52W data uploaded';
+                    
+                    // Debug log for rendering - show all data types with file info
                     console.log(
                         `🎯 Rendering row for ${normalizedDate}:`,
-                        `indices=${dateData.indices?.count || 0} (id: ${dateData.indices?.id || 'none'}),`,
-                        `bhav=${dateData.bhav?.count || 0} (id: ${dateData.bhav?.id || 'none'}),`,
-                        `premarket=${dateData.premarket?.count || 0} (id: ${dateData.premarket?.id || 'none'}),`,
-                        `MA=${dateData.marketactivity?.count || 0} (id: ${dateData.marketactivity?.id || 'none'}),`,
-                        `52W=${dateData.week52?.count || 0} (id: ${dateData.week52?.id || 'none'})`
+                        `indices=${dateData.indices?.count || 0} (file: ${dateData.indices?.fileName || 'none'}, uploaded: ${formatTimestamp(dateData.indices?.uploadedAt)}),`,
+                        `bhav=${dateData.bhav?.count || 0} (file: ${dateData.bhav?.fileName || 'none'}, uploaded: ${formatTimestamp(dateData.bhav?.uploadedAt)}),`,
+                        `premarket=${dateData.premarket?.count || 0} (file: ${dateData.premarket?.fileName || 'none'}, uploaded: ${formatTimestamp(dateData.premarket?.uploadedAt)}),`,
+                        `MA=${dateData.marketactivity?.count || 0} (file: ${dateData.marketactivity?.fileName || 'none'}, uploaded: ${formatTimestamp(dateData.marketactivity?.uploadedAt)}),`,
+                        `52W=${dateData.week52?.count || 0} (file: ${dateData.week52?.fileName || 'none'}, uploaded: ${formatTimestamp(dateData.week52?.uploadedAt)})`
                     );
                     
                     // Log warning if MA or 52W shows checkmark but user didn't upload
                     if (hasMarketActivity && dateData.marketactivity?.id) {
-                        console.warn(`⚠️ Market Activity data found for ${normalizedDate}: ID=${dateData.marketactivity.id}, Count=${dateData.marketactivity.count}`);
+                        console.warn(`⚠️ Market Activity data found for ${normalizedDate}:`, {
+                            id: dateData.marketactivity.id,
+                            fileName: dateData.marketactivity.fileName,
+                            uploadedAt: formatTimestamp(dateData.marketactivity.uploadedAt),
+                            count: dateData.marketactivity.count
+                        });
                     }
                     if (hasWeek52 && dateData.week52?.id) {
-                        console.warn(`⚠️ 52W data found for ${normalizedDate}: ID=${dateData.week52.id}, Count=${dateData.week52.count}`);
+                        console.warn(`⚠️ 52W data found for ${normalizedDate}:`, {
+                            id: dateData.week52.id,
+                            fileName: dateData.week52.fileName,
+                            uploadedAt: formatTimestamp(dateData.week52.uploadedAt),
+                            count: dateData.week52.count
+                        });
                     }
                     
                     // SVG icons for bhav status
@@ -5119,10 +5170,10 @@ class MarketMoodApp {
                         </td>
                         <td style="color: ${dateColor};">${formattedDate}</td>
                         <td style="color: ${(dateData.indices?.count || 0) > 0 ? dateColor : '#999'};">${dateData.indices?.count || 0}</td>
-                        <td style="text-align: center; vertical-align: middle;" title="${hasBhav ? 'Bhavcopy data available' : 'No bhavcopy data uploaded'}">${hasBhav ? bhavCheckIcon : bhavXIcon}</td>
-                        <td style="text-align: center; vertical-align: middle;" title="${hasPremarket ? 'Premarket data available' : 'No premarket data uploaded'}">${hasPremarket ? bhavCheckIcon : bhavXIcon}</td>
-                        <td style="text-align: center; vertical-align: middle;" title="${hasMarketActivity ? 'Market Activity data available' : 'No Market Activity data uploaded'}">${hasMarketActivity ? bhavCheckIcon : bhavXIcon}</td>
-                        <td style="text-align: center; vertical-align: middle;" title="${hasWeek52 ? '52W High/Low data available' : 'No 52W data uploaded'}">${hasWeek52 ? bhavCheckIcon : bhavXIcon}</td>
+                        <td style="text-align: center; vertical-align: middle; cursor: help;" title="${bhavTooltip}">${hasBhav ? bhavCheckIcon : bhavXIcon}</td>
+                        <td style="text-align: center; vertical-align: middle; cursor: help;" title="${premarketTooltip}">${hasPremarket ? bhavCheckIcon : bhavXIcon}</td>
+                        <td style="text-align: center; vertical-align: middle; cursor: help;" title="${maTooltip}">${hasMarketActivity ? bhavCheckIcon : bhavXIcon}</td>
+                        <td style="text-align: center; vertical-align: middle; cursor: help;" title="${week52Tooltip}">${hasWeek52 ? bhavCheckIcon : bhavXIcon}</td>
                     `;
                     
                     // Store row data for easy access
