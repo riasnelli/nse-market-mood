@@ -2798,6 +2798,11 @@ class MarketMoodApp {
                             if (!Array.isArray(processedData.indices)) {
                                 console.error(`❌ Bhavcopy processing failed: indices is not an array`, processedData);
                                 this.showUploadStatus('Bhavcopy processing error - indices not an array', 'error');
+                                // Reset button on error
+                                if (uploadDataBtn) {
+                                    uploadDataBtn.disabled = false;
+                                    uploadDataBtn.textContent = 'Upload Data';
+                                }
                                 return;
                             }
                             
@@ -2805,6 +2810,11 @@ class MarketMoodApp {
                                 console.warn(`⚠️ Bhavcopy has 0 processed EQ stocks, skipping DB save for ${date}`, file.name);
                                 console.warn(`   Parsed rows: ${parsedData.length}, Processed EQ stocks: ${bhavCount}`);
                                 this.showUploadStatus('Bhavcopy processed 0 EQ stocks - check file format', 'warning');
+                                // Reset button on warning
+                                if (uploadDataBtn) {
+                                    uploadDataBtn.disabled = false;
+                                    uploadDataBtn.textContent = 'Upload Data';
+                                }
                                 return;
                             }
                             
