@@ -6161,6 +6161,15 @@ class MarketMoodApp {
             const strategyAnalysis = this.analyzeMarketConditionsAndRecommendStrategy();
             console.log('📊 Strategy analysis:', strategyAnalysis ? 'Available' : 'Not available');
             
+            // Automatically select the recommended strategy based on market sentiment
+            if (strategyAnalysis && strategyAnalysis.strategyId) {
+                const previousStrategy = this.selectedStrategy;
+                this.selectedStrategy = strategyAnalysis.strategyId;
+                localStorage.setItem('selectedStrategy', strategyAnalysis.strategyId);
+                this.updateSelectedStrategyText();
+                console.log(`✅ Auto-selected strategy: ${strategyAnalysis.strategy} (${strategyAnalysis.strategyId})${previousStrategy !== strategyAnalysis.strategyId ? ` (changed from ${previousStrategy})` : ''}`);
+            }
+            
             // Determine the date to use - prefer today's date if we have data
             let targetDate = date;
             if (!targetDate) {
@@ -6549,14 +6558,16 @@ class MarketMoodApp {
         const positiveMomentum = niftyChange > 0.5 && bankChange > 0.5;
         const negativeMomentum = niftyChange < -0.5 && bankChange < -0.5;
 
-        // Determine strategy
+        // Determine strategy (with ID for backend compatibility)
         let strategy = 'Momentum Gap';
+        let strategyId = 'momentum_gap'; // Default strategy ID
         let strategyDescription = 'Look for stocks with positive gaps and strong momentum.';
         let reasoning = [];
 
         if (isBullish && positiveMomentum && strongBreadth && !isVolatile) {
             // Strong bullish conditions - Momentum Gap strategy
             strategy = 'Momentum Gap';
+            strategyId = 'momentum_gap';
             strategyDescription = 'Market is showing strong bullish momentum with broad participation. Focus on stocks with positive gaps and strong relative strength.';
             reasoning = [
                 `Market mood: ${moodScore}/100 (Bullish)`,
@@ -6567,6 +6578,7 @@ class MarketMoodApp {
         } else if (isBullish && isVolatile) {
             // Bullish but volatile - Breakout strategy
             strategy = 'Breakout';
+            strategyId = 'breakout';
             strategyDescription = 'Market is bullish but volatile. Look for stocks breaking out of consolidation patterns with high volume.';
             reasoning = [
                 `Market mood: ${moodScore}/100 (Bullish)`,
@@ -6576,6 +6588,7 @@ class MarketMoodApp {
         } else if (isNeutral && isLowVolatility) {
             // Neutral, low volatility - Mean Reversion
             strategy = 'Mean Reversion';
+            strategyId = 'mean_reversion';
             strategyDescription = 'Market is neutral with low volatility. Look for oversold stocks that may revert to mean.';
             reasoning = [
                 `Market mood: ${moodScore}/100 (Neutral)`,
@@ -6585,6 +6598,7 @@ class MarketMoodApp {
         } else if (isBearish && negativeMomentum) {
             // Bearish conditions - Short or Wait
             strategy = 'Defensive / Wait';
+            strategyId = 'defensive';
             strategyDescription = 'Market is showing bearish pressure. Consider defensive positions or wait for better entry points.';
             reasoning = [
                 `Market mood: ${moodScore}/100 (Bearish)`,
@@ -6595,6 +6609,7 @@ class MarketMoodApp {
         } else if (isVolatile && (isBullish || isNeutral)) {
             // High volatility - Volatility Play
             strategy = 'Volatility Play';
+            strategyId = 'volatility_play';
             strategyDescription = 'High volatility environment. Look for stocks with strong momentum that can benefit from volatility.';
             reasoning = [
                 `Market mood: ${moodScore}/100`,
@@ -6605,6 +6620,7 @@ class MarketMoodApp {
 
         return {
             strategy,
+            strategyId,
             strategyDescription,
             reasoning,
             recommendedStocks: [], // Will be populated from signals
