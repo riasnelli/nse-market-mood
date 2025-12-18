@@ -4850,14 +4850,20 @@ class MarketMoodApp {
             // Process market activity data
             if (marketActivityResult.success && marketActivityResult.data) {
                 marketActivityResult.data.forEach(file => {
-                    // CRITICAL: Filter out indices files that were incorrectly saved as marketactivity
-                    // Check file type and file name patterns to exclude indices files
-                    const fileName = (file.fileName || '').toLowerCase();
+                    // CRITICAL: Only accept files that are actually marketactivity type
+                    // Check file type field first - must be 'marketactivity'
                     const fileType = (file.type || '').toLowerCase();
-                    const isIndicesFile = fileType === 'indices' || 
-                                         fileName.includes('ind_close') || 
-                                         fileName.includes('indices') || 
-                                         fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices');
+                    if (fileType !== 'marketactivity') {
+                        console.warn(`⚠️ Skipping file with wrong type in marketactivity collection: ${file.fileName} (type: ${file.type}, expected: marketactivity)`);
+                        return; // Skip files that aren't actually marketactivity
+                    }
+                    
+                    // Also filter out indices files that were incorrectly saved as marketactivity
+                    // Check file name patterns to exclude indices files
+                    const fileName = (file.fileName || '').toLowerCase();
+                    const isIndicesFile = fileName.includes('ind_close') || 
+                                         (fileName.includes('indices') && !fileName.includes('market')) ||
+                                         (fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices'));
                     
                     if (isIndicesFile) {
                         console.warn(`⚠️ Skipping indices file incorrectly saved as marketactivity: ${file.fileName} (type: ${file.type})`);
@@ -4907,14 +4913,20 @@ class MarketMoodApp {
             // Process 52W data
             if (week52Result.success && week52Result.data) {
                 week52Result.data.forEach(file => {
-                    // CRITICAL: Filter out indices files that were incorrectly saved as 52w
-                    // Check file type and file name patterns to exclude indices files
-                    const fileName = (file.fileName || '').toLowerCase();
+                    // CRITICAL: Only accept files that are actually 52w type
+                    // Check file type field first - must be '52w'
                     const fileType = (file.type || '').toLowerCase();
-                    const isIndicesFile = fileType === 'indices' || 
-                                         fileName.includes('ind_close') || 
-                                         fileName.includes('indices') || 
-                                         fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices');
+                    if (fileType !== '52w') {
+                        console.warn(`⚠️ Skipping file with wrong type in 52w collection: ${file.fileName} (type: ${file.type}, expected: 52w)`);
+                        return; // Skip files that aren't actually 52w
+                    }
+                    
+                    // Also filter out indices files that were incorrectly saved as 52w
+                    // Check file name patterns to exclude indices files
+                    const fileName = (file.fileName || '').toLowerCase();
+                    const isIndicesFile = fileName.includes('ind_close') || 
+                                         (fileName.includes('indices') && !fileName.includes('52')) ||
+                                         (fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices'));
                     
                     if (isIndicesFile) {
                         console.warn(`⚠️ Skipping indices file incorrectly saved as 52w: ${file.fileName} (type: ${file.type})`);
