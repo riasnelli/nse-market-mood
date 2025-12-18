@@ -4865,11 +4865,23 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        if (count > 0 && (count > dateData.marketactivity.count || !dateData.marketactivity.id)) {
-                            dateData.marketactivity.count = count;
-                            dateData.marketactivity.id = file.id;
-                            dateData.marketactivity.fileName = file.fileName || 'Unknown';
-                            dateData.marketactivity.uploadedAt = file.uploadedAt || file.updatedAt || null;
+                        // CRITICAL: Only set data if count > 0 AND file has valid fileName
+                        // This ensures we only show green checkmark for actual uploaded files
+                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '') {
+                            if (count > dateData.marketactivity.count || !dateData.marketactivity.id) {
+                                dateData.marketactivity.count = count;
+                                dateData.marketactivity.id = file.id;
+                                dateData.marketactivity.fileName = file.fileName;
+                                dateData.marketactivity.uploadedAt = file.uploadedAt || file.updatedAt || null;
+                            }
+                        } else {
+                            // Explicitly clear if invalid - ensure red X shows
+                            if (!dateData.marketactivity.id || dateData.marketactivity.count === 0) {
+                                dateData.marketactivity.count = 0;
+                                dateData.marketactivity.id = null;
+                                dateData.marketactivity.fileName = null;
+                                dateData.marketactivity.uploadedAt = null;
+                            }
                         }
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
                             dateData.uploadedAt = file.uploadedAt;
@@ -5160,21 +5172,39 @@ class MarketMoodApp {
                         `52W=${dateData.week52?.count || 0} (file: ${dateData.week52?.fileName || 'none'}, uploaded: ${formatTimestamp(dateData.week52?.uploadedAt)})`
                     );
                     
-                    // Log warning if MA or 52W shows checkmark but user didn't upload
+                    // Log detailed info for MA and 52W to help debug
                     if (hasMarketActivity && dateData.marketactivity?.id) {
-                        console.warn(`⚠️ Market Activity data found for ${normalizedDate}:`, {
+                        console.log(`✅ Market Activity data AVAILABLE for ${normalizedDate}:`, {
                             id: dateData.marketactivity.id,
                             fileName: dateData.marketactivity.fileName,
                             uploadedAt: formatTimestamp(dateData.marketactivity.uploadedAt),
                             count: dateData.marketactivity.count
                         });
+                    } else {
+                        console.log(`❌ Market Activity data NOT AVAILABLE for ${normalizedDate}:`, {
+                            count: dateData.marketactivity?.count || 0,
+                            id: dateData.marketactivity?.id || 'none',
+                            fileName: dateData.marketactivity?.fileName || 'none',
+                            reason: !dateData.marketactivity?.id ? 'No file uploaded' : 
+                                   (dateData.marketactivity?.count || 0) === 0 ? 'Count is 0' :
+                                   !dateData.marketactivity?.fileName || dateData.marketactivity?.fileName === 'Unknown' ? 'Invalid file name' : 'Unknown'
+                        });
                     }
                     if (hasWeek52 && dateData.week52?.id) {
-                        console.warn(`⚠️ 52W data found for ${normalizedDate}:`, {
+                        console.log(`✅ 52W data AVAILABLE for ${normalizedDate}:`, {
                             id: dateData.week52.id,
                             fileName: dateData.week52.fileName,
                             uploadedAt: formatTimestamp(dateData.week52.uploadedAt),
                             count: dateData.week52.count
+                        });
+                    } else {
+                        console.log(`❌ 52W data NOT AVAILABLE for ${normalizedDate}:`, {
+                            count: dateData.week52?.count || 0,
+                            id: dateData.week52?.id || 'none',
+                            fileName: dateData.week52?.fileName || 'none',
+                            reason: !dateData.week52?.id ? 'No file uploaded' : 
+                                   (dateData.week52?.count || 0) === 0 ? 'Count is 0' :
+                                   !dateData.week52?.fileName || dateData.week52?.fileName === 'Unknown' ? 'Invalid file name' : 'Unknown'
                         });
                     }
                     
