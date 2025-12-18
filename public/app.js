@@ -3316,7 +3316,7 @@ class MarketMoodApp {
         } else {
             // Normal header parsing
             headerCells = parseCSVLine(headerLine)
-                .map(h => h.replace(/^"+|"+$/g, '').trim())
+            .map(h => h.replace(/^"+|"+$/g, '').trim())
                 .filter(h => h);
         }
         
@@ -3709,11 +3709,11 @@ class MarketMoodApp {
                     // Be more lenient: trim whitespace, handle variations like "EQ ", " eq", etc.
                     const normalizedSeries = seriesUpper.replace(/\s+/g, '');
                     if (normalizedSeries !== 'EQ') {
-                        skippedNotEq++;
-                        if (index < 5) {
-                            console.log(`   ⏭️ Skipping row ${index} (${symbol}): series="${seriesUpper}" (not EQ)`);
-                        }
-                        return;
+                    skippedNotEq++;
+                    if (index < 5) {
+                        console.log(`   ⏭️ Skipping row ${index} (${symbol}): series="${seriesUpper}" (not EQ)`);
+                    }
+                    return;
                     }
                 }
                 
@@ -3745,19 +3745,19 @@ class MarketMoodApp {
 
                 const openStr = 
                     (row.OPEN && String(row.OPEN).trim()) || 
-                    (row.open && String(row.open).trim()) ||
+                    (row.open && String(row.open).trim()) || 
                     (row.OPEN_PRICE && String(row.OPEN_PRICE).trim()) ||
                     (row.open_price && String(row.open_price).trim()) ||
                     '';
                 const highStr = 
                     (row.HIGH && String(row.HIGH).trim()) || 
-                    (row.high && String(row.high).trim()) ||
+                    (row.high && String(row.high).trim()) || 
                     (row.HIGH_PRICE && String(row.HIGH_PRICE).trim()) ||
                     (row.high_price && String(row.high_price).trim()) ||
                     '';
                 const lowStr = 
                     (row.LOW && String(row.LOW).trim()) || 
-                    (row.low && String(row.low).trim()) ||
+                    (row.low && String(row.low).trim()) || 
                     (row.LOW_PRICE && String(row.LOW_PRICE).trim()) ||
                     (row.low_price && String(row.low_price).trim()) ||
                     '';
@@ -4850,6 +4850,20 @@ class MarketMoodApp {
             // Process market activity data
             if (marketActivityResult.success && marketActivityResult.data) {
                 marketActivityResult.data.forEach(file => {
+                    // CRITICAL: Filter out indices files that were incorrectly saved as marketactivity
+                    // Check file type and file name patterns to exclude indices files
+                    const fileName = (file.fileName || '').toLowerCase();
+                    const fileType = (file.type || '').toLowerCase();
+                    const isIndicesFile = fileType === 'indices' || 
+                                         fileName.includes('ind_close') || 
+                                         fileName.includes('indices') || 
+                                         fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices');
+                    
+                    if (isIndicesFile) {
+                        console.warn(`⚠️ Skipping indices file incorrectly saved as marketactivity: ${file.fileName} (type: ${file.type})`);
+                        return; // Skip this file - it's an indices file, not marketactivity
+                    }
+                    
                     const normalizedDate = normalizeDate(file.date);
                     if (normalizedDate) {
                         if (!dateMap.has(normalizedDate)) {
@@ -4865,12 +4879,12 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        // CRITICAL: Only set data if count > 0 AND file has valid fileName
-                        // This ensures we only show green checkmark for actual uploaded files
-                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '') {
+                        // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file
+                        // This ensures we only show green checkmark for actual marketactivity files
+                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile) {
                             if (count > dateData.marketactivity.count || !dateData.marketactivity.id) {
-                                dateData.marketactivity.count = count;
-                                dateData.marketactivity.id = file.id;
+                            dateData.marketactivity.count = count;
+                            dateData.marketactivity.id = file.id;
                                 dateData.marketactivity.fileName = file.fileName;
                                 dateData.marketactivity.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             }
@@ -4893,6 +4907,20 @@ class MarketMoodApp {
             // Process 52W data
             if (week52Result.success && week52Result.data) {
                 week52Result.data.forEach(file => {
+                    // CRITICAL: Filter out indices files that were incorrectly saved as 52w
+                    // Check file type and file name patterns to exclude indices files
+                    const fileName = (file.fileName || '').toLowerCase();
+                    const fileType = (file.type || '').toLowerCase();
+                    const isIndicesFile = fileType === 'indices' || 
+                                         fileName.includes('ind_close') || 
+                                         fileName.includes('indices') || 
+                                         fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices');
+                    
+                    if (isIndicesFile) {
+                        console.warn(`⚠️ Skipping indices file incorrectly saved as 52w: ${file.fileName} (type: ${file.type})`);
+                        return; // Skip this file - it's an indices file, not 52w
+                    }
+                    
                     const normalizedDate = normalizeDate(file.date);
                     if (normalizedDate) {
                         if (!dateMap.has(normalizedDate)) {
@@ -4908,12 +4936,12 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        // CRITICAL: Only set data if count > 0 AND file has valid fileName
-                        // This ensures we only show green checkmark for actual uploaded files
-                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '') {
+                        // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file
+                        // This ensures we only show green checkmark for actual 52w files
+                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile) {
                             if (count > dateData.week52.count || !dateData.week52.id) {
-                                dateData.week52.count = count;
-                                dateData.week52.id = file.id;
+                            dateData.week52.count = count;
+                            dateData.week52.id = file.id;
                                 dateData.week52.fileName = file.fileName;
                                 dateData.week52.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             }
@@ -6078,15 +6106,15 @@ class MarketMoodApp {
                             console.warn('Index history loading failed:', err)
                         );
                     }
-                    if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
-                        this.startPolling();
-                    }
-                }).catch(err => {
-                    console.error('Error loading data:', err);
+                        if (this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+                            this.startPolling();
+                        }
+                    }).catch(err => {
+                        console.error('Error loading data:', err);
                     // Fallback to cached data if available
                     if (this.lastMarketData) {
                         this.updateUI(this.lastMarketData);
-                    }
+                }
                 });
                 
                 // Scroll to top after a brief delay
@@ -6611,7 +6639,7 @@ class MarketMoodApp {
         Object.keys(requestBody).forEach(key => requestBody[key] === undefined && delete requestBody[key]);
         
         let generateUrl = '/api/signals';
-        if (date) {
+            if (date) {
             generateUrl += `?date=${date}`;
             if (this.selectedStrategy) {
                 generateUrl += `&strategy=${this.selectedStrategy}`;
@@ -7279,7 +7307,7 @@ class MarketMoodApp {
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                     </svg>
                     <div style="font-size: 0.9rem; font-weight: 600; color: #667eea; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
-                </div>
+                    </div>
                 <div style="display: grid; grid-template-columns: 1fr; gap: 14px; font-size: 0.9rem;">
                     <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
