@@ -2711,16 +2711,31 @@ class MarketMoodApp {
                 // Validate all required fields
                 if (!file) {
                     this.showUploadStatus('Please select a file to upload', 'error');
+                    // Reset button
+                    if (uploadDataBtn) {
+                        uploadDataBtn.disabled = false;
+                        uploadDataBtn.textContent = 'Upload Data';
+                    }
                     return;
                 }
                 
                 if (!date || date.trim() === '') {
                     this.showUploadStatus('Please select a date', 'error');
+                    // Reset button
+                    if (uploadDataBtn) {
+                        uploadDataBtn.disabled = false;
+                        uploadDataBtn.textContent = 'Upload Data';
+                    }
                     return;
                 }
                 
                 if (!uploadType || uploadType.trim() === '') {
                     this.showUploadStatus('Please select a data type', 'error');
+                    // Reset button
+                    if (uploadDataBtn) {
+                        uploadDataBtn.disabled = false;
+                        uploadDataBtn.textContent = 'Upload Data';
+                    }
                     return;
                 }
                 
@@ -2728,10 +2743,20 @@ class MarketMoodApp {
                 const fileExtension = file.name.split('.').pop().toLowerCase();
                 if (fileExtension === 'dat') {
                     this.showUploadStatus('DAT bhavcopy files are no longer supported. Please upload the NSE CSV bhavcopy file (e.g., sec_bhavdata_full_YYYYMMDD.csv).', 'error');
+                    // Reset button
+                    if (uploadDataBtn) {
+                        uploadDataBtn.disabled = false;
+                        uploadDataBtn.textContent = 'Upload Data';
+                    }
                     return;
                 }
                 if (fileExtension !== 'csv') {
                     this.showUploadStatus('Please select a CSV file', 'error');
+                    // Reset button
+                    if (uploadDataBtn) {
+                        uploadDataBtn.disabled = false;
+                        uploadDataBtn.textContent = 'Upload Data';
+                    }
                     return;
                 }
 
