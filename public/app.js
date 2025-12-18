@@ -5086,10 +5086,23 @@ class MarketMoodApp {
                     const hasMarketActivity = (dateData.marketactivity?.count || 0) > 0 && dateData.marketactivity?.id;
                     const hasWeek52 = (dateData.week52?.count || 0) > 0 && dateData.week52?.id;
                     
-                    // Debug log for rendering
+                    // Debug log for rendering - show all data types
                     console.log(
-                        `🎯 Rendering row for ${normalizedDate}: hasPremarket=${hasPremarket}, premarket=${dateData.premarket?.count || 0}, premarketId=${dateData.premarket?.id || 'none'}`
+                        `🎯 Rendering row for ${normalizedDate}:`,
+                        `indices=${dateData.indices?.count || 0} (id: ${dateData.indices?.id || 'none'}),`,
+                        `bhav=${dateData.bhav?.count || 0} (id: ${dateData.bhav?.id || 'none'}),`,
+                        `premarket=${dateData.premarket?.count || 0} (id: ${dateData.premarket?.id || 'none'}),`,
+                        `MA=${dateData.marketactivity?.count || 0} (id: ${dateData.marketactivity?.id || 'none'}),`,
+                        `52W=${dateData.week52?.count || 0} (id: ${dateData.week52?.id || 'none'})`
                     );
+                    
+                    // Log warning if MA or 52W shows checkmark but user didn't upload
+                    if (hasMarketActivity && dateData.marketactivity?.id) {
+                        console.warn(`⚠️ Market Activity data found for ${normalizedDate}: ID=${dateData.marketactivity.id}, Count=${dateData.marketactivity.count}`);
+                    }
+                    if (hasWeek52 && dateData.week52?.id) {
+                        console.warn(`⚠️ 52W data found for ${normalizedDate}: ID=${dateData.week52.id}, Count=${dateData.week52.count}`);
+                    }
                     
                     // SVG icons for bhav status
                     const bhavCheckIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
