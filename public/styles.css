@@ -245,6 +245,52 @@ header {
     color: white;
 }
 
+/* Signals Greeting Area (matching mood page style) */
+.signals-greeting-area {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 20px 104px 20px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-color: #667eea;
+    transition: background 0.5s ease, background-color 0.5s ease;
+    border-radius: 0 0 30px 30px;
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 0;
+    margin-bottom: -84px;
+    box-sizing: border-box;
+    z-index: 1;
+    top: 0;
+    background-attachment: fixed;
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+}
+
+.signals-greeting-area::before {
+    content: '';
+    position: absolute;
+    top: calc(-1 * env(safe-area-inset-top, 0px) - 1px);
+    left: 0;
+    right: 0;
+    height: calc(env(safe-area-inset-top, 0px) + 4px);
+    background: inherit;
+    background-color: inherit;
+    background-image: inherit;
+    z-index: -1;
+    margin: 0;
+    padding: 0;
+    background-attachment: fixed;
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+}
+
 .notification-bell {
     position: relative;
     width: 40px;

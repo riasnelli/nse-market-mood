@@ -6032,6 +6032,18 @@ class MarketMoodApp {
                 headerTitle.textContent = 'NSE Signals';
             }
             
+            // Update safe area overlay for signals page (use signals page gradient)
+            const signalsGreetingArea = signalsPageView.querySelector('.signals-greeting-area');
+            if (signalsGreetingArea) {
+                const computedStyle = getComputedStyle(signalsGreetingArea);
+                const bgGradient = computedStyle.backgroundImage || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                const bgColor = computedStyle.backgroundColor || '#667eea';
+                this.updateSafeAreaOverlay(bgColor, bgGradient);
+            } else {
+                // Default signals page gradient
+                this.updateSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
+            }
+            
             // CRITICAL: Force hide mood page and show signals page with !important
             // This overrides any existing inline styles or CSS rules
             moodPageView.style.setProperty('display', 'none', 'important');
@@ -6657,7 +6669,9 @@ class MarketMoodApp {
 
         strategyCard.innerHTML = `
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
-                <div style="font-size: 2rem;">📊</div>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
                 <div>
                     <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 4px;">Recommended Strategy for Tomorrow</div>
                     <div style="font-size: 1.4rem; font-weight: 700;">${analysis.strategy}</div>
@@ -7138,21 +7152,40 @@ class MarketMoodApp {
             }
         }
 
-        // Render status panel
+        // Render status panel with professional card design
         statusPanel.innerHTML = `
-            <div style="background: rgba(255, 255, 255, 0.95); border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                <div style="font-size: 0.85rem; font-weight: 600; color: #667eea; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
-                <div style="display: grid; grid-template-columns: 1fr; gap: 12px; font-size: 0.9rem;">
-                    <div style="display: flex; align-items: flex-start; gap: 8px;">
-                        <span style="color: #666; min-width: 60px; font-weight: 500;">Date:</span>
-                        <span style="color: #333; font-weight: 500;">${targetDate}</span>
+            <div style="background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                    <div style="font-size: 0.9rem; font-weight: 600; color: #667eea; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 14px; font-size: 0.9rem;">
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        <span style="color: #6b7280; font-weight: 500; min-width: 50px;">Date:</span>
+                        <span style="color: #111827; font-weight: 600;">${targetDate}</span>
                     </div>
-                    <div style="display: flex; align-items: flex-start; gap: 8px;">
-                        <span style="color: #666; min-width: 60px; font-weight: 500;">Engine:</span>
-                        <span style="color: ${engineStatusColor}; font-weight: 500; flex: 1; line-height: 1.4;">${engineStatus}</span>
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Engine:</span>
+                        <span style="color: ${engineStatusColor}; font-weight: 600; flex: 1; line-height: 1.4;">${engineStatus}</span>
                     </div>
-                    <div style="display: flex; align-items: flex-start; gap: 8px;">
-                        <span style="color: #666; min-width: 60px; font-weight: 500;">${strategyText}</span>
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 11l3 3L22 4"></path>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                        </svg>
+                        <span style="color: #111827; font-weight: 500; flex: 1; line-height: 1.4;">${strategyText}</span>
                     </div>
                 </div>
             </div>
@@ -7206,8 +7239,19 @@ class MarketMoodApp {
                     </div>
                     <div style="text-align: right;">
                         <div style="font-size: 0.85rem; color: #666; margin-bottom: 5px;">Can Generate Signals</div>
-                        <div style="font-size: 1.1rem; font-weight: 600; color: ${canGenerateSignals ? '#10b981' : '#ef4444'};">
-                            ${canGenerateSignals ? '✅ Yes' : '❌ No'}
+                        <div style="font-size: 1.1rem; font-weight: 600; color: ${canGenerateSignals ? '#10b981' : '#ef4444'}; display: flex; align-items: center; gap: 6px; justify-content: flex-end;">
+                            ${canGenerateSignals ? `
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                <span>Yes</span>
+                            ` : `
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                                <span>No</span>
+                            `}
                         </div>
                     </div>
                 </div>
@@ -7215,7 +7259,16 @@ class MarketMoodApp {
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 15px;">
                     <div style="padding: 12px; background: ${bhavcopy.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                            <span style="font-size: 1.2rem;">${bhavcopy.available ? '✅' : '❌'}</span>
+                            ${bhavcopy.available ? `
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            ` : `
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            `}
                             <span style="font-weight: 600; color: #333;">Bhavcopy</span>
                         </div>
                         <div style="font-size: 0.85rem; color: #666;">
@@ -7225,7 +7278,16 @@ class MarketMoodApp {
 
                     <div style="padding: 12px; background: ${indices.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                            <span style="font-size: 1.2rem;">${indices.available ? '✅' : '❌'}</span>
+                            ${indices.available ? `
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            ` : `
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            `}
                             <span style="font-weight: 600; color: #333;">Indices</span>
                         </div>
                         <div style="font-size: 0.85rem; color: #666;">
@@ -7235,7 +7297,16 @@ class MarketMoodApp {
 
                     <div style="padding: 12px; background: ${premarket.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                            <span style="font-size: 1.2rem;">${premarket.available ? '✅' : '❌'}</span>
+                            ${premarket.available ? `
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            ` : `
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            `}
                             <span style="font-weight: 600; color: #333;">Pre-market</span>
                         </div>
                         <div style="font-size: 0.85rem; color: #666;">
@@ -7245,7 +7316,16 @@ class MarketMoodApp {
 
                     <div style="padding: 12px; background: ${signals.available ? '#d1fae5' : '#fee2e2'}; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                            <span style="font-size: 1.2rem;">${signals.available ? '✅' : '❌'}</span>
+                            ${signals.available ? `
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            ` : `
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            `}
                             <span style="font-weight: 600; color: #333;">Signals</span>
                         </div>
                         <div style="font-size: 0.85rem; color: #666;">
