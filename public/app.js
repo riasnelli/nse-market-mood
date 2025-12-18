@@ -4074,10 +4074,23 @@ class MarketMoodApp {
                 throw new Error('Bhavcopy has 0 processed EQ stocks - cannot save to database');
             }
             
+            // CRITICAL: Ensure type is correctly set from data.type if provided, otherwise use parameter
+            // This ensures MA and 52W files are saved with correct type
+            let finalType = data.type || type || 'indices';
+            
+            // Validate type matches what we expect
+            const validTypes = ['indices', 'bhav', 'premarket', 'marketactivity', '52w'];
+            if (!validTypes.includes(finalType)) {
+                console.warn(`⚠️ Invalid type '${finalType}', defaulting to 'indices'`);
+                finalType = 'indices';
+            }
+            
+            console.log(`📤 Saving to database: type=${finalType}, fileName=${fileName}, date=${dataDate}, count=${actualIndicesCount}`);
+            
             const payload = {
                 fileName: fileName || 'uploaded.csv',
                 date: dataDate || new Date().toISOString().split('T')[0],
-                type: type || 'indices',
+                type: finalType, // Use validated type
                 indices: indicesArray, // Always send the actual array
                 indicesCount: actualIndicesCount, // Always calculate from array length
                 count: actualIndicesCount,
