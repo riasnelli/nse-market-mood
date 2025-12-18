@@ -3580,6 +3580,114 @@ class MarketMoodApp {
         };
     }
 
+    processMarketActivityCSV(csvData, date, fileName) {
+        const indices = [];
+        let skippedCount = 0;
+
+        console.log(`📊 Processing ${csvData.length} rows for Market Activity CSV: ${fileName}`);
+        if (csvData.length > 0) {
+            console.log(`🔍 First row keys:`, Object.keys(csvData[0]));
+            console.log(`🔍 First row sample:`, csvData[0]);
+        }
+
+        csvData.forEach((row, index) => {
+            // Market Activity CSV typically has: SYMBOL, SERIES, and various price/volume columns
+            const symbol = row['SYMBOL'] || row['Symbol'] || row['symbol'] || '';
+            const series = row['SERIES'] || row['Series'] || row['series'] || '';
+            
+            // Skip rows with empty symbol or header rows
+            if (!symbol || symbol.trim() === '' || symbol === 'SYMBOL' || symbol.toUpperCase() === 'SYMBOL') {
+                skippedCount++;
+                if (index < 5) {
+                    console.log(`⏭️ Skipping row ${index}: empty or header symbol (${symbol})`);
+                }
+                return;
+            }
+            
+            // Skip date rows or disclaimer rows
+            if (symbol.includes('Dec-2025') || symbol.includes('Disclaimer') || symbol.includes('Nifty witnessed') || symbol.length > 100) {
+                skippedCount++;
+                if (index < 5) {
+                    console.log(`⏭️ Skipping row ${index}: date/disclaimer row (${symbol.substring(0, 50)})`);
+                }
+                return;
+            }
+
+            // Try to extract price data - Market Activity files may have various column names
+            // Common columns: CLOSE, LAST_PRICE, LTP, CLOSE_PRICE, etc.
+            let closeStr = row['CLOSE'] || row['Close'] || row['close'] || 
+                           row['LAST_PRICE'] || row['Last Price'] || row['last_price'] ||
+                           row['LTP'] || row['ltp'] || row['CLOSE_PRICE'] || row['Close Price'] || '0';
+            let close = parseFloat(String(closeStr).replace(/,/g, '').trim());
+            
+            // Try to extract volume
+            const volumeStr = row['VOLUME'] || row['Volume'] || row['volume'] || 
+                            row['TTL_TRD_QN'] || row['TOTAL TRADED QUANTITY'] || '0';
+            const volume = parseFloat(String(volumeStr).replace(/,/g, '').trim()) || 0;
+            
+            // Try to extract turnover
+            const turnoverStr = row['TURNOVER'] || row['Turnover'] || row['turnover'] || 
+                              row['TTL_TRD_VAL'] || row['TOTAL TRADED VALUE'] || '0';
+            const turnover = parseFloat(String(turnoverStr).replace(/,/g, '').trim()) || 0;
+
+            // Validate - must have at least symbol and some price/volume data
+            if (isNaN(close) || close <= 0) {
+                // If no close price, try to use other price fields or skip
+                const openStr = row['OPEN'] || row['Open'] || row['open'] || 
+                              row['OPEN_PRICE'] || row['Open Price'] || '0';
+                const open = parseFloat(String(openStr).replace(/,/g, '').trim());
+                
+                if (isNaN(open) || open <= 0) {
+                    skippedCount++;
+                    if (index < 5) {
+                        console.log(`⏭️ Skipping row ${index}: no valid price data for ${symbol}`);
+                    }
+                    return;
+                }
+                // Use open as close if close is not available
+                close = open;
+            }
+
+            // Create market activity entry
+            indices.push({
+                symbol: symbol.trim(),
+                series: series || 'EQ', // Default to EQ if not specified
+                close: close,
+                last_price: close, // Backend expects this
+                open: parseFloat(String(row['OPEN'] || row['Open'] || row['open'] || '0').replace(/,/g, '').trim()) || null,
+                high: parseFloat(String(row['HIGH'] || row['High'] || row['high'] || '0').replace(/,/g, '').trim()) || null,
+                low: parseFloat(String(row['LOW'] || row['Low'] || row['low'] || '0').replace(/,/g, '').trim()) || null,
+                volume: volume,
+                turnover: turnover,
+                date: date,
+                source: 'uploaded_marketactivity'
+            });
+        });
+
+        console.log(`📊 Processed ${indices.length} Market Activity entries from CSV file: ${fileName}`);
+        console.log(`   Skipped ${skippedCount} rows due to invalid data or headers.`);
+        
+        if (indices.length === 0 && skippedCount > 0) {
+            console.warn(`⚠️ WARNING: No valid Market Activity entries processed from ${csvData.length} parsed rows!`);
+            console.warn(`   Expected columns: SYMBOL, SERIES, CLOSE (or LAST_PRICE, LTP), VOLUME, TURNOVER`);
+            console.warn(`   First row keys:`, csvData.length > 0 ? Object.keys(csvData[0]) : 'N/A');
+            if (csvData.length > 0) {
+                console.warn(`   First row sample:`, csvData[0]);
+            }
+        }
+
+        return {
+            mood: null, // Market Activity doesn't have mood
+            indices: indices,
+            vix: null,
+            advanceDecline: { advances: 0, declines: 0 },
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
+    }
+
     // ---- SAFE CLEANER FOR BHAVCOPY VALUES ----
     cleanPrice(value) {
         if (value === null || value === undefined) return null;
