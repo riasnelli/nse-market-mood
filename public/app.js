@@ -6270,10 +6270,12 @@ class MarketMoodApp {
                 signalsSuccess = data.success !== false;
             }
             
-            // If no data found or no signals, try to generate new ones
+            // If no data found or no signals, automatically generate new ones with the selected strategy
             if (!data || !hasSignals) {
-                console.log('⚠️ No existing signals found, generating new ones...');
+                console.log('⚠️ No existing signals found, automatically generating new ones with strategy:', this.selectedStrategy);
+                console.log('📊 Market analysis:', strategyAnalysis ? `${strategyAnalysis.strategy} (${strategyAnalysis.strategyId})` : 'Not available');
                 try {
+                    // Use the auto-selected strategy for generation
                     const generatedData = await this.generateSignalsForDate(targetDate);
                     
                     // Update data and signals array from generated response
