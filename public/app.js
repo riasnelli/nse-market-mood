@@ -6038,10 +6038,10 @@ class MarketMoodApp {
                 const computedStyle = getComputedStyle(signalsGreetingArea);
                 const bgGradient = computedStyle.backgroundImage || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                 const bgColor = computedStyle.backgroundColor || '#667eea';
-                this.updateSafeAreaOverlay(bgColor, bgGradient);
+                this.ensureSafeAreaOverlay(bgColor, bgGradient);
             } else {
                 // Default signals page gradient
-                this.updateSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
+                this.ensureSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
             }
             
             // CRITICAL: Force hide mood page and show signals page with !important
