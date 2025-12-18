@@ -4896,11 +4896,23 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        if (count > 0 && (count > dateData.week52.count || !dateData.week52.id)) {
-                            dateData.week52.count = count;
-                            dateData.week52.id = file.id;
-                            dateData.week52.fileName = file.fileName || 'Unknown';
-                            dateData.week52.uploadedAt = file.uploadedAt || file.updatedAt || null;
+                        // CRITICAL: Only set data if count > 0 AND file has valid fileName
+                        // This ensures we only show green checkmark for actual uploaded files
+                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '') {
+                            if (count > dateData.week52.count || !dateData.week52.id) {
+                                dateData.week52.count = count;
+                                dateData.week52.id = file.id;
+                                dateData.week52.fileName = file.fileName;
+                                dateData.week52.uploadedAt = file.uploadedAt || file.updatedAt || null;
+                            }
+                        } else {
+                            // Explicitly clear if invalid - ensure red X shows
+                            if (!dateData.week52.id || dateData.week52.count === 0) {
+                                dateData.week52.count = 0;
+                                dateData.week52.id = null;
+                                dateData.week52.fileName = null;
+                                dateData.week52.uploadedAt = null;
+                            }
                         }
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
                             dateData.uploadedAt = file.uploadedAt;
@@ -5090,11 +5102,22 @@ class MarketMoodApp {
                     const dateColor = '#f97316'; // Orange color
                     
                     // Check if data types have data
-                    // Show checkmark ONLY if count > 0 AND id exists (data was actually parsed and stored)
-                    const hasBhav = (dateData.bhav?.count || 0) > 0 && dateData.bhav?.id;
-                    const hasPremarket = (dateData.premarket?.count || 0) > 0 && dateData.premarket?.id;
-                    const hasMarketActivity = (dateData.marketactivity?.count || 0) > 0 && dateData.marketactivity?.id;
-                    const hasWeek52 = (dateData.week52?.count || 0) > 0 && dateData.week52?.id;
+                    // Show checkmark ONLY if count > 0 AND id exists AND fileName exists (data was actually parsed and stored)
+                    // Strict validation: must have valid count, ID, and file name
+                    const hasBhav = (dateData.bhav?.count || 0) > 0 && 
+                                   dateData.bhav?.id && 
+                                   dateData.bhav?.fileName;
+                    const hasPremarket = (dateData.premarket?.count || 0) > 0 && 
+                                        dateData.premarket?.id && 
+                                        dateData.premarket?.fileName;
+                    const hasMarketActivity = (dateData.marketactivity?.count || 0) > 0 && 
+                                            dateData.marketactivity?.id && 
+                                            dateData.marketactivity?.fileName &&
+                                            dateData.marketactivity?.fileName !== 'Unknown';
+                    const hasWeek52 = (dateData.week52?.count || 0) > 0 && 
+                                     dateData.week52?.id && 
+                                     dateData.week52?.fileName &&
+                                     dateData.week52?.fileName !== 'Unknown';
                     
                     // Helper function to format timestamp for tooltip
                     const formatTimestamp = (timestamp) => {
