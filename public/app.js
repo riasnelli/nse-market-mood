@@ -2865,6 +2865,12 @@ class MarketMoodApp {
                         if (fileName) {
                             fileName.textContent = 'Choose CSV file...';
                         }
+                        
+                        // Reset upload button to normal state
+                        if (uploadDataBtn) {
+                            uploadDataBtn.disabled = false;
+                            uploadDataBtn.textContent = 'Upload Data';
+                        }
                         this.updateUploadButtonState();
                         
                         // Optional: Reload main data if on mood page (but don't close modal)
