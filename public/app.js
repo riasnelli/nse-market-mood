@@ -3397,8 +3397,23 @@ class MarketMoodApp {
             }
 
             // Calculate absolute change from percentage
-            const prevClose = ltp / (1 + changePercent / 100);
-            const change = ltp - prevClose;
+            // Handle edge cases: if changePercent is 0, prevClose = ltp, change = 0
+            let prevClose, change;
+            if (changePercent === 0 || isNaN(changePercent)) {
+                prevClose = ltp;
+                change = 0;
+            } else {
+                prevClose = ltp / (1 + changePercent / 100);
+                change = ltp - prevClose;
+            }
+            
+            // Validate calculated values
+            if (isNaN(prevClose) || isNaN(change) || !isFinite(prevClose) || !isFinite(change)) {
+                if (index < 3) {
+                    console.log(`⏭️ Skipping row ${index}: invalid calculated values (prevClose=${prevClose}, change=${change})`);
+                }
+                return; // Skip invalid rows
+            }
 
             // Normalize symbol name - ensure consistent format
             let normalizedName = name.trim();
@@ -3429,11 +3444,25 @@ class MarketMoodApp {
                     pChange: changePercent
                 };
             } else {
+                // Extract additional fields from NSE indices CSV
+                const open = parseFloat(String(row['OPEN INDEX VALUE'] || row['OPEN'] || row['open'] || '0').replace(/,/g, '').trim()) || null;
+                const high = parseFloat(String(row['HIGH INDEX VALUE'] || row['HIGH'] || row['high'] || '0').replace(/,/g, '').trim()) || null;
+                const low = parseFloat(String(row['LOW INDEX VALUE'] || row['LOW'] || row['low'] || '0').replace(/,/g, '').trim()) || null;
+                const pointsChange = parseFloat(String(row['POINTS CHANGE'] || row['Points Change'] || row['CHANGE'] || row['change'] || '0').replace(/,/g, '').trim()) || change;
+                
                 indices.push({
                     symbol: normalizedName,
                     lastPrice: ltp,
+                    last_price: ltp, // Backend expects this field name
+                    close: ltp, // Also include as close for compatibility
                     change: change,
-                    pChange: changePercent
+                    pointsChange: pointsChange, // Use POINTS CHANGE from CSV if available
+                    pChange: changePercent,
+                    prevClose: prevClose,
+                    open: open,
+                    high: high,
+                    low: low,
+                    date: date // Include date for daily collection insertion
                 });
             }
         });
