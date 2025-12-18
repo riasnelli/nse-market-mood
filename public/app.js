@@ -3512,8 +3512,11 @@ class MarketMoodApp {
             allIndices.push({
                 symbol: 'INDIA VIX',
                 lastPrice: vixData.last,
+                last_price: vixData.last, // Backend expects this field name
+                close: vixData.last,
                 change: vixData.change,
-                pChange: vixData.pChange
+                pChange: vixData.pChange,
+                date: date // Include date for daily collection insertion
             });
         }
 
