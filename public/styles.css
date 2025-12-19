@@ -645,6 +645,9 @@ header h1 {
     margin-top: 20px;
     padding: 0 20px;
     visibility: visible !important;
+    /* Match mood page layering: keep the "date/engine" card above greeting background */
+    position: relative;
+    z-index: 2;
 }
 
 .signals-status-panel[style*="display: none"] {
