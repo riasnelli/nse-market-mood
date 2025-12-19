@@ -384,6 +384,11 @@ class MarketMoodApp {
         this.strategyModal = document.getElementById('strategyModal');
         this.selectedStrategyText = document.getElementById('selectedStrategyText');
         this.refreshDataAvailabilityBtn = document.getElementById('refreshDataAvailabilityBtn');
+        this.refreshSignalsBtn = document.getElementById('refreshSignalsBtn');
+        this.lastRefreshTime = document.getElementById('lastRefreshTime');
+        this.refreshSignalsStatus = document.getElementById('refreshSignalsStatus');
+        this.signalsRefreshSection = document.getElementById('signalsRefreshSection');
+        this.debugPanelContent = document.getElementById('debugPanelContent');
         this.dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
         this.uploadBtn = document.getElementById('uploadBtn');
         this.selectedStrategy = localStorage.getItem('selectedStrategy') || 'momentum_gap'; // Default strategy
@@ -520,6 +525,15 @@ class MarketMoodApp {
         this.updateSelectedStrategyText();
         if (this.refreshDataAvailabilityBtn) {
             this.refreshDataAvailabilityBtn.addEventListener('click', () => this.loadDataAvailability());
+        }
+        
+        if (this.refreshSignalsBtn) {
+            this.refreshSignalsBtn.addEventListener('click', () => this.refreshSignals());
+        }
+        
+        // Show refresh section on signals page
+        if (this.signalsRefreshSection) {
+            this.signalsRefreshSection.style.display = 'block';
         }
         if (this.uploadBtn) {
             this.uploadBtn.addEventListener('click', () => this.openUploadModal());
@@ -2738,21 +2752,42 @@ class MarketMoodApp {
                         const fileExtension = file.name.split('.').pop().toLowerCase();
                         let parsedData;
                         
-                        // For premarket files, use the robust NSE pre-open CSV parser
+                        // Use new NSE parsers module for robust CSV parsing
+                        let parseResult;
                         if (uploadType === 'premarket') {
-                                const { header, parsedRows } = this.parseNSEPremarketCSV(e.target.result, file.name);
-                                const parsedCount = Array.isArray(parsedRows) ? parsedRows.length : 0;
-                                console.log(`📊 Processing ${parsedCount} rows from NSE premarket CSV`);
-                                
-                                // Use parsedRows array for processing (for future analytics)
-                                parsedData = parsedRows;
-                                
-                                // Store parsed count for summary (regardless of price validation)
-                                // This will be used as the "count" field
-                                this._premarketParsedCount = parsedCount;
-                                this._premarketHeader = header;
+                            parseResult = parsePreOpenCsv(e.target.result);
+                            parsedData = parseResult.rows || [];
+                            this._premarketParsedCount = parseResult.metadata?.rowCount || 0;
+                            this._premarketHeader = parseResult.metadata?.columns || [];
+                            if (parseResult.errors.length > 0) {
+                                console.warn('Premarket CSV parsing errors:', parseResult.errors);
+                            }
+                        } else if (uploadType === 'bhav') {
+                            parseResult = parseBhavcopyCsv(e.target.result);
+                            parsedData = parseResult.rows || [];
+                            if (parseResult.errors.length > 0) {
+                                console.warn('Bhavcopy CSV parsing errors:', parseResult.errors);
+                            }
+                        } else if (uploadType === 'indices') {
+                            parseResult = parseAllIndicesCsv(e.target.result);
+                            parsedData = parseResult.rows || [];
+                            if (parseResult.errors.length > 0) {
+                                console.warn('Indices CSV parsing errors:', parseResult.errors);
+                            }
+                        } else if (uploadType === 'marketactivity') {
+                            parseResult = parseMarketActivityCsv(e.target.result);
+                            parsedData = parseResult.rows || [];
+                            if (parseResult.errors.length > 0) {
+                                console.warn('Market Activity CSV parsing errors:', parseResult.errors);
+                            }
+                        } else if (uploadType === '52w') {
+                            parseResult = parse52wCsv(e.target.result);
+                            parsedData = parseResult.rows || [];
+                            if (parseResult.errors.length > 0) {
+                                console.warn('52W CSV parsing errors:', parseResult.errors);
+                            }
                             } else {
-                                // Default to standard CSV parsing for other types (including bhavcopy)
+                            // Fallback to standard CSV parsing
                                 parsedData = this.parseCSV(e.target.result);
                             }
                         
@@ -2792,51 +2827,44 @@ class MarketMoodApp {
                             console.log(`📊 Saving bhavcopy for date ${date} with count=${bhavCount} stocks`);
                             console.log(`   ✅ Indices array is valid: ${Array.isArray(processedData.indices)}, length: ${processedData.indices.length}`);
                         } else if (uploadType === 'premarket') {
-                            processedData = this.processPremarketData(parsedData, date, file.name);
-                            
-                            // Use parsed row count (not processed stocks count) for summary
-                            const premarketCount = this._premarketParsedCount || 0;
+                            // Parsed data is already normalized from parsePreOpenCsv
+                            processedData = this.processNormalizedPremarketData(parsedData, date, file.name);
+                            const premarketCount = processedData.indices?.length || 0;
                             processedData.indicesCount = premarketCount;
                             processedData.count = premarketCount;
-                            processedData.dateDataPremarketCount = premarketCount;
                             processedData.header = this._premarketHeader || [];
-                            
-                            console.log(`📊 Saving premarket for date ${date} with premarketCount=${premarketCount} (parsedRows=${premarketCount})`);
-                            
-                            // Clear temporary storage
                             this._premarketParsedCount = null;
                             this._premarketHeader = null;
+                            console.log(`📊 Saving premarket for date ${date} with count=${premarketCount}`);
                         } else if (uploadType === 'marketactivity') {
-                            // Process Market Activity (EOD) data - has SYMBOL, SERIES format
-                            processedData = this.processMarketActivityCSV(parsedData, date, file.name);
+                            // Parsed data is already normalized from parseMarketActivityCsv
+                            processedData = this.processNormalizedMarketActivityData(parsedData, date, file.name);
                             processedData.type = 'marketactivity';
                             const maCount = processedData.indices?.length || 0;
                             processedData.indicesCount = maCount;
                             processedData.count = maCount;
                             console.log(`📊 Saving Market Activity for date ${date} with count=${maCount}`);
-                            
-                            // Don't save if no data processed
                             if (maCount === 0) {
-                                throw new Error('Market Activity file processed 0 rows - check file format. Expected columns: SYMBOL, SERIES, and price/volume data');
+                                throw new Error('Market Activity file processed 0 rows - check file format');
                             }
                         } else if (uploadType === '52w') {
-                            // Process 52W High/Low data
-                            processedData = this.processCSVData(parsedData, date, file.name);
+                            // Parsed data is already normalized from parse52wCsv
+                            processedData = this.processNormalized52wData(parsedData, date, file.name);
                             processedData.type = '52w';
                             const week52Count = processedData.indices?.length || 0;
                             processedData.indicesCount = week52Count;
                             processedData.count = week52Count;
                             console.log(`📊 Saving 52W High/Low for date ${date} with count=${week52Count}`);
                         } else if (uploadType === 'indices') {
-                            // Process Indices CSV (NSE format with INDEX NAME, CLOSING INDEX VALUE, etc.)
-                            processedData = this.processCSVData(parsedData, date, file.name);
+                            // Parsed data is already normalized from parseAllIndicesCsv
+                            processedData = this.processNormalizedIndicesData(parsedData, date, file.name);
                             processedData.type = 'indices';
                             const indicesCount = processedData.indices?.length || 0;
                             processedData.indicesCount = indicesCount;
                             processedData.count = indicesCount;
                             console.log(`📊 Saving Indices for date ${date} with count=${indicesCount}`);
                         } else {
-                            // Default to indices processing
+                            // Fallback to standard processing
                             processedData = this.processCSVData(parsedData, date, file.name);
                         }
                         
@@ -4117,6 +4145,162 @@ class MarketMoodApp {
                 date: date
             };
         }
+    }
+
+    /**
+     * Process normalized premarket data from parsePreOpenCsv
+     */
+    processNormalizedPremarketData(normalizedRows, date, fileName) {
+        const indices = [];
+        
+        normalizedRows.forEach((row) => {
+            if (!row.symbol || !row.prevClose || !row.iep) return;
+            
+            indices.push({
+                symbol: row.symbol,
+                prevClose: row.prevClose,
+                pre_open_price: row.iep,
+                price: row.iep,
+                last_price: row.iep,
+                change: row.chng || 0,
+                pChange: row.chngPct || 0,
+                final: row.final,
+                finalQty: row.finalQty,
+                date: date
+            });
+        });
+        
+        return {
+            indices: indices,
+            mood: null,
+            vix: null,
+            advanceDecline: { advances: 0, declines: 0 },
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
+    }
+
+    /**
+     * Process normalized bhavcopy data from parseBhavcopyCsv
+     */
+    processNormalizedBhavcopyData(normalizedRows, date, fileName) {
+        const indices = [];
+        
+        normalizedRows.forEach((row) => {
+            if (!row.symbol || !row.close) return;
+            
+            indices.push({
+                symbol: row.symbol,
+                series: row.series || 'EQ',
+                date: date,
+                open: row.open,
+                high: row.high,
+                low: row.low,
+                close: row.close,
+                prevClose: row.prevClose,
+                volume: row.volume,
+                delivery: row.delivery,
+                delivery_percent: row.deliveryPercent,
+                dayRetPct: row.dayRetPct,
+                rangePct: row.rangePct
+            });
+        });
+        
+        return {
+            indices: indices,
+            mood: null,
+            vix: null,
+            advanceDecline: { advances: 0, declines: 0 },
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
+    }
+
+    /**
+     * Process normalized indices data from parseAllIndicesCsv
+     */
+    processNormalizedIndicesData(normalizedRows, date, fileName) {
+        const indices = [];
+        let vixData = null;
+        
+        normalizedRows.forEach((row) => {
+            if (!row.symbol || row.lastPrice === null) return;
+            
+            if (row.symbol.includes('VIX')) {
+                vixData = {
+                    last: row.lastPrice,
+                    change: row.change || 0,
+                    pChange: row.changePct || 0
+                };
+            } else {
+                indices.push({
+                    symbol: row.symbol,
+                    lastPrice: row.lastPrice,
+                    last_price: row.lastPrice,
+                    close: row.lastPrice,
+                    open: row.open,
+                    high: row.high,
+                    low: row.low,
+                    change: row.change,
+                    pChange: row.changePct,
+                    prevClose: row.prevClose,
+                    date: date
+                });
+            }
+        });
+        
+        return {
+            indices: indices,
+            mood: null,
+            vix: vixData || { last: 0, change: 0, pChange: 0 },
+            advanceDecline: { advances: 0, declines: 0 },
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
+    }
+
+    /**
+     * Process normalized market activity data from parseMarketActivityCsv
+     */
+    processNormalizedMarketActivityData(normalizedRows, date, fileName) {
+        return this.processNormalizedIndicesData(normalizedRows, date, fileName);
+    }
+
+    /**
+     * Process normalized 52W data from parse52wCsv
+     */
+    processNormalized52wData(normalizedRows, date, fileName) {
+        const indices = [];
+        
+        normalizedRows.forEach((row) => {
+            if (!row.symbol) return;
+            
+            indices.push({
+                symbol: row.symbol,
+                high52w: row.high52w,
+                low52w: row.low52w,
+                high52wDate: row.high52wDate,
+                low52wDate: row.low52wDate,
+                date: date
+            });
+        });
+        
+        return {
+            indices: indices,
+            mood: null,
+            vix: null,
+            advanceDecline: { advances: 0, declines: 0 },
+            timestamp: new Date(date).toISOString(),
+            source: 'uploaded',
+            fileName: fileName,
+            date: date
+        };
     }
 
     processPremarketData(csvData, date, fileName) {
@@ -6883,10 +7067,26 @@ class MarketMoodApp {
                     emptyTitle.textContent = 'No Potential Signals';
                 }
                 if (emptyMessage) {
-                    const message = data?.message || 
+                    let message = data?.message || 
                         `No trading signals were found for ${targetDate}.<br>This could mean the market conditions don't meet the signal criteria.`;
+                    
+                    // Add filter counters if available
+                    if (data?.filterCounters) {
+                        const counters = data.filterCounters;
+                        const topReason = data.topReason || '';
+                        message += `<br><br><strong>Filter Analysis:</strong><br>`;
+                        message += `Total Premarket: ${counters.totalPremarket || 0}<br>`;
+                        message += `Total Bhavcopy: ${counters.totalBhavcopy || 0}<br>`;
+                        message += `Passed Filters: ${counters.passed || 0}<br>`;
+                        if (topReason) {
+                            message += `<br><strong>Top Reason:</strong> ${topReason}`;
+                        }
+                    }
                     emptyMessage.innerHTML = message;
                 }
+                
+                // Update debug panel
+                this.updateDebugPanel(data);
                 
                 // Setup generate button
                 const generateBtnEmpty = document.getElementById('generateSignalsBtnEmpty');
@@ -6938,6 +7138,12 @@ class MarketMoodApp {
             const runId = data?.run_id || data?.runId || null;
             const signalDate = data?.date || targetDate;
             this.renderSignals(signalsArray, runId, signalDate, signalsContainer);
+            
+            // Update debug panel
+            this.updateDebugPanel(data);
+            
+            // Update last refresh time
+            this.updateLastRefreshTime();
             
         } catch (error) {
             console.error('❌ Error loading signals:', error);
@@ -7016,6 +7222,131 @@ class MarketMoodApp {
         } else {
             console.warn('⚠️ Generate signals response is not JSON, returning null');
             return null;
+        }
+    }
+
+    /**
+     * Refresh signals: fetch latest mood, then recompute signals
+     */
+    async refreshSignals() {
+        if (!this.refreshSignalsBtn) return;
+        
+        const icon = this.refreshSignalsBtn.querySelector('#refreshSignalsIcon');
+        const statusEl = this.refreshSignalsStatus;
+        
+        // Show loading state
+        this.refreshSignalsBtn.disabled = true;
+        if (icon) {
+            icon.style.animation = 'spin 1s linear infinite';
+        }
+        if (statusEl) {
+            statusEl.textContent = 'Refreshing...';
+            statusEl.style.color = '#667eea';
+        }
+        
+        try {
+            // Step 1: Fetch latest mood data
+            await this.loadData();
+            
+            // Step 2: Recompute strategy recommendation
+            const strategyAnalysis = this.analyzeMarketConditionsAndRecommendStrategy();
+            if (strategyAnalysis && strategyAnalysis.strategyId) {
+                this.selectedStrategy = strategyAnalysis.strategyId;
+                localStorage.setItem('selectedStrategy', strategyAnalysis.strategyId);
+                this.updateSelectedStrategyText();
+            }
+            
+            // Step 3: Reload signals with new data
+            await this.loadSignals();
+            
+            // Update last refresh time
+            this.updateLastRefreshTime();
+            
+            if (statusEl) {
+                statusEl.textContent = 'Refresh completed successfully';
+                statusEl.style.color = '#10b981';
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                }, 3000);
+            }
+        } catch (error) {
+            console.error('Error refreshing signals:', error);
+            if (statusEl) {
+                statusEl.textContent = 'Refresh failed: ' + (error.message || 'Unknown error');
+                statusEl.style.color = '#ef4444';
+                setTimeout(() => {
+                    statusEl.textContent = '';
+                }, 5000);
+            }
+        } finally {
+            this.refreshSignalsBtn.disabled = false;
+            if (icon) {
+                icon.style.animation = '';
+            }
+        }
+    }
+
+    /**
+     * Update last refresh time display
+     */
+    updateLastRefreshTime() {
+        if (!this.lastRefreshTime) return;
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        this.lastRefreshTime.textContent = `Last refreshed at ${timeStr}`;
+    }
+
+    /**
+     * Update debug panel with dataset availability and filter counters
+     */
+    updateDebugPanel(data) {
+        if (!this.debugPanelContent) return;
+        
+        const datasetInfo = document.getElementById('debugDatasetInfo');
+        const filterCounters = document.getElementById('debugFilterCounters');
+        const signalRunInfo = document.getElementById('debugSignalRunInfo');
+        
+        // Dataset availability
+        if (datasetInfo) {
+            const today = new Date().toISOString().split('T')[0];
+            let info = `Date: ${data?.date || today}\n`;
+            info += `Bhavcopy: ${data?.filterCounters?.totalBhavcopy || 0} rows\n`;
+            info += `Premarket: ${data?.filterCounters?.totalPremarket || 0} rows\n`;
+            info += `Signals: ${data?.signals?.length || 0} generated\n`;
+            datasetInfo.textContent = info;
+        }
+        
+        // Filter counters
+        if (filterCounters && data?.filterCounters) {
+            const counters = data.filterCounters;
+            let info = `Total Premarket: ${counters.totalPremarket || 0}\n`;
+            info += `Total Bhavcopy: ${counters.totalBhavcopy || 0}\n`;
+            info += `No Symbol: ${counters.noSymbol || 0}\n`;
+            info += `Duplicate: ${counters.duplicateSymbol || 0}\n`;
+            info += `No Bhavcopy Match: ${counters.noBhavcopyMatch || 0}\n`;
+            info += `Not EQ Series: ${counters.notEqSeries || 0}\n`;
+            info += `Invalid Close: ${counters.invalidYesterdayClose || 0}\n`;
+            info += `Invalid Premarket: ${counters.invalidPremarketPrice || 0}\n`;
+            info += `Gap Too Small: ${counters.gapTooSmall || 0}\n`;
+            info += `Volume Too Low: ${counters.volumeTooLow || 0}\n`;
+            info += `Score Too Low: ${counters.scoreTooLow || 0}\n`;
+            info += `✅ Passed: ${counters.passed || 0}`;
+            filterCounters.textContent = info;
+        }
+        
+        // Signal run info
+        if (signalRunInfo) {
+            let info = `Date: ${data?.date || 'N/A'}\n`;
+            info += `Strategy: ${data?.strategy || 'N/A'}\n`;
+            info += `Signal Count: ${data?.signal_count || 0}\n`;
+            if (data?.run_id) {
+                info += `Run ID: ${data.run_id.substring(0, 8)}...\n`;
+            }
+            if (data?.created_at) {
+                const created = new Date(data.created_at);
+                info += `Created: ${created.toLocaleString()}`;
+            }
+            signalRunInfo.textContent = info;
         }
     }
 

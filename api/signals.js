@@ -267,33 +267,72 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       }
     });
 
-    // Generate signals
+    // Generate signals with filter counters
     const signals = [];
     const processedSymbols = new Set();
+    const filterCounters = {
+      totalPremarket: premarketData.length,
+      totalBhavcopy: bhavcopyData.length,
+      noSymbol: 0,
+      duplicateSymbol: 0,
+      noBhavcopyMatch: 0,
+      notEqSeries: 0,
+      invalidYesterdayClose: 0,
+      invalidPremarketPrice: 0,
+      gapTooSmall: 0,
+      volumeTooLow: 0,
+      scoreTooLow: 0,
+      passed: 0
+    };
 
     // Process stocks with premarket data
     for (const premarket of premarketData) {
+      // Use normalized fields from parser
       const symbol = (premarket.symbol || premarket.SYMBOL || premarket.Symbol || '').toUpperCase();
-      if (!symbol || processedSymbols.has(symbol)) continue;
+      if (!symbol) {
+        filterCounters.noSymbol++;
+        continue;
+      }
+      if (processedSymbols.has(symbol)) {
+        filterCounters.duplicateSymbol++;
+        continue;
+      }
       
       const bhavcopy = bhavcopyMap.get(symbol);
-      if (!bhavcopy) continue;
+      if (!bhavcopy) {
+        filterCounters.noBhavcopyMatch++;
+        continue;
+      }
       
-      if (bhavcopy.series && bhavcopy.series !== 'EQ') continue;
+      if (bhavcopy.series && bhavcopy.series !== 'EQ') {
+        filterCounters.notEqSeries++;
+        continue;
+      }
 
-      const yesterdayClose = bhavcopy.close || bhavcopy.CLOSE || bhavcopy.prev_close || bhavcopy.PREV_CLOSE || 
-                            bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
-      if (yesterdayClose <= 0) continue;
+      // Use normalized fields: close, prevClose
+      const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE || 
+                            bhavcopy.PREV_CLOSE || bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
+      if (yesterdayClose <= 0) {
+        filterCounters.invalidYesterdayClose++;
+        continue;
+      }
 
-      const premarketPrice = premarket.pre_open_price || premarket.PRE_OPEN_PRICE || 
+      // Use normalized fields: iep, pre_open_price, price
+      const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE || 
                             premarket.price || premarket.PRICE ||
                             premarket.last_price || premarket.LAST_PRICE ||
                             premarket.open || premarket.OPEN || 0;
-      if (premarketPrice <= 0) continue;
+      if (premarketPrice <= 0) {
+        filterCounters.invalidPremarketPrice++;
+        continue;
+      }
 
       const gapPercent = ((premarketPrice - yesterdayClose) / yesterdayClose) * 100;
 
-      if (gapPercent < 0.3) continue;
+      if (gapPercent < 0.3) {
+        filterCounters.gapTooSmall++;
+        continue;
+      }
 
       const yesterdayHigh = bhavcopy.high || yesterdayClose;
       let nearHigh = false;
@@ -302,11 +341,15 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         nearHigh = Math.abs(nearHighPercent) <= 2.0;
       }
 
+      // Use normalized fields: volume, ttl_trd_qnty
       const volume = bhavcopy.volume || bhavcopy.VOLUME || 
                     bhavcopy.tottrdqty || bhavcopy.TOTTRDQTY || 
                     bhavcopy.traded_quantity || bhavcopy.TRADED_QUANTITY || 0;
       const minVolume = 100000;
-      if (volume < minVolume) continue;
+      if (volume < minVolume) {
+        filterCounters.volumeTooLow++;
+        continue;
+      }
 
       // Calculate score
       let gapScore = 0;
@@ -335,7 +378,12 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
 
       const totalScore = gapScore + nearHighScore + volumeScore + deliveryScore;
 
-      if (totalScore < 50) continue;
+      if (totalScore < 50) {
+        filterCounters.scoreTooLow++;
+        continue;
+      }
+      
+      filterCounters.passed++;
 
       const entryPrice = premarketPrice;
       const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
@@ -376,13 +424,28 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
     signals.sort((a, b) => b.score - a.score);
     const topSignals = signals.slice(0, 10);
 
+    // Find top reason for 0 signals
+    let topReason = '';
     if (topSignals.length === 0) {
+      const reasons = [
+        { key: 'noBhavcopyMatch', label: 'No bhavcopy match' },
+        { key: 'gapTooSmall', label: 'Gap too small' },
+        { key: 'volumeTooLow', label: 'Volume too low' },
+        { key: 'scoreTooLow', label: 'Score too low' },
+        { key: 'invalidPremarketPrice', label: 'Invalid premarket price' },
+        { key: 'invalidYesterdayClose', label: 'Invalid yesterday close' }
+      ];
+      const sortedReasons = reasons.sort((a, b) => filterCounters[b.key] - filterCounters[a.key]);
+      topReason = sortedReasons[0] ? `${sortedReasons[0].label} (${filterCounters[sortedReasons[0].key]})` : 'Unknown';
+      
       return {
         success: true,
         date: date,
         signals: [],
         signal_count: 0,
-        message: `No signals generated for ${date} (no stocks met criteria)`
+        message: `No signals generated for ${date} (no stocks met criteria)`,
+        filterCounters: filterCounters,
+        topReason: topReason
       };
     }
 
@@ -403,6 +466,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         bhavcopy_date: yesterdayDate,
         strategy: strategy || 'momentum_gap',
         signal_count: topSignals.length,
+        filter_counters: filterCounters,
         created_at: new Date()
       };
 

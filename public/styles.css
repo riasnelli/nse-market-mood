@@ -2390,6 +2390,68 @@ input[type="date"] {
 
 /* Dhan API styles removed - Dhan API no longer supported */
 
+/* Signals Refresh Section */
+.signals-refresh-section {
+    margin: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Debug Panel */
+.debug-panel {
+    margin: 20px;
+    padding: 15px;
+    background: rgba(249, 250, 251, 0.95);
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+}
+
+.debug-panel summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #667eea;
+    font-size: 0.9rem;
+    user-select: none;
+    padding: 5px 0;
+}
+
+.debug-panel summary:hover {
+    color: #5568d3;
+}
+
+.debug-panel #debugPanelContent {
+    margin-top: 15px;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.debug-panel #debugDatasetInfo,
+.debug-panel #debugFilterCounters,
+.debug-panel #debugSignalRunInfo {
+    margin-top: 8px;
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid #e5e7eb;
+}
+
+/* Spin animation for refresh icon */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* Password input with eye icon */
 .password-input-wrapper {
     position: relative;

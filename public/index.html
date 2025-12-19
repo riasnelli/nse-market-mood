@@ -8,6 +8,7 @@
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
     <link rel="stylesheet" href="styles.css" media="all">
     <link rel="manifest" href="/manifest.json">
+    <script src="/utils/nseParsers.js"></script>
     <meta name="theme-color" content="#667eea" id="themeColorMeta"/>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
@@ -157,6 +158,46 @@
                     <!-- Status content will be populated here -->
                 </div>
                 
+                <!-- Signals Refresh Section -->
+                <div class="signals-refresh-section" id="signalsRefreshSection" style="display: none; margin: 20px; padding: 15px; background: rgba(255, 255, 255, 0.95); border-radius: 12px; backdrop-filter: blur(10px);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div>
+                            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #333;">Refresh Signals</h4>
+                            <div id="lastRefreshTime" style="font-size: 0.8rem; color: #666; margin-top: 4px;">Never refreshed</div>
+                        </div>
+                        <button id="refreshSignalsBtn" class="btn-primary" style="padding: 8px 16px; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="refreshSignalsIcon">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                            <span>Refresh</span>
+                        </button>
+                    </div>
+                    <div id="refreshSignalsStatus" style="font-size: 0.85rem; color: #666; margin-top: 8px;"></div>
+                </div>
+
+                <!-- Developer Debug Panel -->
+                <details class="debug-panel" id="signalsDebugPanel" style="margin: 20px; padding: 15px; background: rgba(249, 250, 251, 0.95); border-radius: 12px; border: 1px solid #e5e7eb;">
+                    <summary style="cursor: pointer; font-weight: 600; color: #667eea; font-size: 0.9rem; user-select: none;">
+                        🔧 Developer Debug Panel
+                    </summary>
+                    <div id="debugPanelContent" style="margin-top: 15px; font-size: 0.85rem; color: #666;">
+                        <div style="margin-bottom: 15px;">
+                            <strong>Dataset Availability:</strong>
+                            <div id="debugDatasetInfo" style="margin-top: 8px; padding: 10px; background: white; border-radius: 8px; font-family: monospace; font-size: 0.8rem;"></div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <strong>Filter Counters:</strong>
+                            <div id="debugFilterCounters" style="margin-top: 8px; padding: 10px; background: white; border-radius: 8px; font-family: monospace; font-size: 0.8rem;"></div>
+                        </div>
+                        <div>
+                            <strong>Last Signal Run:</strong>
+                            <div id="debugSignalRunInfo" style="margin-top: 8px; padding: 10px; background: white; border-radius: 8px; font-family: monospace; font-size: 0.8rem;"></div>
+                        </div>
+                    </div>
+                </details>
+
                 <!-- Data Availability Section -->
                 <div class="data-availability-section" id="dataAvailabilitySection" style="display: none;">
                     <div class="section-header">
