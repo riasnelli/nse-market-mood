@@ -7674,9 +7674,23 @@ class MarketMoodApp {
             }
         }
         
+        // Helper function to convert hex to RGB
+        const hexToRgb = (hex) => {
+            // Handle rgb() format
+            if (hex.startsWith('rgb')) {
+                const match = hex.match(/\d+/g);
+                if (match && match.length >= 3) {
+                    return `${match[0]}, ${match[1]}, ${match[2]}`;
+                }
+            }
+            // Handle hex format
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '102, 126, 234';
+        };
+        
         // Extract RGB values from the mood color for the overlay background
         // Use a semi-transparent version of the mood color
-        const overlayBg = `rgba(${this.hexToRgb(moodColor)}, 0.15)`;
+        const overlayBg = `rgba(${hexToRgb(moodColor)}, 0.15)`;
         
         // Render status panel with professional card design that overlays the background
         statusPanel.innerHTML = `
