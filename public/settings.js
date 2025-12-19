@@ -593,26 +593,10 @@ class SettingsManager {
         
         // Update status badge in Current Status section
         if (apiStatus && activeApiObj) {
-            if (activeApiObj.type === 'dhan') {
-                if (activeApiObj.testStatus === 'success') {
-                    apiStatus.textContent = 'Connected';
-                    apiStatus.className = 'status-badge';
-                } else if (activeApiObj.testStatus === 'failed') {
-                    apiStatus.textContent = 'Connection Failed';
-                    apiStatus.className = 'status-badge error';
-                } else if (activeApiObj.enabled) {
-                    apiStatus.textContent = 'Not Tested';
-                    apiStatus.className = 'status-badge';
-                } else {
-                    apiStatus.textContent = 'Not Configured';
-                    apiStatus.className = 'status-badge error';
-                }
-            } else {
-                // NSE API - show as "Available" (not "Connected" since we can't test it easily)
-                // The actual connection will be tested when data is fetched
-                apiStatus.textContent = 'Available';
-                apiStatus.className = 'status-badge';
-            }
+            // NSE API - show as "Available" (not "Connected" since we can't test it easily)
+            // The actual connection will be tested when data is fetched
+            apiStatus.textContent = 'Available';
+            apiStatus.className = 'status-badge';
         }
     }
 
