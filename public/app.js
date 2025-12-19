@@ -2245,6 +2245,13 @@ class MarketMoodApp {
             moodGreetingArea.style.setProperty('background-color', themeColor, 'important');
         }
         
+        // Also update signals greeting area background to match mood
+        const signalsGreetingArea = document.querySelector('.signals-greeting-area');
+        if (signalsGreetingArea) {
+            signalsGreetingArea.style.setProperty('background', gradient, 'important');
+            signalsGreetingArea.style.setProperty('background-color', themeColor, 'important');
+        }
+        
         console.log('✅ Updated greeting area with gradient:', gradient, 'themeColor:', themeColor);
         
         // Update loading overlay if it's visible to match new background
@@ -6567,6 +6574,19 @@ class MarketMoodApp {
             
             // Scroll to top immediately (before any async operations)
         window.scrollTo({ top: 0, behavior: 'instant' });
+        
+            // Update signals greeting area background based on current mood score
+            // Use lastMarketData if available, otherwise use default
+            if (this.lastMarketData && this.lastMarketData.mood && typeof this.lastMarketData.mood.score === 'number') {
+                this.updateBackgroundColor(this.lastMarketData.mood.score);
+            } else {
+                // If no mood data available, use default purple gradient
+                const signalsGreetingArea = document.querySelector('.signals-greeting-area');
+                if (signalsGreetingArea) {
+                    signalsGreetingArea.style.setProperty('background', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 'important');
+                    signalsGreetingArea.style.setProperty('background-color', '#667eea', 'important');
+                }
+            }
         
             // Ensure all Signals page sections are visible and properly styled
             const signalsStatusPanel = document.getElementById('signalsStatusPanel');
