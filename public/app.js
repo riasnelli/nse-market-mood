@@ -7656,47 +7656,82 @@ class MarketMoodApp {
             }
         }
 
-        // Render status panel with professional card design
+        // Get the current mood color from signals greeting area to match the background
+        const signalsGreetingArea = document.querySelector('.signals-greeting-area');
+        let moodGradient = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        let moodColor = '#667eea';
+        
+        if (signalsGreetingArea) {
+            const computedStyle = getComputedStyle(signalsGreetingArea);
+            const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+            const bgColor = computedStyle.backgroundColor;
+            
+            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' && !bgGradient.includes('url(')) {
+                moodGradient = bgGradient;
+            }
+            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                moodColor = bgColor;
+            }
+        }
+        
+        // Extract RGB values from the mood color for the overlay background
+        // Use a semi-transparent version of the mood color
+        const overlayBg = `rgba(${this.hexToRgb(moodColor)}, 0.15)`;
+        
+        // Render status panel with professional card design that overlays the background
         statusPanel.innerHTML = `
-            <div style="background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr; gap: 14px; font-size: 0.9rem;">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
                     </svg>
-                    <div style="font-size: 0.9rem; font-weight: 600; color: #667eea; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
-                    </div>
-                <div style="display: grid; grid-template-columns: 1fr; gap: 14px; font-size: 0.9rem;">
-                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="16" y1="2" x2="16" y2="6"></line>
-                            <line x1="8" y1="2" x2="8" y2="6"></line>
-                            <line x1="3" y1="10" x2="21" y2="10"></line>
-                        </svg>
-                        <span style="color: #6b7280; font-weight: 500; min-width: 50px;">Date:</span>
-                        <span style="color: #111827; font-weight: 600;">${targetDate}</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                        <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Engine:</span>
-                        <span style="color: ${engineStatusColor}; font-weight: 600; flex: 1; line-height: 1.4;">${engineStatus}</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 11l3 3L22 4"></path>
-                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                        </svg>
-                        <span style="color: #111827; font-weight: 500; flex: 1; line-height: 1.4;">${strategyText}</span>
-                    </div>
+                    <span style="color: #6b7280; font-weight: 500; min-width: 50px;">Date:</span>
+                    <span style="color: #111827; font-weight: 600;">${targetDate}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Engine:</span>
+                    <span style="color: ${engineStatusColor}; font-weight: 600; flex: 1; line-height: 1.4;">${engineStatus}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                    <span style="color: #111827; font-weight: 500; flex: 1; line-height: 1.4;">${strategyText}</span>
                 </div>
             </div>
         `;
         
+        // Update the panel background to match the mood color dynamically
+        // Use a semi-transparent overlay that shows the mood gradient behind it
+        // The CSS already has backdrop-filter blur, so we just need to ensure it's visible
+        statusPanel.style.background = `rgba(255, 255, 255, 0.95)`;
+        statusPanel.style.setProperty('--mood-overlay', overlayBg);
+        
         // Show the panel
         statusPanel.style.display = 'block';
+        
+        // Update the panel background color to subtly reflect the mood color
+        // This creates a tinted overlay effect that matches the mood
+        requestAnimationFrame(() => {
+            const panelBg = `linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.92) 100%), ${moodGradient}`;
+            statusPanel.style.background = `rgba(255, 255, 255, 0.95)`;
+            // Add a subtle tint using a pseudo-element effect via box-shadow inset
+            statusPanel.style.boxShadow = `0 3px 10px rgba(0, 0, 0, 0.2), inset 0 0 100px ${overlayBg}`;
+        });
     }
 
     renderDataAvailability(data) {

@@ -641,10 +641,20 @@ header h1 {
 }
 
 .signals-status-panel {
-    margin-bottom: 20px;
-    margin-top: 20px;
-    padding: 0 20px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 16px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    position: relative;
+    z-index: 2;
+    margin: -100px auto 20px auto;
+    padding: 20px;
+    max-width: 400px;
+    width: calc(100% - 40px);
+    box-sizing: border-box;
     visibility: visible !important;
+    transition: background 0.5s ease, backdrop-filter 0.5s ease;
 }
 
 .signals-status-panel[style*="display: none"] {
