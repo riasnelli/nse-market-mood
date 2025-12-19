@@ -5081,6 +5081,14 @@ class MarketMoodApp {
             // Process bhav data
             if (bhavResult.success && bhavResult.data) {
                 bhavResult.data.forEach(file => {
+                    // CRITICAL: Only accept files that are actually bhav type
+                    // Check file type field first - must be 'bhav'
+                    const fileType = (file.type || '').toLowerCase();
+                    if (fileType !== 'bhav') {
+                        console.warn(`⚠️ Skipping file with wrong type in bhav collection: ${file.fileName} (type: ${file.type}, expected: bhav)`);
+                        return; // Skip files that aren't actually bhav
+                    }
+                    
                     const normalizedDate = normalizeDate(file.date);
                     if (normalizedDate) {
                         if (!dateMap.has(normalizedDate)) {
