@@ -2332,7 +2332,10 @@ class MarketMoodApp {
             finalGrad = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
         }
         
-        const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
+        // Only show safe area overlay if there's actually a safe area inset
+        // This prevents showing a visible line when there's no notch/Dynamic Island
+        const safeAreaInset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top)') || '0') || 0;
+        const safeAreaHeight = safeAreaInset > 0 ? `calc(env(safe-area-inset-top, 0px))` : '0px';
         
         // Apply styles with maximum specificity to override any other styles
         // Use setProperty for each style to ensure they're applied
@@ -6564,6 +6567,24 @@ class MarketMoodApp {
             
             // Scroll to top immediately (before any async operations)
         window.scrollTo({ top: 0, behavior: 'instant' });
+        
+            // Update safe area overlay to match signals greeting area color
+            // This ensures the overlay matches the signals page background, not a previous mood color
+            const signalsGreetingArea = document.querySelector('.signals-greeting-area');
+            if (signalsGreetingArea) {
+                requestAnimationFrame(() => {
+                    const computedStyle = getComputedStyle(signalsGreetingArea);
+                    const bgGradient = computedStyle.backgroundImage || computedStyle.background;
+                    const bgColor = computedStyle.backgroundColor;
+                    
+                    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                        this.ensureSafeAreaOverlay(bgColor, bgGradient);
+                    } else {
+                        // Default to signals page default color
+                        this.ensureSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
+                    }
+                });
+            }
         
             // Ensure all Signals page sections are visible and properly styled
             const signalsStatusPanel = document.getElementById('signalsStatusPanel');
