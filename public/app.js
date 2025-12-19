@@ -6568,24 +6568,6 @@ class MarketMoodApp {
             // Scroll to top immediately (before any async operations)
         window.scrollTo({ top: 0, behavior: 'instant' });
         
-            // Update safe area overlay to match signals greeting area color
-            // This ensures the overlay matches the signals page background, not a previous mood color
-            const signalsGreetingArea = document.querySelector('.signals-greeting-area');
-            if (signalsGreetingArea) {
-                requestAnimationFrame(() => {
-                    const computedStyle = getComputedStyle(signalsGreetingArea);
-                    const bgGradient = computedStyle.backgroundImage || computedStyle.background;
-                    const bgColor = computedStyle.backgroundColor;
-                    
-                    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
-                        this.ensureSafeAreaOverlay(bgColor, bgGradient);
-                    } else {
-                        // Default to signals page default color
-                        this.ensureSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
-                    }
-                });
-            }
-        
             // Ensure all Signals page sections are visible and properly styled
             const signalsStatusPanel = document.getElementById('signalsStatusPanel');
         const signalsSection = document.getElementById('signalsSection');
