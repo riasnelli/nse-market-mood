@@ -2388,25 +2388,7 @@ input[type="date"] {
     border-radius: 8px;
 }
 
-.dhan-info-box {
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 8px;
-    padding: 10px;
-    margin: 10px 0;
-    font-size: 0.85rem;
-    color: #856404;
-}
-
-.dhan-info-box a {
-    color: #667eea;
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.dhan-info-box a:hover {
-    text-decoration: underline;
-}
+/* Dhan API styles removed - Dhan API no longer supported */
 
 /* Password input with eye icon */
 .password-input-wrapper {

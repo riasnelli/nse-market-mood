@@ -6,10 +6,6 @@
       "use": "@vercel/node"
     },
     {
-      "src": "api/dhan-data.js",
-      "use": "@vercel/node"
-    },
-    {
       "src": "api/data.js",
       "use": "@vercel/node"
     },
@@ -34,10 +30,6 @@
     {
       "src": "/api/nse-data",
       "dest": "/api/nse-data.js"
-    },
-    {
-      "src": "/api/dhan-data",
-      "dest": "/api/dhan-data.js"
     },
     {
       "src": "/api/data",

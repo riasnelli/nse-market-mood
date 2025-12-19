@@ -31,15 +31,10 @@ class MarketMoodApp {
     updateApiUrl() {
         // Get API provider from settings
         if (window.settingsManager) {
-            const provider = window.settingsManager.getApiProvider();
-            if (provider === 'dhan') {
-                this.apiUrl = '/api/dhan-data';
-            } else {
                 // For NSE, get the base URL from settings and pass it as query param
                 const nseApi = window.settingsManager.settings?.apis?.nse;
                 const baseUrl = nseApi?.config?.baseUrl || 'https://www.nseindia.com/api';
                 this.apiUrl = `/api/nse-data?baseUrl=${encodeURIComponent(baseUrl)}`;
-            }
         } else {
             this.apiUrl = '/api/nse-data';
         }
@@ -47,18 +42,7 @@ class MarketMoodApp {
 
     getApiCredentials() {
         // Get credentials for the active API
-        if (window.settingsManager) {
-            const apiConfig = window.settingsManager.getActiveApiConfig();
-            if (apiConfig.type === 'dhan') {
-                return {
-                    clientId: apiConfig.config.clientId,
-                    accessToken: apiConfig.config.accessToken,
-                    apiKey: apiConfig.config.apiKey,
-                    apiSecret: apiConfig.config.apiSecret,
-                    customEndpoint: apiConfig.config.customEndpoint
-                };
-            }
-        }
+        // No credentials needed for NSE API
         return null;
     }
 
@@ -69,14 +53,7 @@ class MarketMoodApp {
         this.updateApiUrl();
         
         // Check if the selected API is actually working
-        if (window.settingsManager) {
-            const apiConfig = window.settingsManager.getActiveApiConfig();
-            if (apiConfig && apiConfig.type === 'dhan' && apiConfig.testStatus === 'failed') {
-                // Dhan API failed - show warning and fallback to NSE
-                console.warn('Dhan API test failed, but user saved anyway. Attempting to use it...');
-                // Still try to load, but it will likely fail and show mock data
-            }
-        }
+        // No special checks needed for NSE API
         
         // Reload data with new API
         this.loadData().then(() => {
@@ -836,18 +813,8 @@ class MarketMoodApp {
             console.log('Fetching from:', this.apiUrl);
 
             // Get API provider and credentials
+            // No credentials needed for NSE API
             let requestOptions = {};
-            const credentials = this.getApiCredentials();
-            if (credentials && credentials.accessToken) {
-                // Send credentials for Dhan API
-                requestOptions = {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(credentials)
-                };
-            }
 
             // Add cache-busting and ensure fresh data
             const cacheBuster = `?t=${Date.now()}`;
@@ -873,12 +840,12 @@ class MarketMoodApp {
             const data = await response.json();
             console.log('Data received:', data);
             
-            // Check for API errors (especially Dhan API)
+            // Check for API errors
             if (data.error) {
                 console.error('❌ API returned error:', data.message || data.error);
                 // Log debug info if available
                 if (data.debug) {
-                    console.group('🔍 Dhan API Debug Info');
+                    console.group('🔍 API Debug Info');
                     console.error('Raw response type:', data.debug.rawResponse?.type);
                     console.error('Is array:', data.debug.rawResponse?.isArray);
                     console.error('Response keys:', data.debug.rawResponse?.keys);
@@ -961,13 +928,7 @@ class MarketMoodApp {
                 console.warn('No valid data received from API');
                 // Update data source display for API
                 this.updateDataSourceDisplay('api');
-                // Check if Dhan API is active - don't show mock data for Dhan errors
-                const activeApi = window.settingsManager?.settings?.activeApi;
-                if (activeApi === 'dhan') {
-                    console.error('Dhan API returned no valid data. Check console for debug info.');
-                    // Don't show mock data - show error instead
-                    return;
-                }
+                // No special handling needed
                 // Use mock data as fallback only for NSE API
                 this.useMockData();
             }
@@ -988,14 +949,7 @@ class MarketMoodApp {
             
             console.log(`Failed after ${retryCount + 1} attempts. Consecutive failures: ${this.consecutiveFailures}/${this.maxFailures}`);
             
-            // Check if Dhan API is active - don't show mock data for Dhan errors
-            const activeApi = window.settingsManager?.settings?.activeApi;
-            if (activeApi === 'dhan') {
-                console.error('Dhan API error - not using mock data. Error:', error.message);
-                // Show error in UI instead of mock data
-                this.showErrorInUI('Dhan API Error: ' + error.message);
-                return;
-            }
+            // No special handling needed for API errors
             
             // After max failures, mark as closed
             if (this.consecutiveFailures >= this.maxFailures) {
@@ -3063,49 +3017,49 @@ class MarketMoodApp {
         
         if (headerRowIndex === -1) {
             // No header found - check if first line has header keywords
-            const firstLineUpper = firstLine.toUpperCase();
-            const hasHeaderKeywords = firstLineUpper.includes('SYMBOL') || 
-                                       firstLineUpper.includes('SERIES') || 
-                                       firstLineUpper.includes('OPEN') || 
-                                       firstLineUpper.includes('CLOSE') ||
-                                       firstLineUpper.includes('NAME') ||
+        const firstLineUpper = firstLine.toUpperCase();
+        const hasHeaderKeywords = firstLineUpper.includes('SYMBOL') || 
+                                   firstLineUpper.includes('SERIES') || 
+                                   firstLineUpper.includes('OPEN') || 
+                                   firstLineUpper.includes('CLOSE') ||
+                                   firstLineUpper.includes('NAME') ||
                                        firstLineUpper.includes('COMPANY') ||
                                        firstLineUpper.includes('INDEX');
-            
-            if (hasHeaderKeywords) {
-                // First line is a header - parse it
-                if (delimiter === ',') {
-                    headers = this.parseCSVLine(firstLine).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
-                } else {
-                    headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
-                }
-                startIndex = 1;
-                console.log(`✅ Detected CSV header row (first line): ${headers.length} columns`);
-                console.log(`   Headers:`, headers.slice(0, 15));
+        
+        if (hasHeaderKeywords) {
+            // First line is a header - parse it
+            if (delimiter === ',') {
+                headers = this.parseCSVLine(firstLine).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
             } else {
-                // No header row - use standard NSE bhavcopy column mapping
-                // Standard format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
-                const firstRowValues = delimiter === ',' ? this.parseCSVLine(firstLine) : firstLine.split(delimiter);
-                const columnCount = firstRowValues.length;
-                
-                // Map columns to standard names
-                headers = [];
-                for (let i = 0; i < columnCount; i++) {
-                    if (i === 0) headers.push('SYMBOL');
-                    else if (i === 1) headers.push('SERIES');
-                    else if (i === 2) headers.push('OPEN');
-                    else if (i === 3) headers.push('HIGH');
-                    else if (i === 4) headers.push('LOW');
-                    else if (i === 5) headers.push('CLOSE');
-                    else if (i === 6) headers.push('LAST');
-                    else if (i === 7) headers.push('PREVCLOSE');
-                    else if (i === 8) headers.push('TOTTRDQTY');
-                    else if (i === 9) headers.push('TOTTRDVAL');
-                    else if (i === 10) headers.push('TIMESTAMP');
-                    else headers.push(`COL${i}`);
-                }
-                startIndex = 0;
-                console.log(`⚠️ No CSV header detected, using standard mapping: ${headers.length} columns`);
+                headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
+            }
+            startIndex = 1;
+                console.log(`✅ Detected CSV header row (first line): ${headers.length} columns`);
+            console.log(`   Headers:`, headers.slice(0, 15));
+        } else {
+            // No header row - use standard NSE bhavcopy column mapping
+            // Standard format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
+            const firstRowValues = delimiter === ',' ? this.parseCSVLine(firstLine) : firstLine.split(delimiter);
+            const columnCount = firstRowValues.length;
+            
+            // Map columns to standard names
+            headers = [];
+            for (let i = 0; i < columnCount; i++) {
+                if (i === 0) headers.push('SYMBOL');
+                else if (i === 1) headers.push('SERIES');
+                else if (i === 2) headers.push('OPEN');
+                else if (i === 3) headers.push('HIGH');
+                else if (i === 4) headers.push('LOW');
+                else if (i === 5) headers.push('CLOSE');
+                else if (i === 6) headers.push('LAST');
+                else if (i === 7) headers.push('PREVCLOSE');
+                else if (i === 8) headers.push('TOTTRDQTY');
+                else if (i === 9) headers.push('TOTTRDVAL');
+                else if (i === 10) headers.push('TIMESTAMP');
+                else headers.push(`COL${i}`);
+            }
+            startIndex = 0;
+            console.log(`⚠️ No CSV header detected, using standard mapping: ${headers.length} columns`);
             }
         }
         
@@ -5070,9 +5024,9 @@ class MarketMoodApp {
                         // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not a bhavcopy file
                         // This ensures we only show green checkmark for actual indices files
                         if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isBhavcopyFile) {
-                            if (count > dateData.indices.count) {
-                                dateData.indices.count = count;
-                                dateData.indices.id = file.id;
+                        if (count > dateData.indices.count) {
+                            dateData.indices.count = count;
+                            dateData.indices.id = file.id;
                                 dateData.indices.fileName = file.fileName || 'Unknown';
                                 dateData.indices.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             }
@@ -7727,7 +7681,7 @@ class MarketMoodApp {
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                 </svg>
                 <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
-            </div>
+                    </div>
             <div style="display: grid; grid-template-columns: 1fr; gap: 14px; font-size: 0.9rem;">
                 <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -7738,7 +7692,7 @@ class MarketMoodApp {
                     </svg>
                     <span style="color: #6b7280; font-weight: 500; min-width: 50px;">Date:</span>
                     <span style="color: #111827; font-weight: 600;">${targetDate}</span>
-                </div>
+                    </div>
                 <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -7746,7 +7700,7 @@ class MarketMoodApp {
                     </svg>
                     <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Engine:</span>
                     <span style="color: ${engineStatusColor}; font-weight: 600; flex: 1; line-height: 1.4;">${engineStatus}</span>
-                </div>
+                    </div>
                 <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M9 11l3 3L22 4"></path>
