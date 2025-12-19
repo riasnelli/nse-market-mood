@@ -2277,15 +2277,21 @@ class MarketMoodApp {
         // Use requestAnimationFrame to ensure greeting area styles are applied
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                const updatedGreetingArea = document.querySelector('.mood-greeting-area');
-                if (updatedGreetingArea) {
-                    const computedStyle = getComputedStyle(updatedGreetingArea);
+                // Check both mood and signals greeting areas
+                const updatedMoodGreetingArea = document.querySelector('.mood-greeting-area');
+                const updatedSignalsGreetingArea = document.querySelector('.signals-greeting-area');
+                const greetingArea = updatedMoodGreetingArea || updatedSignalsGreetingArea;
+                
+                if (greetingArea) {
+                    const computedStyle = getComputedStyle(greetingArea);
                     const bgGradient = computedStyle.backgroundImage || computedStyle.background;
                     const bgColor = computedStyle.backgroundColor;
                     
                     if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
                         // Force update to ensure perfect match
                         this.updateThemeColor(bgColor, bgGradient);
+                        // Also update safe area overlay
+                        this.ensureSafeAreaOverlay(bgColor, bgGradient);
                     }
                 }
             });
