@@ -352,16 +352,15 @@ class MarketMoodApp {
             this.ensureSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
         }
         
-        // Set up a periodic check to ensure safe area overlay always matches mood-greeting-area
+        // Set up a periodic check to ensure safe area overlay always matches greeting area
         // This handles cases where the background changes but updateThemeColor isn't called
         this.safeAreaSyncInterval = setInterval(() => {
-            // Only sync if we're on the mood page
-            if (this.currentView !== 'mood') {
-                return;
-            }
-            
+            // Check both mood and signals greeting areas based on current view
             const moodGreetingArea = document.querySelector('.mood-greeting-area');
-            if (moodGreetingArea) {
+            const signalsGreetingArea = document.querySelector('.signals-greeting-area');
+            const greetingArea = (this.currentView === 'mood') ? moodGreetingArea : signalsGreetingArea;
+            
+            if (greetingArea) {
                 const computedStyle = getComputedStyle(moodGreetingArea);
                 const bgGradient = computedStyle.backgroundImage || computedStyle.background;
                 const bgColor = computedStyle.backgroundColor;
