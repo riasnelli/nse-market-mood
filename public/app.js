@@ -3007,38 +3007,67 @@ class MarketMoodApp {
         
         console.log(`🔍 Detected delimiter: ${delimiter === '\t' ? 'TAB' : delimiter} (counts: comma=${commaCount}, tab=${tabCount}, semicolon=${semicolonCount}, pipe=${pipeCount})`);
 
-        // Check if first line is a header (contains common header keywords)
-        const firstLineUpper = firstLine.toUpperCase();
-        const hasHeaderKeywords = firstLineUpper.includes('SYMBOL') || 
-                                   firstLineUpper.includes('SERIES') || 
-                                   firstLineUpper.includes('OPEN') || 
-                                   firstLineUpper.includes('CLOSE') ||
-                                   firstLineUpper.includes('NAME') ||
-                                   firstLineUpper.includes('COMPANY');
-        
-        let headers;
+        // Search for the actual header row (skip metadata rows)
+        // Look for lines that contain proper column headers like INDEX, SYMBOL, OPEN, CLOSE, etc.
+        let headerRowIndex = -1;
+        let headers = [];
         let startIndex = 0;
         
-        if (hasHeaderKeywords) {
-            // First line is a header - parse it
-            if (delimiter === ',') {
-                headers = this.parseCSVLine(firstLine).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
-            } else {
-                headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
-            }
-            startIndex = 1;
-            console.log(`✅ Detected CSV header row: ${headers.length} columns`);
-            console.log(`   Headers:`, headers.slice(0, 15));
+        // Search first 20 lines for a proper header row
+        for (let i = 0; i < Math.min(20, lines.length); i++) {
+            const line = lines[i];
+            const lineUpper = line.toUpperCase();
             
-            // Check if SERIES column exists
-            const hasSeries = headers.includes('SERIES');
-            if (!hasSeries) {
-                console.warn(`⚠️ SERIES column not found in header! Available headers:`, headers);
-            } else {
-                const seriesIndex = headers.indexOf('SERIES');
-                console.log(`✅ SERIES column found at index ${seriesIndex}`);
+            // Check for indices format headers (INDEX, PREVIOUS CL, OPEN, HIGH, LOW, CLOSE)
+            const hasIndexFormat = lineUpper.includes('INDEX') && 
+                                  (lineUpper.includes('PREVIOUS') || lineUpper.includes('PREV CL') || lineUpper.includes('PREV_CLOSE')) &&
+                                  (lineUpper.includes('OPEN') || lineUpper.includes('HIGH') || lineUpper.includes('LOW') || lineUpper.includes('CLOSE'));
+            
+            // Check for bhavcopy format headers (SYMBOL, SERIES, OPEN, CLOSE)
+            const hasBhavcopyFormat = lineUpper.includes('SYMBOL') && 
+                                     (lineUpper.includes('SERIES') || lineUpper.includes('OPEN') || lineUpper.includes('CLOSE'));
+            
+            // Check for generic headers
+            const hasGenericHeaders = (lineUpper.includes('OPEN') && lineUpper.includes('CLOSE')) ||
+                                     (lineUpper.includes('NAME') && (lineUpper.includes('CLOSE') || lineUpper.includes('LTP')));
+            
+            if (hasIndexFormat || hasBhavcopyFormat || hasGenericHeaders) {
+                // Found a proper header row
+                if (delimiter === ',') {
+                    headers = this.parseCSVLine(line).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
+                } else {
+                    headers = line.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
+                }
+                headerRowIndex = i;
+                startIndex = i + 1;
+                console.log(`✅ Found CSV header row at line ${i + 1}: ${headers.length} columns`);
+                console.log(`   Headers:`, headers.slice(0, 15));
+                break;
             }
-        } else {
+        }
+        
+        if (headerRowIndex === -1) {
+            // No header found - check if first line has header keywords
+            const firstLineUpper = firstLine.toUpperCase();
+            const hasHeaderKeywords = firstLineUpper.includes('SYMBOL') || 
+                                       firstLineUpper.includes('SERIES') || 
+                                       firstLineUpper.includes('OPEN') || 
+                                       firstLineUpper.includes('CLOSE') ||
+                                       firstLineUpper.includes('NAME') ||
+                                       firstLineUpper.includes('COMPANY') ||
+                                       firstLineUpper.includes('INDEX');
+            
+            if (hasHeaderKeywords) {
+                // First line is a header - parse it
+                if (delimiter === ',') {
+                    headers = this.parseCSVLine(firstLine).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
+                } else {
+                    headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').toUpperCase());
+                }
+                startIndex = 1;
+                console.log(`✅ Detected CSV header row (first line): ${headers.length} columns`);
+                console.log(`   Headers:`, headers.slice(0, 15));
+            } else {
             // No header row - use standard NSE bhavcopy column mapping
             // Standard format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
             const firstRowValues = delimiter === ',' ? this.parseCSVLine(firstLine) : firstLine.split(delimiter);
