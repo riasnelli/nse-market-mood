@@ -651,7 +651,7 @@ header h1 {
     margin: -100px auto 20px auto;
     padding: 20px;
     max-width: 400px;
-    width: calc(100% - 40px);
+    width: 100%;
     box-sizing: border-box;
     visibility: visible !important;
     transition: background 0.5s ease, backdrop-filter 0.5s ease;
