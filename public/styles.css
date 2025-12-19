@@ -140,9 +140,9 @@ body.scroll-at-bottom::after {
     left: 0 !important;
     right: 0 !important;
     width: 100% !important;
-    height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
-    min-height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
-    max-height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
+    height: env(safe-area-inset-top, 0px) !important;
+    min-height: env(safe-area-inset-top, 0px) !important;
+    max-height: env(safe-area-inset-top, 0px) !important;
     z-index: 999999 !important; /* Very high z-index to ensure it's on top */
     pointer-events: none !important;
     margin: 0 !important;
