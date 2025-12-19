@@ -3068,29 +3068,30 @@ class MarketMoodApp {
                 console.log(`✅ Detected CSV header row (first line): ${headers.length} columns`);
                 console.log(`   Headers:`, headers.slice(0, 15));
             } else {
-            // No header row - use standard NSE bhavcopy column mapping
-            // Standard format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
-            const firstRowValues = delimiter === ',' ? this.parseCSVLine(firstLine) : firstLine.split(delimiter);
-            const columnCount = firstRowValues.length;
-            
-            // Map columns to standard names
-            headers = [];
-            for (let i = 0; i < columnCount; i++) {
-                if (i === 0) headers.push('SYMBOL');
-                else if (i === 1) headers.push('SERIES');
-                else if (i === 2) headers.push('OPEN');
-                else if (i === 3) headers.push('HIGH');
-                else if (i === 4) headers.push('LOW');
-                else if (i === 5) headers.push('CLOSE');
-                else if (i === 6) headers.push('LAST');
-                else if (i === 7) headers.push('PREVCLOSE');
-                else if (i === 8) headers.push('TOTTRDQTY');
-                else if (i === 9) headers.push('TOTTRDVAL');
-                else if (i === 10) headers.push('TIMESTAMP');
-                else headers.push(`COL${i}`);
+                // No header row - use standard NSE bhavcopy column mapping
+                // Standard format: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, LAST, PREVCLOSE, TOTTRDQTY, TOTTRDVAL, TIMESTAMP, ...
+                const firstRowValues = delimiter === ',' ? this.parseCSVLine(firstLine) : firstLine.split(delimiter);
+                const columnCount = firstRowValues.length;
+                
+                // Map columns to standard names
+                headers = [];
+                for (let i = 0; i < columnCount; i++) {
+                    if (i === 0) headers.push('SYMBOL');
+                    else if (i === 1) headers.push('SERIES');
+                    else if (i === 2) headers.push('OPEN');
+                    else if (i === 3) headers.push('HIGH');
+                    else if (i === 4) headers.push('LOW');
+                    else if (i === 5) headers.push('CLOSE');
+                    else if (i === 6) headers.push('LAST');
+                    else if (i === 7) headers.push('PREVCLOSE');
+                    else if (i === 8) headers.push('TOTTRDQTY');
+                    else if (i === 9) headers.push('TOTTRDVAL');
+                    else if (i === 10) headers.push('TIMESTAMP');
+                    else headers.push(`COL${i}`);
+                }
+                startIndex = 0;
+                console.log(`⚠️ No CSV header detected, using standard mapping: ${headers.length} columns`);
             }
-            startIndex = 0;
-            console.log(`⚠️ No CSV header detected, using standard mapping: ${headers.length} columns`);
         }
         
         console.log(`🔍 CSV headers (${headers.length} columns):`, headers.slice(0, 10));
