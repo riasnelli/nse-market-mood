@@ -5016,6 +5016,26 @@ class MarketMoodApp {
             // Process indices data
             if (indicesResult.success && indicesResult.data) {
                 indicesResult.data.forEach(file => {
+                    // CRITICAL: Only accept files that are actually indices type
+                    // Check file type field first - must be 'indices'
+                    const fileType = (file.type || '').toLowerCase();
+                    if (fileType !== 'indices') {
+                        console.warn(`⚠️ Skipping file with wrong type in indices collection: ${file.fileName} (type: ${file.type}, expected: indices)`);
+                        return; // Skip files that aren't actually indices
+                    }
+                    
+                    // Also filter out bhavcopy files that were incorrectly saved as indices
+                    // Check file name patterns to exclude bhavcopy files
+                    const fileName = (file.fileName || '').toLowerCase();
+                    const isBhavcopyFile = fileName.includes('bhav') || 
+                                          fileName.includes('sec_bhavdata') ||
+                                          (fileName.includes('sec') && fileName.includes('bhav'));
+                    
+                    if (isBhavcopyFile) {
+                        console.warn(`⚠️ Skipping bhavcopy file incorrectly saved as indices: ${file.fileName} (type: ${file.type})`);
+                        return; // Skip this file - it's a bhavcopy file, not indices
+                    }
+                    
                     const normalizedDate = normalizeDate(file.date);
                     if (normalizedDate) {
                         if (!dateMap.has(normalizedDate)) {
@@ -5031,11 +5051,24 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        if (count > dateData.indices.count) {
-                            dateData.indices.count = count;
-                            dateData.indices.id = file.id;
-                            dateData.indices.fileName = file.fileName || 'Unknown';
-                            dateData.indices.uploadedAt = file.uploadedAt || file.updatedAt || null;
+                        
+                        // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not a bhavcopy file
+                        // This ensures we only show green checkmark for actual indices files
+                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isBhavcopyFile) {
+                            if (count > dateData.indices.count) {
+                                dateData.indices.count = count;
+                                dateData.indices.id = file.id;
+                                dateData.indices.fileName = file.fileName || 'Unknown';
+                                dateData.indices.uploadedAt = file.uploadedAt || file.updatedAt || null;
+                            }
+                        } else {
+                            // Explicitly clear if invalid - ensure red X shows
+                            if (!dateData.indices.id || dateData.indices.count === 0) {
+                                dateData.indices.count = 0;
+                                dateData.indices.id = null;
+                                dateData.indices.fileName = null;
+                                dateData.indices.uploadedAt = null;
+                            }
                         }
                         // Keep the most recent uploadedAt
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
