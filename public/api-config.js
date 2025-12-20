@@ -56,6 +56,8 @@ class ApiConfig {
     
     if (this.apiKey) {
       headers['X-API-Key'] = this.apiKey;
+      // Also send as x-internal-key for internal requests
+      headers['X-Internal-Key'] = this.apiKey;
     }
     
     return headers;
@@ -119,6 +121,11 @@ class ApiConfig {
 
 // Create singleton instance
 const apiConfig = new ApiConfig();
+
+// Expose globally for use in other scripts
+if (typeof window !== 'undefined') {
+  window.apiConfig = apiConfig;
+}
 
 // Export for use in other files
 if (typeof module !== 'undefined' && module.exports) {

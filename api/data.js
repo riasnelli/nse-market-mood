@@ -7,6 +7,8 @@ const {
 } = require('./lib/mongodb');
 const { ObjectId } = require('mongodb');
 const { authMiddleware } = require('./lib/auth');
+const { validateFileType } = require('./lib/fileType');
+const { generateSignalsForDate } = require('./lib/signals/generateSignals');
 
 const handler = async (req, res) => {
   try {
@@ -58,6 +60,22 @@ const handler = async (req, res) => {
       // Validate type
       const validTypes = ['indices', 'bhav', 'premarket', 'marketactivity', '52w'];
       const uploadType = (type && validTypes.includes(type)) ? type : 'indices';
+
+      // STRICT FILE TYPE VALIDATION: Server-side truth
+      if (fileName) {
+        const validation = validateFileType(fileName, uploadType);
+        if (!validation.valid) {
+          console.error(`❌ File type validation failed: ${validation.error}`);
+          return res.status(400).json({
+            success: false,
+            error: 'File type validation failed',
+            message: validation.error,
+            detectedType: validation.detectedType,
+            expectedType: validation.expectedType || uploadType
+          });
+        }
+        console.log(`✅ File type validated: ${fileName} -> ${validation.detectedType}`);
+      }
 
       if (!indices || !Array.isArray(indices)) {
         return res.status(400).json({ 
@@ -293,12 +311,33 @@ const handler = async (req, res) => {
         console.log(`   📈 Total processed: ${indicesCount} items`);
       }
 
+      // TRIGGER SIGNAL GENERATION: After successful upload, check if we can generate signals
+      // Only generate for bhav or premarket uploads (required for momentum_gap strategy)
+      let signalGenerationTriggered = false;
+      if ((uploadType === 'bhav' || uploadType === 'premarket') && dataToSave.date) {
+        try {
+          console.log(`🔄 Triggering signal generation check for date: ${dataToSave.date}`);
+          // Check if both bhav and premarket are now available for this date
+          // If yes, generate signals; if no, signals_store will have INSUFFICIENT_DATA status
+          // Note: For bhav uploads, we need yesterday's bhav + today's premarket
+          // For premarket uploads, we need today's premarket + yesterday's bhav
+          // Keep it simple: generate for the upload date (strategy will handle date logic internally)
+          await generateSignalsForDate(dataToSave.date, 'momentum_gap');
+          signalGenerationTriggered = true;
+          console.log(`✅ Signal generation triggered for ${dataToSave.date}`);
+        } catch (signalError) {
+          console.error('⚠️ Error triggering signal generation (non-fatal):', signalError.message);
+          // Don't fail the upload if signal generation fails
+        }
+      }
+
       return res.status(200).json({
         success: true,
-        message: `Data saved successfully to MongoDB${dailyInsertCount > 0 ? ` (${dailyInsertCount} rows inserted into daily collections)` : ''}`,
+        message: `Data saved successfully to MongoDB${dailyInsertCount > 0 ? ` (${dailyInsertCount} rows inserted into daily collections)` : ''}${signalGenerationTriggered ? ' (signal generation triggered)' : ''}`,
         id: result.insertedId.toString(),
         dailyInsertCount: dailyInsertCount,
         indicesCount: indicesCount,
+        signalGenerationTriggered: signalGenerationTriggered,
         data: {
           ...dataToSave,
           _id: result.insertedId.toString()

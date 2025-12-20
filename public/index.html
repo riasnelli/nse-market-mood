@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="styles.css" media="all">
     <link rel="manifest" href="/manifest.json">
     <script src="/utils/nseParsers.js"></script>
+    <script src="/utils/pollingManager.js"></script>
     <meta name="theme-color" content="#667eea" id="themeColorMeta"/>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
@@ -140,7 +141,11 @@
                         </div>
                     </div>
                 </div>
-                <p class="data-source-info"><span id="dataSource">NSE India</span> • <span id="updateInfo">Updates every 30 sec. during market hrs.</span></p>
+                <p class="data-source-info">
+                    <span id="dataSource">NSE India</span> • 
+                    <span id="lastUpdatedTime">Last updated: --:--:--</span> • 
+                    <span id="marketStatus" style="color: #10b981;">Market Open</span>
+                </p>
             </div>
 
             <!-- Signals Page View -->
@@ -160,11 +165,7 @@
                 
                 <!-- Signals Refresh Section -->
                 <div class="signals-refresh-section" id="signalsRefreshSection" style="display: none; margin: 20px; padding: 15px; background: rgba(255, 255, 255, 0.95); border-radius: 12px; backdrop-filter: blur(10px);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <div>
-                            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #333;">Refresh Signals</h4>
-                            <div id="lastRefreshTime" style="font-size: 0.8rem; color: #666; margin-top: 4px;">Never refreshed</div>
-                        </div>
+                    <div style="display: flex; justify-content: flex-end; align-items: center;">
                         <button id="refreshSignalsBtn" class="btn-primary" style="padding: 8px 16px; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="refreshSignalsIcon">
                                 <polyline points="23 4 23 10 17 10"></polyline>

@@ -36,6 +36,7 @@ function verifyApiKey(req) {
   // Get API key from headers, query params, or body
   const apiKey = 
     req.headers['x-api-key'] || 
+    req.headers['x-internal-key'] ||
     req.headers['authorization']?.replace('Bearer ', '') ||
     req.query?.apiKey ||
     req.body?.apiKey;
@@ -44,6 +45,7 @@ function verifyApiKey(req) {
   
   // Allow requests without key for public endpoints (like nse-data GET)
   // But require key for write operations
+  // Also accept x-internal-key for internal requests (same as x-api-key)
   return apiKey === validKey;
 }
 

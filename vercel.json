@@ -22,6 +22,14 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/admin/cleanup-types.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/admin/migrate-signals.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
@@ -46,6 +54,14 @@
     {
       "src": "/api/download-nse-csvs",
       "dest": "/api/download-nse-csvs.js"
+    },
+    {
+      "src": "/api/admin/cleanup-types",
+      "dest": "/api/admin/cleanup-types.js"
+    },
+    {
+      "src": "/api/admin/migrate-signals",
+      "dest": "/api/admin/migrate-signals.js"
     },
     {
       "src": "/(.*)",

@@ -2452,6 +2452,55 @@ input[type="date"] {
     }
 }
 
+/* Live Ticker Animations */
+.live-indicator {
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.live-indicator.pulse {
+    animation: pulse-dot 1s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+    }
+}
+
+.pulse-highlight {
+    animation: pulse-highlight 0.8s ease-out;
+}
+
+@keyframes pulse-highlight {
+    0% {
+        background-color: rgba(16, 185, 129, 0.2);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.index-price,
+.index-change {
+    transition: all 0.3s ease;
+}
+
+/* Market Status Styles */
+#marketStatus {
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+#lastUpdatedTime {
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
 /* Password input with eye icon */
 .password-input-wrapper {
     position: relative;

@@ -18,8 +18,6 @@ app.use(express.urlencoded({ extended: true }));
 // Import and mount API routes
 const apiRoutes = [
   'nse-data',
-  'dhan-data',
-  'test-dhan',
   'save-uploaded-data',
   'get-uploaded-data',
   'get-uploaded-dates',

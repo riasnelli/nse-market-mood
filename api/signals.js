@@ -4,9 +4,11 @@ const {
   getSignalCollection,
   getSignalRunCollection,
   getUploadedDataCollection,
-  getDailyIndicesCollection
+  getDailyIndicesCollection,
+  getSignalsStoreCollection
 } = require('./lib/mongodb');
 const { authMiddleware } = require('./lib/auth');
+const { generateSignalsForDate } = require('./lib/signals/generateSignals');
 
 // Try to load uuid, but don't fail if it's not available
 let uuidv4;
@@ -519,338 +521,191 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
   }
 }
 
-const handler = async (req, res) => {
-  try {
-    // Get operation from query params or body
-    const operation = req.query.operation || req.body?.operation;
-    
-    // Validate operation
-    const validOperations = ['generate', 'get', 'latest'];
-    if (operation && !validOperations.includes(operation)) {
-      return res.status(400).json({ 
-        error: 'Invalid operation',
-        validOperations,
-        message: `Operation must be one of: ${validOperations.join(', ')}`
-      });
-    }
+/**
+ * Verify admin authentication (APP_KEY header)
+ */
+function verifyAdminAuth(req) {
+  const appKey = req.headers['x-app-key'];
+  const validAppKey = process.env.APP_KEY;
+  
+  if (!validAppKey) {
+    console.warn('⚠️ APP_KEY not configured in environment');
+    return false;
+  }
+  
+  return appKey === validAppKey;
+}
 
+const handler = async (req, res) => {
+  const DEBUG = process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development';
+  
+  try {
     // Check if MongoDB is configured
     const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
     
-    if (req.method === 'POST' && operation === 'generate') {
-      // Generate signals
-      const date = req.query.date || req.body?.date || new Date().toISOString().split('T')[0];
-      
-      if (!mongoUri) {
-        return res.status(200).json({
-          success: false,
-          date: date,
-          run_id: null,
-          signal_count: 0,
-          signals: [],
-          message: 'Signal generation requires MongoDB configuration.'
-        });
-      }
-
-      const strategy = req.query.strategy || req.body?.strategy || 'momentum_gap';
-      const result = await generateSimpleMomentumGapSignals(date, strategy);
-      
-      res.status(200).json({
-        success: result.success !== false,
-        date: result.date || date,
-        run_id: result.run_id || null,
-        signal_count: result.signal_count || (result.signals ? result.signals.length : 0),
-        signals: result.signals || [],
-        message: result.message || 'Signals generated successfully'
-      });
-
-    } else if (req.method === 'GET' && operation === 'get') {
-      // Get signals (get-signals.js logic)
-      const date = req.query.date || new Date().toISOString().split('T')[0];
-      
-      if (!mongoUri) {
-        return res.status(200).json({
-          date: date,
-          run_id: null,
-          signal_count: 0,
-          signals: [],
-          hasSignals: false,
-          message: 'No signals available for this date yet. Signals will be generated when data is available.'
-        });
-      }
-
-      // Try to get signals from database
-      try {
-        const signalCollection = await getSignalCollection();
-        const signalRunCollection = await getSignalRunCollection();
-
-        const signalRun = await signalRunCollection.findOne({ date: date });
+    // Clean REST API contract:
+    // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get saved signals (READ-ONLY)
+    // POST /api/signals with body {date, strategy} - Admin-only: Force regenerate signals
+    
+    if (req.method === 'GET') {
+      // Support backward compatibility: ?operation=latest
+      const operation = req.query.operation;
+      if (operation === 'latest') {
+        // Get latest signal date (get-latest-signal-date.js logic)
+        const today = new Date().toISOString().split('T')[0];
         
-        if (signalRun && signalRun.run_id) {
-          const signals = await signalCollection
-            .find({ run_id: signalRun.run_id })
-            .sort({ score: -1 })
-            .toArray();
-
-          const transformedSignals = signals.map(signal => ({
-            symbol: signal.symbol,
-            score: signal.score,
-            entry_price: signal.entry_price,
-            target_price: signal.target_price,
-            stop_loss: signal.stop_loss,
-            side: signal.side || 'BUY',
-            confidence_score: signal.confidence_score,
-            feature_fields: signal.feature_fields,
-            ai_explanation: signal.ai_explanation,
-            reason: signal.reason
-          }));
-
+        if (DEBUG) {
+          console.log('[SIGNALS API] GET request - operation: latest');
+        }
+        
+        if (!mongoUri) {
           return res.status(200).json({
-            date: date,
-            run_id: signalRun.run_id,
-            signal_count: transformedSignals.length,
-            signals: transformedSignals,
-            hasSignals: transformedSignals.length > 0,
-            message: transformedSignals.length > 0 
-              ? `Found ${transformedSignals.length} signals for ${date}`
-              : 'No signals found for this date'
-          });
-        }
-
-        // No signals in DB - try to generate them
-        const strategy = req.query.strategy || 'momentum_gap';
-        console.log(`No signals found in DB for ${date}, attempting to generate with strategy: ${strategy}...`);
-        
-        try {
-          const generatedResult = await generateSimpleMomentumGapSignals(date, strategy);
-          
-          if (generatedResult.signals && generatedResult.signals.length > 0) {
-            const transformedSignals = generatedResult.signals.map(signal => ({
-              symbol: signal.symbol,
-              score: signal.score,
-              entry_price: signal.entry || signal.entry_price,
-              target_price: signal.target || signal.target_price,
-              stop_loss: signal.sl || signal.stop_loss,
-              side: signal.direction || signal.side || 'BUY',
-              confidence_score: signal.confidence_score || (signal.score / 100),
-              feature_fields: {
-                gap_percent: signal.gap_percent,
-                near_high: signal.near_high,
-                volume: signal.volume,
-                delivery_percent: signal.delivery_percent
-              },
-              reason: signal.reason
-            }));
-
-            return res.status(200).json({
-              date: date,
-              run_id: generatedResult.run_id || null,
-              signal_count: transformedSignals.length,
-              signals: transformedSignals,
-              hasSignals: true,
-              message: `Generated ${transformedSignals.length} signals for ${date}`
-            });
-          } else {
-            return res.status(200).json({
-              date: date,
-              run_id: null,
-              signal_count: 0,
-              signals: [],
-              hasSignals: false,
-              message: generatedResult.message || 'No signals available for this date yet.'
-            });
-          }
-        } catch (genError) {
-          console.warn('Error generating signals in get-signals:', genError.message);
-        }
-      } catch (dbError) {
-        console.warn('Error querying database for signals, returning empty:', dbError.message);
-      }
-
-      // No signals found - return empty response
-      res.status(200).json({
-        date: date,
-        run_id: null,
-        signal_count: 0,
-        signals: [],
-        hasSignals: false,
-        message: 'No signals available for this date yet. Signals will be generated when data is available.'
-      });
-
-    } else if (req.method === 'GET' && operation === 'latest') {
-      // Get latest signal date (get-latest-signal-date.js logic)
-      const today = new Date().toISOString().split('T')[0];
-      
-      if (!mongoUri) {
-        return res.status(200).json({
-          date: today,
-          hasSignals: false,
-          latest_complete_date: today,
-          dates: {
-            bhavcopy: today,
-            indices: today,
-            premarket: today
-          },
-          message: 'Using today as the latest available date (MongoDB not configured)'
-        });
-      }
-
-      // Try to get latest dates from MongoDB collections
-      try {
-        const bhavcopyCollection = await getDailyBhavcopyCollection();
-        const indicesCollection = await getDailyIndicesCollection();
-        const premarketCollection = await getPreMarketDataCollection();
-
-        const [latestBhavcopy] = await bhavcopyCollection
-          .find({})
-          .sort({ date: -1 })
-          .limit(1)
-          .toArray();
-        
-        const [latestIndices] = await indicesCollection
-          .find({})
-          .sort({ date: -1 })
-          .limit(1)
-          .toArray();
-        
-        const [latestPremarket] = await premarketCollection
-          .find({})
-          .sort({ date: -1 })
-          .limit(1)
-          .toArray();
-
-        const dates = {
-          bhavcopy: latestBhavcopy?.date || today,
-          indices: latestIndices?.date || today,
-          premarket: latestPremarket?.date || today
-        };
-
-        const allDates = [dates.bhavcopy, dates.indices, dates.premarket]
-          .filter(Boolean)
-          .sort()
-          .reverse();
-        
-        const latestCompleteDate = allDates[0] || today;
-
-        res.status(200).json({
-          date: latestCompleteDate,
-          hasSignals: false,
-          latest_complete_date: latestCompleteDate,
-          dates: dates,
-          message: 'Latest dates retrieved from database'
-        });
-      } catch (dbError) {
-        console.warn('Error querying database for latest dates, using today:', dbError.message);
-        res.status(200).json({
-          date: today,
-          hasSignals: false,
-          latest_complete_date: today,
-          dates: {
-            bhavcopy: today,
-            indices: today,
-            premarket: today
-          },
-          message: 'Using today as the latest available date (database query failed)'
-        });
-      }
-
-    } else if (req.method === 'GET' && !operation) {
-      // Default GET behavior - same as operation='get' for backward compatibility
-      const date = req.query.date || new Date().toISOString().split('T')[0];
-      
-      if (!mongoUri) {
-        return res.status(200).json({
-          date: date,
-          run_id: null,
-          signal_count: 0,
-          signals: [],
-          hasSignals: false,
-          message: 'No signals available for this date yet.'
-        });
-      }
-
-      try {
-        const signalCollection = await getSignalCollection();
-        const signalRunCollection = await getSignalRunCollection();
-
-        const signalRun = await signalRunCollection.findOne({ date: date });
-        
-        if (signalRun && signalRun.run_id) {
-          const signals = await signalCollection
-            .find({ run_id: signalRun.run_id })
-            .sort({ score: -1 })
-            .toArray();
-
-          const transformedSignals = signals.map(signal => ({
-            symbol: signal.symbol,
-            score: signal.score,
-            entry_price: signal.entry_price,
-            target_price: signal.target_price,
-            stop_loss: signal.stop_loss,
-            side: signal.side || 'BUY',
-            confidence_score: signal.confidence_score,
-            feature_fields: signal.feature_fields,
-            ai_explanation: signal.ai_explanation,
-            reason: signal.reason
-          }));
-
-          return res.status(200).json({
-            date: date,
-            run_id: signalRun.run_id,
-            signal_count: transformedSignals.length,
-            signals: transformedSignals,
-            hasSignals: transformedSignals.length > 0,
-            message: transformedSignals.length > 0 
-              ? `Found ${transformedSignals.length} signals for ${date}`
-              : 'No signals found for this date'
-          });
-        }
-
-        // Try to generate if not found
-        const strategy = req.query.strategy || 'momentum_gap';
-        const generatedResult = await generateSimpleMomentumGapSignals(date, strategy);
-        
-        if (generatedResult.signals && generatedResult.signals.length > 0) {
-          const transformedSignals = generatedResult.signals.map(signal => ({
-            symbol: signal.symbol,
-            score: signal.score,
-            entry_price: signal.entry || signal.entry_price,
-            target_price: signal.target || signal.target_price,
-            stop_loss: signal.sl || signal.stop_loss,
-            side: signal.direction || signal.side || 'BUY',
-            confidence_score: signal.confidence_score || (signal.score / 100),
-            feature_fields: {
-              gap_percent: signal.gap_percent,
-              near_high: signal.near_high,
-              volume: signal.volume,
-              delivery_percent: signal.delivery_percent
+            date: today,
+            hasSignals: false,
+            latest_complete_date: today,
+            dates: {
+              bhavcopy: today,
+              indices: today,
+              premarket: today
             },
-            reason: signal.reason
-          }));
-
-          return res.status(200).json({
-            date: date,
-            run_id: generatedResult.run_id || null,
-            signal_count: transformedSignals.length,
-            signals: transformedSignals,
-            hasSignals: true,
-            message: `Generated ${transformedSignals.length} signals for ${date}`
+            message: 'Using today as the latest available date (MongoDB not configured)'
           });
         }
 
-        res.status(200).json({
+        // Try to get latest dates from MongoDB collections
+        try {
+          const bhavcopyCollection = await getDailyBhavcopyCollection();
+          const indicesCollection = await getDailyIndicesCollection();
+          const premarketCollection = await getPreMarketDataCollection();
+
+          const [latestBhavcopy] = await bhavcopyCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(1)
+            .toArray();
+          
+          const [latestIndices] = await indicesCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(1)
+            .toArray();
+          
+          const [latestPremarket] = await premarketCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(1)
+            .toArray();
+
+          const dates = {
+            bhavcopy: latestBhavcopy?.date || today,
+            indices: latestIndices?.date || today,
+            premarket: latestPremarket?.date || today
+          };
+
+          const allDates = [dates.bhavcopy, dates.indices, dates.premarket]
+            .filter(Boolean)
+            .sort()
+            .reverse();
+          
+          const latestCompleteDate = allDates[0] || today;
+
+          return res.status(200).json({
+            date: latestCompleteDate,
+            hasSignals: false,
+            latest_complete_date: latestCompleteDate,
+            dates: dates,
+            message: 'Latest dates retrieved from database'
+          });
+        } catch (dbError) {
+          console.warn('[SIGNALS API] Error querying database for latest dates, using today:', dbError.message);
+          return res.status(200).json({
+            date: today,
+            hasSignals: false,
+            latest_complete_date: today,
+            dates: {
+              bhavcopy: today,
+              indices: today,
+              premarket: today
+            },
+            message: 'Using today as the latest available date (database query failed)'
+          });
+        }
+      }
+      
+      // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get signals for a date (READ-ONLY)
+      const date = req.query.date || new Date().toISOString().split('T')[0];
+      const strategy = req.query.strategy || 'momentum_gap';
+      
+      if (DEBUG) {
+        console.log(`[SIGNALS API] GET request - date: ${date}, strategy: ${strategy}`);
+      }
+      
+      if (!mongoUri) {
+        if (DEBUG) console.log('[SIGNALS API] MongoDB not configured, returning NO_DATA status');
+        return res.status(200).json({
           date: date,
-          run_id: null,
+          strategy: strategy,
+          status: 'NO_DATA',
           signal_count: 0,
           signals: [],
           hasSignals: false,
-          message: 'No signals available for this date yet.'
+          message: 'MongoDB not configured. Signals cannot be generated.'
+        });
+      }
+
+      try {
+        // Read from signals_store collection (new unified store)
+        const signalsStoreCollection = await getSignalsStoreCollection();
+        const storedDoc = await signalsStoreCollection.findOne({ date, strategy });
+        
+        if (storedDoc) {
+          // Return stored document with status
+          const transformedSignals = Array.isArray(storedDoc.signals) ? storedDoc.signals.map(signal => ({
+            symbol: signal.symbol,
+            score: signal.score,
+            entry_price: signal.entry_price,
+            target_price: signal.target_price,
+            stop_loss: signal.stop_loss,
+            side: signal.side || 'BUY',
+            confidence_score: signal.confidence_score,
+            feature_fields: signal.feature_fields,
+            reason: signal.reason
+          })) : [];
+
+          if (DEBUG) {
+            console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}`);
+          }
+
+          return res.status(200).json({
+            date: storedDoc.date,
+            strategy: storedDoc.strategy,
+            status: storedDoc.status, // READY | NO_MATCH | INSUFFICIENT_DATA | ERROR
+            signal_count: storedDoc.signal_count || 0,
+            signals: transformedSignals,
+            hasSignals: storedDoc.status === 'READY' && transformedSignals.length > 0,
+            message: storedDoc.message || 'Signals retrieved',
+            missingFiles: storedDoc.missingFiles || null,
+            run_id: storedDoc.run_id || null
+          });
+        }
+
+        // No signals found in store - return NO_DATA status
+        if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store for ${date} (${strategy})`);
+        return res.status(200).json({
+          date: date,
+          strategy: strategy,
+          status: 'NO_DATA',
+          signal_count: 0,
+          signals: [],
+          hasSignals: false,
+          message: 'No signals available for this date yet. Signals will be generated automatically after CSV uploads.'
         });
       } catch (error) {
-        console.error('Error in get-signals:', error);
-        res.status(200).json({
+        console.error('[SIGNALS API] Error retrieving signals:', error);
+        return res.status(200).json({
           date: date,
-          run_id: null,
+          strategy: strategy,
+          status: 'ERROR',
           signal_count: 0,
           signals: [],
           hasSignals: false,
@@ -858,6 +713,55 @@ const handler = async (req, res) => {
           error: error.message
         });
       }
+      
+    } else if (req.method === 'POST') {
+      // POST /api/signals - Admin-only: Force regenerate signals
+      // Requires x-app-key header matching APP_KEY environment variable
+      
+      if (!verifyAdminAuth(req)) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Admin authentication required. Provide x-app-key header matching APP_KEY.'
+        });
+      }
+      
+      const date = req.body?.date || req.query.date || new Date().toISOString().split('T')[0];
+      const strategy = req.body?.strategy || req.query.strategy || 'momentum_gap';
+      
+      if (DEBUG) {
+        console.log(`[SIGNALS API] POST request (admin) - date: ${date}, strategy: ${strategy}`);
+      }
+      
+      if (!mongoUri) {
+        if (DEBUG) console.log('[SIGNALS API] MongoDB not configured');
+        return res.status(200).json({
+          status: 'ERROR',
+          date: date,
+          strategy: strategy,
+          signal_count: 0,
+          signals: [],
+          message: 'Signal generation requires MongoDB configuration.'
+        });
+      }
+
+      // Generate signals using the new module
+      const result = await generateSignalsForDate(date, strategy);
+      
+      if (DEBUG) {
+        console.log(`[SIGNALS API] Generated signals: status=${result.status}, count=${result.signal_count || 0}`);
+      }
+      
+      res.status(200).json({
+        status: result.status,
+        date: result.date || date,
+        strategy: result.strategy || strategy,
+        signal_count: result.signal_count || 0,
+        signals: result.signals || [],
+        hasSignals: result.status === 'READY' && (result.signals && result.signals.length > 0),
+        message: result.message || 'Signals generated',
+        missingFiles: result.missingFiles || null,
+        run_id: result.run_id || null
+      });
 
     } else {
       // Method not allowed
@@ -878,19 +782,28 @@ const handler = async (req, res) => {
   }
 };
 
-module.exports = authMiddleware({
+// Wrap handler with auth middleware
+// GET requests are public (read-only)
+// POST requests require admin auth (handled by verifyAdminAuth in handler)
+const wrappedHandler = authMiddleware({
   requireAuth: req => {
-    // Require auth for POST (generate)
-    const operation = req.query.operation || req.body?.operation;
-    return req.method === 'POST' && operation === 'generate';
+    // GET requests are public (read-only signals page)
+    if (req.method === 'GET') {
+      return false;
+    }
+    // POST requests require admin auth (handled separately in handler via verifyAdminAuth)
+    // We still run through auth middleware for rate limiting, but admin check is in handler
+    return false; // Admin check happens in handler, not here
   },
   rateLimitType: req => {
-    const operation = req.query.operation || req.body?.operation;
-    if (req.method === 'POST' && operation === 'generate') return 'write';
+    // POST requests are admin write operations
+    if (req.method === 'POST') return 'write';
     return 'public';
   }
 })(handler);
 
-// Export the generate function for reuse
-module.exports.generateSimpleMomentumGapSignals = generateSimpleMomentumGapSignals;
+// Export the wrapped handler and generate function
+const signalsModule = wrappedHandler;
+signalsModule.generateSimpleMomentumGapSignals = generateSimpleMomentumGapSignals;
+module.exports = signalsModule;
 

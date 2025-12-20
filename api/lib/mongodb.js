@@ -128,6 +128,15 @@ async function getSignalRunCollection() {
   return db.collection('signal_runs');
 }
 
+/**
+ * Get signals store collection
+ * This is the new unified collection for storing signal generation results with status
+ */
+async function getSignalsStoreCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('signals_store');
+}
+
 module.exports = {
   connectToDatabase,
   getUploadedDataCollection,
@@ -137,5 +146,6 @@ module.exports = {
   getPreMarketDataCollection,
   getSignalCollection,
   getSignalRunCollection,
+  getSignalsStoreCollection,
 };
 
