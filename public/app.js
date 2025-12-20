@@ -7398,12 +7398,7 @@ class MarketMoodApp {
                     signalsEmptyMessage.innerHTML = message;
                 }
                 
-                // Still show strategy recommendation if available
-                if (strategyAnalysis) {
-                    signalsContainer.innerHTML = '';
-                    this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
-                    signalsContainer.style.setProperty('display', 'block', 'important');
-                }
+                // Strategy recommendation card removed - strategy shown in selector button only
                 
                 signalsLoading.style.display = 'none';
                 this._switchingView = false;
@@ -7458,12 +7453,7 @@ class MarketMoodApp {
                     signalsEmptyMessage.innerHTML = `No signals available for ${targetDate} yet.<br>Signals will be generated automatically after CSV uploads.`;
                 }
                 
-                // Still show strategy recommendation if available
-                if (strategyAnalysis) {
-                    signalsContainer.innerHTML = '';
-                    this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
-                    signalsContainer.style.setProperty('display', 'block', 'important');
-                }
+                // Strategy recommendation card removed - strategy shown in selector button only
                 
                 signalsLoading.style.display = 'none';
                 this._switchingView = false;
@@ -7485,12 +7475,7 @@ class MarketMoodApp {
                     signalsEmptyMessage.innerHTML = signalsMessage || `No signals available for ${targetDate}.`;
                 }
                 
-                // Still show strategy recommendation if available
-                if (strategyAnalysis) {
-                    signalsContainer.innerHTML = '';
-                    this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
-                    signalsContainer.style.setProperty('display', 'block', 'important');
-                }
+                // Strategy recommendation card removed - strategy shown in selector button only
                 
                 signalsLoading.style.display = 'none';
                 this._switchingView = false;
