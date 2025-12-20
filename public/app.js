@@ -522,7 +522,9 @@ class MarketMoodApp {
                 }
             });
         }
-        // Strategy selector button removed - strategy shown in status panel only
+        // Setup strategy selector modal (even though button is removed, modal can be opened programmatically)
+        this.setupStrategySelector();
+        
         if (this.refreshDataAvailabilityBtn) {
             this.refreshDataAvailabilityBtn.addEventListener('click', () => this.loadDataAvailability());
         }
@@ -8183,8 +8185,15 @@ class MarketMoodApp {
                 
                 newLink.addEventListener('click', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Try other Strategies link clicked, opening strategy modal...');
                     if (this.strategyModal) {
+                        console.log('Strategy modal found, adding show class');
                         this.strategyModal.classList.add('show');
+                        // Ensure modal is visible
+                        this.strategyModal.style.display = 'flex';
+                    } else {
+                        console.warn('Strategy modal not found');
                     }
                 });
             }
