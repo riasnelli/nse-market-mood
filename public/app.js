@@ -395,15 +395,10 @@ class MarketMoodApp {
         this.moodBtnLabel = document.getElementById('moodBtnLabel');
         this.signalsBtn = document.getElementById('signalsBtn');
         this.signalsBtnLabel = document.getElementById('signalsBtnLabel');
-        this.generateSignalsBtn = document.getElementById('generateSignalsBtn');
         this.selectStrategyBtn = document.getElementById('selectStrategyBtn');
         this.strategyModal = document.getElementById('strategyModal');
         this.selectedStrategyText = document.getElementById('selectedStrategyText');
         this.refreshDataAvailabilityBtn = document.getElementById('refreshDataAvailabilityBtn');
-        this.refreshSignalsBtn = document.getElementById('refreshSignalsBtn');
-        this.refreshSignalsStatus = document.getElementById('refreshSignalsStatus');
-        this.signalsRefreshSection = document.getElementById('signalsRefreshSection');
-        this.debugPanelContent = document.getElementById('debugPanelContent');
         this.dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
         this.uploadBtn = document.getElementById('uploadBtn');
         this.selectedStrategy = localStorage.getItem('selectedStrategy') || 'momentum_gap'; // Default strategy
@@ -529,10 +524,6 @@ class MarketMoodApp {
                 }
             });
         }
-        if (this.generateSignalsBtn) {
-            this.generateSignalsBtn.addEventListener('click', () => this.generateSignals());
-        }
-        
         // Setup strategy selector
         this.setupStrategySelector();
         
@@ -540,15 +531,6 @@ class MarketMoodApp {
         this.updateSelectedStrategyText();
         if (this.refreshDataAvailabilityBtn) {
             this.refreshDataAvailabilityBtn.addEventListener('click', () => this.loadDataAvailability());
-        }
-        
-        if (this.refreshSignalsBtn) {
-            this.refreshSignalsBtn.addEventListener('click', () => this.refreshSignals());
-        }
-        
-        // Show refresh section on signals page
-        if (this.signalsRefreshSection) {
-            this.signalsRefreshSection.style.display = 'block';
         }
         if (this.uploadBtn) {
             this.uploadBtn.addEventListener('click', () => this.openUploadModal());
@@ -7139,7 +7121,6 @@ class MarketMoodApp {
                 const loadData = () => {
                     try {
                         this.loadSignals();
-                        this.loadDataAvailability();
                     } catch (error) {
                         console.error('Error loading signals data:', error);
                     } finally {
@@ -7379,12 +7360,12 @@ class MarketMoodApp {
                 signalsContainer.style.display = 'none';
                 
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
-                const emptyMessage = signalsEmpty.querySelector('div[style*="font-size: 0.95rem"]');
+                const signalsEmptyMessage = signalsEmpty.querySelector('#signalsEmptyMessage');
                 
                 if (emptyTitle) {
                     emptyTitle.textContent = 'No Potential Signals';
                 }
-                if (emptyMessage) {
+                if (signalsEmptyMessage) {
                     let message = `No stocks met criteria for ${targetDate}.<br><br>`;
                     message += `<strong>Why this happens:</strong><br>`;
                     message += `The strategy ran successfully but no stocks passed all the filters. This is normal when market conditions don't meet the strategy's requirements.<br><br>`;
@@ -7402,7 +7383,7 @@ class MarketMoodApp {
                         message += `<br><strong>Top filter reason:</strong> ${data.debug?.topReason || data.topReason}`;
                     }
                     
-                    emptyMessage.innerHTML = message;
+                    signalsEmptyMessage.innerHTML = message;
                 }
                 
                 // Still show strategy recommendation if available
@@ -7422,17 +7403,17 @@ class MarketMoodApp {
                 signalsContainer.style.display = 'none';
                 
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
-                const emptyMessage = signalsEmpty.querySelector('div[style*="font-size: 0.95rem"]');
+                const signalsEmptyMessage = signalsEmpty.querySelector('#signalsEmptyMessage');
                 
                 if (emptyTitle) {
                     emptyTitle.textContent = 'Insufficient Data';
                 }
-                if (emptyMessage) {
+                if (signalsEmptyMessage) {
                     const missingFiles = data?.missingFiles || [];
                     let message = `Cannot generate signals for ${targetDate}.<br><br><strong>Missing required files:</strong><br>`;
                     message += missingFiles.map(f => `• ${f}`).join('<br>');
-                    message += `<br><br>Please upload the required CSV files to generate signals.`;
-                    emptyMessage.innerHTML = message;
+                    message += `<br><br>Please upload the required CSV files. Signals will be generated automatically after upload.`;
+                    signalsEmptyMessage.innerHTML = message;
                 }
                 
                 signalsLoading.style.display = 'none';
@@ -7456,13 +7437,13 @@ class MarketMoodApp {
                 signalsContainer.style.display = 'none';
                 
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
-                const emptyMessage = signalsEmpty.querySelector('div[style*="font-size: 0.95rem"]');
+                const signalsEmptyMessage = signalsEmpty.querySelector('#signalsEmptyMessage');
                 
                 if (emptyTitle) {
                     emptyTitle.textContent = 'No Signals Available';
                 }
-                if (emptyMessage) {
-                    emptyMessage.innerHTML = `No signals available for ${targetDate} yet.<br>Signals will be generated automatically after CSV uploads.`;
+                if (signalsEmptyMessage) {
+                    signalsEmptyMessage.innerHTML = `No signals available for ${targetDate} yet.<br>Signals will be generated automatically after CSV uploads.`;
                 }
                 
                 // Still show strategy recommendation if available
@@ -7483,13 +7464,13 @@ class MarketMoodApp {
                 signalsContainer.style.display = 'none';
                 
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
-                const emptyMessage = signalsEmpty.querySelector('div[style*="font-size: 0.95rem"]');
+                const signalsEmptyMessage = signalsEmpty.querySelector('#signalsEmptyMessage');
                 
                 if (emptyTitle) {
                     emptyTitle.textContent = 'No Potential Signals';
                 }
-                if (emptyMessage) {
-                    emptyMessage.innerHTML = signalsMessage || `No signals available for ${targetDate}.`;
+                if (signalsEmptyMessage) {
+                    signalsEmptyMessage.innerHTML = signalsMessage || `No signals available for ${targetDate}.`;
                 }
                 
                 // Still show strategy recommendation if available
@@ -7547,11 +7528,7 @@ class MarketMoodApp {
             const signalDate = data?.date || targetDate;
             this.renderSignals(signalsArray, runId, signalDate, signalsContainer);
             
-            // Update debug panel
-            this.updateDebugPanel(data);
-            
-            // Update last refresh time
-            this.updateLastRefreshTime();
+            // Debug panel removed - debug info available via API with debug=1 parameter
             
         } catch (error) {
             console.error('❌ Error loading signals:', error);
@@ -7581,130 +7558,11 @@ class MarketMoodApp {
     // REMOVED: generateSignalsForDate - Signals are now server-side only (precomputed after CSV uploads)
     // This function is no longer used as signals are read-only from the UI
 
-    /**
-     * Refresh signals: fetch latest mood, then recompute signals
-     */
-    async refreshSignals() {
-        if (!this.refreshSignalsBtn) return;
-        
-        const icon = this.refreshSignalsBtn.querySelector('#refreshSignalsIcon');
-        const statusEl = this.refreshSignalsStatus;
-        
-        // Show loading state
-        this.refreshSignalsBtn.disabled = true;
-        if (icon) {
-            icon.style.animation = 'spin 1s linear infinite';
-        }
-        if (statusEl) {
-            statusEl.textContent = 'Refreshing...';
-            statusEl.style.color = '#667eea';
-        }
-        
-        try {
-            // Step 1: Fetch latest mood data
-            await this.loadData();
-            
-            // Step 2: Recompute strategy recommendation
-            const strategyAnalysis = this.analyzeMarketConditionsAndRecommendStrategy();
-            if (strategyAnalysis && strategyAnalysis.strategyId) {
-                this.selectedStrategy = strategyAnalysis.strategyId;
-                localStorage.setItem('selectedStrategy', strategyAnalysis.strategyId);
-                this.updateSelectedStrategyText();
-            }
-            
-            // Step 3: Reload signals with new data
-            await this.loadSignals();
-            
-            // Update last refresh time
-            this.updateLastRefreshTime();
-            
-            if (statusEl) {
-                statusEl.textContent = 'Refresh completed successfully';
-                statusEl.style.color = '#10b981';
-                setTimeout(() => {
-                    statusEl.textContent = '';
-                }, 3000);
-            }
-        } catch (error) {
-            console.error('Error refreshing signals:', error);
-            if (statusEl) {
-                statusEl.textContent = 'Refresh failed: ' + (error.message || 'Unknown error');
-                statusEl.style.color = '#ef4444';
-                setTimeout(() => {
-                    statusEl.textContent = '';
-                }, 5000);
-            }
-        } finally {
-            this.refreshSignalsBtn.disabled = false;
-            if (icon) {
-                icon.style.animation = '';
-            }
-        }
-    }
+    // REMOVED: refreshSignals() - Signals are read-only and auto-generated server-side
+    // No manual refresh needed as signals are precomputed after CSV uploads
 
-    /**
-     * Update last refresh time display
-     */
-    updateLastRefreshTime() {
-        if (!this.lastRefreshTime) return;
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        this.lastRefreshTime.textContent = `Last refreshed at ${timeStr}`;
-    }
-
-    /**
-     * Update debug panel with dataset availability and filter counters
-     */
-    updateDebugPanel(data) {
-        if (!this.debugPanelContent) return;
-        
-        const datasetInfo = document.getElementById('debugDatasetInfo');
-        const filterCounters = document.getElementById('debugFilterCounters');
-        const signalRunInfo = document.getElementById('debugSignalRunInfo');
-        
-        // Dataset availability
-        if (datasetInfo) {
-            const today = new Date().toISOString().split('T')[0];
-            let info = `Date: ${data?.date || today}\n`;
-            info += `Bhavcopy: ${data?.filterCounters?.totalBhavcopy || 0} rows\n`;
-            info += `Premarket: ${data?.filterCounters?.totalPremarket || 0} rows\n`;
-            info += `Signals: ${data?.signals?.length || 0} generated\n`;
-            datasetInfo.textContent = info;
-        }
-        
-        // Filter counters
-        if (filterCounters && data?.filterCounters) {
-            const counters = data.filterCounters;
-            let info = `Total Premarket: ${counters.totalPremarket || 0}\n`;
-            info += `Total Bhavcopy: ${counters.totalBhavcopy || 0}\n`;
-            info += `No Symbol: ${counters.noSymbol || 0}\n`;
-            info += `Duplicate: ${counters.duplicateSymbol || 0}\n`;
-            info += `No Bhavcopy Match: ${counters.noBhavcopyMatch || 0}\n`;
-            info += `Not EQ Series: ${counters.notEqSeries || 0}\n`;
-            info += `Invalid Close: ${counters.invalidYesterdayClose || 0}\n`;
-            info += `Invalid Premarket: ${counters.invalidPremarketPrice || 0}\n`;
-            info += `Gap Too Small: ${counters.gapTooSmall || 0}\n`;
-            info += `Volume Too Low: ${counters.volumeTooLow || 0}\n`;
-            info += `Score Too Low: ${counters.scoreTooLow || 0}\n`;
-            info += `✅ Passed: ${counters.passed || 0}`;
-            filterCounters.textContent = info;
-        }
-        
-        // Signal run info
-        if (signalRunInfo) {
-            let info = `Date: ${data?.date || 'N/A'}\n`;
-            info += `Strategy: ${data?.strategy || 'N/A'}\n`;
-            info += `Signal Count: ${data?.signal_count || 0}\n`;
-            if (data?.run_id) {
-                info += `Run ID: ${data.run_id.substring(0, 8)}...\n`;
-            }
-            if (data?.created_at) {
-                const created = new Date(data.created_at);
-                info += `Created: ${created.toLocaleString()}`;
-            }
-            signalRunInfo.textContent = info;
-        }
-    }
+    // REMOVED: updateDebugPanel() - Debug panel removed from UI
+    // Debug info is available via API with debug=1 parameter if needed
 
     analyzeMarketConditionsAndRecommendStrategy() {
         // Analyze today's market conditions based on available data
