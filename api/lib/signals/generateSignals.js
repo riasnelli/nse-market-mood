@@ -19,9 +19,326 @@ const {
   getSignalsStoreCollection
 } = require('../mongodb');
 
-// Import the existing signal generation logic from signals.js
-const signalsModule = require('../signals');
-const generateSimpleMomentumGapSignals = signalsModule.generateSimpleMomentumGapSignals;
+// Import collections needed for signal generation
+const { 
+  getDailyBhavcopyCollection, 
+  getPreMarketDataCollection,
+  getDailyIndicesCollection,
+  getUploadedDataCollection
+} = require('../mongodb');
+
+/**
+ * Get yesterday's date (skip weekends)
+ */
+function getYesterdayDate(todayDate) {
+  const date = new Date(todayDate);
+  date.setDate(date.getDate() - 1);
+  while (date.getDay() === 0 || date.getDay() === 6) {
+    date.setDate(date.getDate() - 1);
+  }
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Simple Momentum Gap signal generator
+ * Filters EQ series stocks, finds gap-up near high candidates
+ * This is a copy of the function from signals.js to avoid circular dependencies
+ */
+async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap') {
+  // Implementation copied from signals.js - see that file for full details
+  // This function generates signals and returns filterCounters for debugging
+  try {
+    const yesterdayDate = getYesterdayDate(date);
+    console.log(`📊 Generating signals for ${date} with strategy: ${strategy}:`);
+    console.log(`   - Premarket data: ${date} (today's pre-open)`);
+    console.log(`   - Bhavcopy data: ${yesterdayDate} (yesterday's EOD)`);
+    
+    const bhavcopyCollection = await getDailyBhavcopyCollection();
+    const premarketCollection = await getPreMarketDataCollection();
+
+    // Get yesterday's bhavcopy data
+    let bhavcopyData = [];
+    try {
+      bhavcopyData = await bhavcopyCollection
+        .find({ 
+          date: yesterdayDate,
+          series: 'EQ'
+        })
+        .toArray();
+      
+      if (bhavcopyData.length === 0) {
+        const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+        const uploadedBhavDocs = await uploadedBhavCollection
+          .find({ date: yesterdayDate })
+          .toArray();
+        
+        for (const doc of uploadedBhavDocs) {
+          if (doc.indices && Array.isArray(doc.indices) && doc.indices.length > 0) {
+            const eqStocks = doc.indices.filter(item => {
+              return !item.series || item.series === 'EQ';
+            });
+            bhavcopyData = bhavcopyData.concat(eqStocks);
+          }
+        }
+      }
+    } catch (queryError) {
+      console.error('Error querying bhavcopy data:', queryError);
+      return {
+        success: false,
+        date: date,
+        signals: [],
+        signal_count: 0,
+        message: `Error querying bhavcopy data for ${yesterdayDate}`
+      };
+    }
+
+    if (bhavcopyData.length === 0) {
+      return {
+        success: true,
+        date: date,
+        signals: [],
+        signal_count: 0,
+        message: `No bhavcopy data found for ${yesterdayDate}. Please upload bhavcopy data.`
+      };
+    }
+
+    // Get today's premarket data
+    let premarketData = [];
+    try {
+      premarketData = await premarketCollection
+        .find({ date: date })
+        .toArray();
+      
+      if (premarketData.length === 0) {
+        const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
+        const uploadedPremarketDocs = await uploadedPremarketCollection
+          .find({ date: date })
+          .toArray();
+        
+        for (const doc of uploadedPremarketDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            premarketData = premarketData.concat(doc.indices);
+          }
+        }
+      }
+    } catch (queryError) {
+      console.error('Error querying premarket data:', queryError);
+      premarketData = [];
+    }
+    
+    if (premarketData.length === 0) {
+      console.warn(`⚠️ No premarket data found for ${date}`);
+    }
+
+    // Create lookup maps
+    const bhavcopyMap = new Map();
+    bhavcopyData.forEach(item => {
+      const symbol = item.symbol || item.SYMBOL || item.Symbol;
+      if (symbol) {
+        bhavcopyMap.set(symbol.toUpperCase(), item);
+      }
+    });
+
+    const premarketMap = new Map();
+    premarketData.forEach(item => {
+      const symbol = item.symbol || item.SYMBOL || item.Symbol;
+      if (symbol) {
+        premarketMap.set(symbol.toUpperCase(), item);
+      }
+    });
+
+    // Generate signals with filter counters
+    const signals = [];
+    const processedSymbols = new Set();
+    const filterCounters = {
+      totalPremarket: premarketData.length,
+      totalBhavcopy: bhavcopyData.length,
+      noSymbol: 0,
+      duplicateSymbol: 0,
+      noBhavcopyMatch: 0,
+      notEqSeries: 0,
+      invalidYesterdayClose: 0,
+      invalidPremarketPrice: 0,
+      gapTooSmall: 0,
+      volumeTooLow: 0,
+      scoreTooLow: 0,
+      passed: 0
+    };
+
+    // Process stocks with premarket data
+    for (const premarket of premarketData) {
+      const symbol = (premarket.symbol || premarket.SYMBOL || premarket.Symbol || '').toUpperCase();
+      if (!symbol) {
+        filterCounters.noSymbol++;
+        continue;
+      }
+      if (processedSymbols.has(symbol)) {
+        filterCounters.duplicateSymbol++;
+        continue;
+      }
+      
+      const bhavcopy = bhavcopyMap.get(symbol);
+      if (!bhavcopy) {
+        filterCounters.noBhavcopyMatch++;
+        continue;
+      }
+      
+      if (bhavcopy.series && bhavcopy.series !== 'EQ') {
+        filterCounters.notEqSeries++;
+        continue;
+      }
+
+      const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE || 
+                            bhavcopy.PREV_CLOSE || bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
+      if (yesterdayClose <= 0) {
+        filterCounters.invalidYesterdayClose++;
+        continue;
+      }
+
+      const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE || 
+                            premarket.price || premarket.PRICE ||
+                            premarket.last_price || premarket.LAST_PRICE ||
+                            premarket.open || premarket.OPEN || 0;
+      if (premarketPrice <= 0) {
+        filterCounters.invalidPremarketPrice++;
+        continue;
+      }
+
+      const gapPercent = ((premarketPrice - yesterdayClose) / yesterdayClose) * 100;
+
+      if (gapPercent < 0.3) {
+        filterCounters.gapTooSmall++;
+        continue;
+      }
+
+      const yesterdayHigh = bhavcopy.high || yesterdayClose;
+      let nearHigh = false;
+      if (yesterdayHigh > 0) {
+        const nearHighPercent = ((yesterdayHigh - premarketPrice) / yesterdayHigh) * 100;
+        nearHigh = Math.abs(nearHighPercent) <= 2.0;
+      }
+
+      const volume = bhavcopy.volume || bhavcopy.VOLUME || 
+                    bhavcopy.tottrdqty || bhavcopy.TOTTRDQTY || 
+                    bhavcopy.traded_quantity || bhavcopy.TRADED_QUANTITY || 0;
+      const minVolume = 100000;
+      if (volume < minVolume) {
+        filterCounters.volumeTooLow++;
+        continue;
+      }
+
+      // Calculate score
+      let gapScore = 0;
+      if (gapPercent >= 0.5 && gapPercent <= 2.5) {
+        const optimalGap = 1.5;
+        const distance = Math.abs(gapPercent - optimalGap);
+        gapScore = Math.max(0, 40 - (distance * 20));
+      } else if (gapPercent > 2.5 && gapPercent <= 5.0) {
+        gapScore = 30 - ((gapPercent - 2.5) * 4);
+      }
+
+      const nearHighScore = nearHigh ? 20 : 0;
+
+      let volumeScore = 0;
+      if (volume >= 1000000) volumeScore = 20;
+      else if (volume >= 500000) volumeScore = 15;
+      else if (volume >= 200000) volumeScore = 10;
+      else volumeScore = 5;
+
+      let deliveryScore = 0;
+      const delivery = bhavcopy.delivery || 0;
+      const deliveryPercent = bhavcopy.delivery_percent || 0;
+      if (deliveryPercent > 50) deliveryScore = 20;
+      else if (deliveryPercent > 30) deliveryScore = 15;
+      else if (deliveryPercent > 20) deliveryScore = 10;
+
+      const totalScore = gapScore + nearHighScore + volumeScore + deliveryScore;
+
+      if (totalScore < 50) {
+        filterCounters.scoreTooLow++;
+        continue;
+      }
+      
+      filterCounters.passed++;
+
+      const entryPrice = premarketPrice;
+      const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
+      const stopLoss = entryPrice - (atr * 1.5);
+      const targetPrice = entryPrice + (atr * 2.5);
+
+      const reasons = [];
+      if (gapPercent >= 0.5) reasons.push(`Gap-up ${gapPercent.toFixed(2)}%`);
+      if (nearHigh) reasons.push('Near high');
+      if (volume >= 500000) reasons.push('High volume');
+      if (deliveryPercent > 30) reasons.push('Good delivery');
+
+      const reason = reasons.join(', ') || 'Gap-up momentum';
+
+      signals.push({
+        symbol: symbol,
+        direction: 'BUY',
+        entry: parseFloat(entryPrice.toFixed(2)),
+        target: parseFloat(targetPrice.toFixed(2)),
+        sl: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+        score: Math.round(totalScore),
+        reason: reason,
+        entry_price: parseFloat(entryPrice.toFixed(2)),
+        target_price: parseFloat(targetPrice.toFixed(2)),
+        stop_loss: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+        side: 'BUY',
+        confidence_score: parseFloat((totalScore / 100).toFixed(2)),
+        gap_percent: parseFloat(gapPercent.toFixed(2)),
+        near_high: nearHigh,
+        volume: volume,
+        delivery_percent: deliveryPercent
+      });
+
+      processedSymbols.add(symbol);
+    }
+
+    // Sort by score descending and take top 10
+    signals.sort((a, b) => b.score - a.score);
+    const topSignals = signals.slice(0, 10);
+
+    // Find top reason for 0 signals
+    let topReason = '';
+    if (topSignals.length === 0) {
+      const reasons = [
+        { key: 'noBhavcopyMatch', label: 'No bhavcopy match' },
+        { key: 'gapTooSmall', label: 'Gap too small' },
+        { key: 'volumeTooLow', label: 'Volume too low' },
+        { key: 'scoreTooLow', label: 'Score too low' },
+        { key: 'invalidPremarketPrice', label: 'Invalid premarket price' },
+        { key: 'invalidYesterdayClose', label: 'Invalid yesterday close' }
+      ];
+      const sortedReasons = reasons.sort((a, b) => filterCounters[b.key] - filterCounters[a.key]);
+      topReason = sortedReasons[0] ? `${sortedReasons[0].label} (${filterCounters[sortedReasons[0].key]})` : 'Unknown';
+    }
+
+    return {
+      success: true,
+      date: date,
+      signals: topSignals,
+      signal_count: topSignals.length,
+      message: topSignals.length > 0 
+        ? `Generated ${topSignals.length} signals for ${date}`
+        : `No signals generated for ${date} (no stocks met criteria)`,
+      filterCounters: filterCounters,
+      topReason: topReason
+    };
+
+  } catch (error) {
+    console.error('Error generating signals:', error);
+    return {
+      success: false,
+      date: date || new Date().toISOString().split('T')[0],
+      signals: [],
+      signal_count: 0,
+      message: `Signal generation failed: ${error.message || 'Unknown error'}`,
+      error: error.message
+    };
+  }
+}
 
 /**
  * Get yesterday's date (skip weekends)
