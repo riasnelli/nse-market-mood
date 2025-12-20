@@ -8154,12 +8154,17 @@ class MarketMoodApp {
                     <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Engine:</span>
                     <span style="color: ${engineStatusColor}; font-weight: 600; flex: 1; line-height: 1.4;">${engineStatus}</span>
                     </div>
-                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 11l3 3L22 4"></path>
-                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                    </svg>
-                    <span style="color: #111827; font-weight: 500; flex: 1; line-height: 1.4;">${strategyText}</span>
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 11l3 3L22 4"></path>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                        </svg>
+                        <span style="color: #111827; font-weight: 500; flex: 1; line-height: 1.4;">${strategyText}</span>
+                    </div>
+                    <a href="#" id="tryOtherStrategiesLinkStatus" style="display: inline-block; font-size: 0.85rem; color: ${moodColor}; text-decoration: none; margin-left: 28px; cursor: pointer; font-weight: 500; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
+                        Try other Strategies →
+                    </a>
                 </div>
             </div>
         `;
