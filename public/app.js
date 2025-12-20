@@ -2893,19 +2893,7 @@ class MarketMoodApp {
         }
     }
     
-    updateSelectedStrategyText() {
-        const strategyNames = {
-            'momentum_gap': 'Momentum Gap',
-            'breakout': 'Breakout',
-            'mean_reversion': 'Mean Reversion',
-            'defensive': 'Defensive / Wait',
-            'volatility_play': 'Volatility Play'
-        };
-        
-        if (this.selectedStrategyText) {
-            this.selectedStrategyText.textContent = strategyNames[this.selectedStrategy] || 'Select Strategy';
-        }
-    }
+    // updateSelectedStrategyText() removed - strategy selector button no longer exists
 
     setupUpload() {
         const uploadBtn = document.getElementById('uploadBtn');
