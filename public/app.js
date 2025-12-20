@@ -7082,6 +7082,12 @@ class MarketMoodApp {
                 this.dataAvailabilitySection.style.padding = '20px 10px';
             }
             
+            // Show and ensure status panel is visible
+            const statusPanel = document.getElementById('signalsStatusPanel');
+            if (statusPanel) {
+                statusPanel.style.display = 'block';
+            }
+            
             // Show initial status panel
             this.updateSignalsStatus({
                 date: new Date().toISOString().split('T')[0],
