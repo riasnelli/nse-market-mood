@@ -2905,6 +2905,24 @@ class MarketMoodApp {
                     return;
                 }
                 
+                // Handle apply button
+                if (e.target.closest('#applyStrategyBtn') || e.target.id === 'applyStrategyBtn') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Get current selected strategy from the strategy list
+                    const selectedOption = strategyList?.querySelector('.strategy-option[style*="border-color: rgb(102, 126, 234)"]');
+                    const finalSelectedId = selectedOption ? selectedOption.dataset.strategy : (this.selectedStrategy || 'momentum_gap');
+                    console.log('Apply button clicked, strategy:', finalSelectedId);
+                    this.selectedStrategy = finalSelectedId;
+                    localStorage.setItem('selectedStrategy', finalSelectedId);
+                    closeModal();
+                    // Regenerate signals with new strategy
+                    if (this.currentView === 'signals') {
+                        this.loadSignals();
+                    }
+                    return;
+                }
+                
                 // Handle backdrop click (only if clicking the modal itself, not its children)
                 if (e.target === modalContainer) {
                     e.preventDefault();
@@ -2916,46 +2934,7 @@ class MarketMoodApp {
             });
         }
         
-        // Apply button handler (after closeModal is defined and strategy list is rendered)
-        if (applyStrategyBtn && strategyList) {
-            // Remove old listener by cloning
-            const newApplyBtn = applyStrategyBtn.cloneNode(true);
-            applyStrategyBtn.parentNode.replaceChild(newApplyBtn, applyStrategyBtn);
-            newApplyBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                // Get current selected strategy from the strategy list
-                const selectedOption = strategyList.querySelector('.strategy-option[style*="border-color: rgb(102, 126, 234)"]');
-                const finalSelectedId = selectedOption ? selectedOption.dataset.strategy : (this.selectedStrategy || 'momentum_gap');
-                console.log('Apply button clicked, strategy:', finalSelectedId);
-                this.selectedStrategy = finalSelectedId;
-                localStorage.setItem('selectedStrategy', finalSelectedId);
-                closeModal();
-                // Regenerate signals with new strategy
-                if (this.currentView === 'signals') {
-                    this.loadSignals();
-                }
-            });
-        }
-        
-        // Close on backdrop click (only if clicking the modal itself, not its children)
-        if (strategyModal) {
-            // Remove old listener by cloning
-            const newModal = strategyModal.cloneNode(true);
-            strategyModal.parentNode.replaceChild(newModal, strategyModal);
-            // Update reference
-            this.strategyModal = newModal;
-            
-            newModal.addEventListener('click', (e) => {
-                // Only close if clicking the backdrop (the modal itself), not its children
-                if (e.target === newModal) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('Backdrop clicked');
-                    closeModal();
-                }
-            });
-        }
+        // All button handlers are now handled by event delegation above
     }
     
     // updateSelectedStrategyText() removed - strategy selector button no longer exists
