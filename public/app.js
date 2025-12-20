@@ -8085,16 +8085,25 @@ class MarketMoodApp {
         }
 
         // Get strategy name with mode indicator
+        const strategyNames = {
+            'momentum_gap': 'Momentum Gap',
+            'breakout': 'Breakout',
+            'mean_reversion': 'Mean Reversion',
+            'defensive': 'Defensive / Wait',
+            'volatility_play': 'Volatility Play'
+        };
+        
         let strategyText = 'Strategy: Not available';
         if (strategyInfo) {
-            let strategyName = '';
+            let strategyId = '';
             if (typeof strategyInfo === 'string') {
-                strategyName = strategyInfo;
+                strategyId = strategyInfo;
             } else if (strategyInfo.strategy) {
-                strategyName = strategyInfo.strategy;
+                strategyId = strategyInfo.strategy;
             }
             
-            if (strategyName) {
+            if (strategyId) {
+                const strategyName = strategyNames[strategyId] || strategyId;
                 const signalCount = signals?.signals ? signals.signals.length : 0;
                 const hasSignals = signals?.hasSignals === true && signalCount > 0;
                 
