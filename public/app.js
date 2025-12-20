@@ -395,9 +395,7 @@ class MarketMoodApp {
         this.moodBtnLabel = document.getElementById('moodBtnLabel');
         this.signalsBtn = document.getElementById('signalsBtn');
         this.signalsBtnLabel = document.getElementById('signalsBtnLabel');
-        this.selectStrategyBtn = document.getElementById('selectStrategyBtn');
         this.strategyModal = document.getElementById('strategyModal');
-        this.selectedStrategyText = document.getElementById('selectedStrategyText');
         this.refreshDataAvailabilityBtn = document.getElementById('refreshDataAvailabilityBtn');
         this.dataAvailabilitySection = document.getElementById('dataAvailabilitySection');
         this.uploadBtn = document.getElementById('uploadBtn');
@@ -2859,7 +2857,6 @@ class MarketMoodApp {
                 applyStrategyBtn.addEventListener('click', () => {
                     this.selectedStrategy = selectedStrategyId;
                     localStorage.setItem('selectedStrategy', selectedStrategyId);
-                    this.updateSelectedStrategyText();
                     if (strategyModal) {
                         strategyModal.classList.remove('show');
                     }
@@ -2871,12 +2868,7 @@ class MarketMoodApp {
             }
         }
         
-        // Open modal
-        if (selectStrategyBtn && strategyModal) {
-            selectStrategyBtn.addEventListener('click', () => {
-                strategyModal.classList.add('show');
-            });
-        }
+        // Strategy selector button removed - modal can still be opened programmatically if needed
         
         // Close modal
         if (closeStrategyModal && strategyModal) {
