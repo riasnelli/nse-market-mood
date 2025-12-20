@@ -524,23 +524,7 @@ class MarketMoodApp {
                 }
             });
         }
-        // Setup strategy selector
-        this.setupStrategySelector();
-        
-        // Setup "Try other Strategies" link
-        const tryOtherStrategiesLink = document.getElementById('tryOtherStrategiesLink');
-        if (tryOtherStrategiesLink) {
-            tryOtherStrategiesLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                // Open strategy selector modal
-                if (this.selectStrategyBtn) {
-                    this.selectStrategyBtn.click();
-                }
-            });
-        }
-        
-        // Update selected strategy text on init
-        this.updateSelectedStrategyText();
+        // Strategy selector button removed - strategy shown in status panel only
         if (this.refreshDataAvailabilityBtn) {
             this.refreshDataAvailabilityBtn.addEventListener('click', () => this.loadDataAvailability());
         }
