@@ -7681,12 +7681,39 @@ class MarketMoodApp {
         };
     }
 
+    /**
+     * Determine if we should show "Today" or "Tomorrow" for strategy recommendation
+     * Logic: After market hours (3:30 PM) till 12 PM next day = "Today"
+     *        After 12 PM = "Tomorrow"
+     */
+    getStrategyTimeLabel() {
+        const now = new Date();
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+        const currentTime = hour * 60 + minute; // minutes since midnight
+        
+        // Market closes at 3:30 PM (15:30) = 930 minutes
+        // After market close till 12 PM (720 minutes) next day = "Today"
+        // After 12 PM = "Tomorrow"
+        
+        if (currentTime >= 930 || currentTime < 720) {
+            // After market close (3:30 PM) or before 12 PM = "Today"
+            return 'Today';
+        } else {
+            // Between 12 PM and 3:30 PM = "Tomorrow"
+            return 'Tomorrow';
+        }
+    }
+
     renderStrategyRecommendation(analysis, container) {
         if (!analysis || !container) {
             console.warn('⚠️ Cannot render strategy recommendation:', { analysis: !!analysis, container: !!container });
             return;
         }
         console.log('📊 Rendering strategy recommendation:', analysis.strategy);
+
+        // Get time label (Today or Tomorrow)
+        const timeLabel = this.getStrategyTimeLabel();
 
         const strategyCard = document.createElement('div');
         strategyCard.style.cssText = `
@@ -7704,7 +7731,7 @@ class MarketMoodApp {
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                 </svg>
                 <div>
-                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 4px;">Recommended Strategy for Tomorrow</div>
+                    <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 4px;">Recommended Strategy for ${timeLabel}</div>
                     <div style="font-size: 1.4rem; font-weight: 700;">${analysis.strategy}</div>
                 </div>
             </div>
@@ -8103,28 +8130,7 @@ class MarketMoodApp {
             engineStatusColor = '#f59e0b';
         }
 
-        // Get strategy name with mode indicator
-        let strategyText = 'Strategy: Not available';
-        if (strategyInfo) {
-            let strategyName = '';
-            if (typeof strategyInfo === 'string') {
-                strategyName = strategyInfo;
-            } else if (strategyInfo.strategy) {
-                strategyName = strategyInfo.strategy;
-            }
-            
-            if (strategyName) {
-                // Determine if we're in strategy-only mode (no signals)
-                const signalCount = signals?.signals ? signals.signals.length : 0;
-                const hasSignals = signals?.hasSignals === true && signalCount > 0;
-                
-                if (!hasSignals && signalCount === 0) {
-                    strategyText = `Strategy: ${strategyName} (strategy-only mode, no entry list)`;
-                } else {
-                    strategyText = `Strategy: ${strategyName}`;
-                }
-            }
-        }
+        // Strategy info removed from status panel - shown in strategy selector button and recommendation card instead
 
         // Get the current mood color from signals greeting area to match the background
         const signalsGreetingArea = document.querySelector('.signals-greeting-area');
@@ -8189,13 +8195,6 @@ class MarketMoodApp {
                     <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Engine:</span>
                     <span style="color: ${engineStatusColor}; font-weight: 600; flex: 1; line-height: 1.4;">${engineStatus}</span>
                     </div>
-                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 11l3 3L22 4"></path>
-                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                    </svg>
-                    <span style="color: #111827; font-weight: 500; flex: 1; line-height: 1.4;">${strategyText}</span>
-                </div>
             </div>
         `;
         
