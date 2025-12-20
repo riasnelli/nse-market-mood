@@ -83,12 +83,19 @@ const handler = async (req, res) => {
     ];
 
     const report = {
-      scanned: 0,
-      issues: [],
-      fixed: 0,
-      deleted: 0,
+      scanned: {},
+      mismatches: 0,
+      moved: 0,
+      updated: 0,
+      skippedUnknown: 0,
+      examples: [],
       errors: []
     };
+    
+    // Initialize scanned counts per collection
+    allCollections.forEach(({ type }) => {
+      report.scanned[type] = 0;
+    });
 
     // Calculate date threshold
     let dateThreshold = null;
@@ -113,79 +120,93 @@ const handler = async (req, res) => {
         console.log(`📊 Scanning ${name}: ${documents.length} documents`);
 
         for (const doc of documents) {
-          report.scanned++;
+          report.scanned[type]++;
 
-          // Check 1: Does doc.type match collection type?
           const docType = doc.type || 'unknown';
-          if (docType !== type && docType !== 'unknown') {
-            const issue = {
-              collection: name,
+          const fileName = doc.fileName || '';
+          
+          // Detect type from filename (canonical source)
+          const detectedType = detectFileType(fileName);
+          
+          // Determine expected type: use detectedType if available, otherwise use collection type
+          const expectedType = detectedType !== 'unknown' ? detectedType : type;
+          
+          // Check for mismatches
+          const typeMismatch = docType !== expectedType;
+          const collectionMismatch = expectedType !== type;
+          
+          if (typeMismatch || collectionMismatch) {
+            report.mismatches++;
+            
+            const example = {
+              fileName: fileName,
+              from: name,
+              to: getCollectionNameForType(expectedType) || name,
+              oldType: docType,
+              newType: expectedType,
+              detectedType: detectedType,
               documentId: doc._id.toString(),
-              fileName: doc.fileName || 'unknown',
-              date: doc.date || 'unknown',
-              issue: 'type_mismatch',
-              docType: docType,
-              expectedType: type,
-              detectedType: null
+              date: doc.date || 'unknown'
             };
-
-            // Check 2: Does filename suggest a different type?
-            if (doc.fileName) {
-              const detectedType = detectFileType(doc.fileName);
-              issue.detectedType = detectedType;
-              
-              if (detectedType !== 'unknown' && detectedType !== docType) {
-                issue.issue = 'type_and_filename_mismatch';
-              }
+            
+            // Add to examples (limit to 20)
+            if (report.examples.length < 20) {
+              report.examples.push(example);
             }
-
-            report.issues.push(issue);
-
+            
             // Fix if apply=true
             if (apply && !dryRun) {
               try {
-                const correctCollectionName = getCollectionNameForType(docType);
-                if (correctCollectionName && correctCollectionName !== name) {
+                const correctCollectionName = getCollectionNameForType(expectedType);
+                
+                if (!correctCollectionName || expectedType === 'unknown') {
+                  // Skip unknown types (don't delete, just skip)
+                  report.skippedUnknown++;
+                  console.log(`⏭️ Skipping document ${doc._id} (unknown type: ${fileName})`);
+                  continue;
+                }
+                
+                if (correctCollectionName !== name) {
                   // Move to correct collection
+                  // First, update doc.type to match detected type
+                  const updatedDoc = {
+                    ...doc,
+                    type: expectedType,
+                    updatedAt: new Date()
+                  };
+                  
+                  // Insert into correct collection
                   const correctCollection = db.collection(correctCollectionName);
-                  await correctCollection.insertOne(doc);
+                  await correctCollection.insertOne(updatedDoc);
+                  
+                  // Delete from wrong collection (only after successful insert)
                   await collection.deleteOne({ _id: doc._id });
-                  report.fixed++;
-                  console.log(`✅ Moved document ${doc._id} from ${name} to ${correctCollectionName}`);
-                } else if (docType === 'unknown' || !correctCollectionName) {
-                  // Delete if type is unknown or invalid
-                  await collection.deleteOne({ _id: doc._id });
-                  report.deleted++;
-                  console.log(`🗑️ Deleted document ${doc._id} from ${name} (unknown/invalid type)`);
+                  
+                  report.moved++;
+                  console.log(`✅ Moved document ${doc._id} from ${name} to ${correctCollectionName} (type: ${docType} -> ${expectedType})`);
+                } else if (docType !== expectedType) {
+                  // Same collection, but wrong type field - just update type
+                  await collection.updateOne(
+                    { _id: doc._id },
+                    { 
+                      $set: { 
+                        type: expectedType,
+                        updatedAt: new Date()
+                      } 
+                    }
+                  );
+                  
+                  report.updated++;
+                  console.log(`✅ Updated document ${doc._id} type: ${docType} -> ${expectedType}`);
                 }
               } catch (fixError) {
                 report.errors.push({
                   documentId: doc._id.toString(),
+                  fileName: fileName,
                   error: fixError.message
                 });
                 console.error(`❌ Error fixing document ${doc._id}:`, fixError.message);
               }
-            }
-          }
-
-          // Check 3: Does filename suggest a different type than collection?
-          if (doc.fileName) {
-            const detectedType = detectFileType(doc.fileName);
-            if (detectedType !== 'unknown' && detectedType !== type && docType === type) {
-              // Filename suggests different type, but doc.type matches collection
-              // This is a warning but not necessarily wrong (user might have selected correctly)
-              // Only flag if it's a clear mismatch
-              const issue = {
-                collection: name,
-                documentId: doc._id.toString(),
-                fileName: doc.fileName,
-                date: doc.date || 'unknown',
-                issue: 'filename_suggests_different_type',
-                docType: docType,
-                expectedType: type,
-                detectedType: detectedType
-              };
-              report.issues.push(issue);
             }
           }
         }
@@ -198,8 +219,11 @@ const handler = async (req, res) => {
       }
     }
 
+    // Calculate total scanned
+    const totalScanned = Object.values(report.scanned).reduce((sum, count) => sum + count, 0);
+    
     // Summary
-    console.log(`📊 [cleanup-types] Scan complete: ${report.scanned} scanned, ${report.issues.length} issues, ${report.fixed} fixed, ${report.deleted} deleted`);
+    console.log(`📊 [cleanup-types] Scan complete: ${totalScanned} scanned, ${report.mismatches} mismatches, ${report.moved} moved, ${report.updated} updated, ${report.skippedUnknown} skipped (unknown)`);
 
     return res.status(200).json({
       success: true,
@@ -208,16 +232,16 @@ const handler = async (req, res) => {
       days: days,
       report: {
         scanned: report.scanned,
-        issues_found: report.issues.length,
-        fixed: report.fixed,
-        deleted: report.deleted,
-        errors: report.errors.length,
-        issues: report.issues,
+        mismatches: report.mismatches,
+        moved: report.moved,
+        updated: report.updated,
+        skippedUnknown: report.skippedUnknown,
+        examples: report.examples,
         errors: report.errors
       },
       message: dryRun 
-        ? `Dry run complete. Found ${report.issues.length} issues. Set apply=true to fix.`
-        : `Cleanup complete. Fixed ${report.fixed} issues, deleted ${report.deleted} invalid records.`
+        ? `Dry run complete. Found ${report.mismatches} mismatches. Set apply=true to fix.`
+        : `Cleanup complete. Moved ${report.moved} documents, updated ${report.updated} type fields, skipped ${report.skippedUnknown} unknown types.`
     });
 
   } catch (error) {

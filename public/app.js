@@ -7385,10 +7385,23 @@ class MarketMoodApp {
                     emptyTitle.textContent = 'No Potential Signals';
                 }
                 if (emptyMessage) {
-                    let message = `No stocks met criteria for ${targetDate}.<br>This means the strategy ran but found no matching stocks.`;
-                    if (data?.topReason) {
-                        message += `<br><br><strong>Top Reason:</strong> ${data.topReason}`;
+                    let message = `No stocks met criteria for ${targetDate}.<br><br>`;
+                    message += `<strong>Why this happens:</strong><br>`;
+                    message += `The strategy ran successfully but no stocks passed all the filters. This is normal when market conditions don't meet the strategy's requirements.<br><br>`;
+                    
+                    // Add debug info if available
+                    if (data?.debug && data.debug.filtersUsed) {
+                        message += `<strong>Filters used:</strong><br>`;
+                        message += `• Minimum gap: ${(data.debug.filtersUsed.minGapPercent * 100).toFixed(1)}%<br>`;
+                        message += `• Minimum volume: ${data.debug.filtersUsed.minVolume.toLocaleString()}<br>`;
+                        message += `• Minimum score: ${data.debug.filtersUsed.minScore}<br>`;
+                        message += `• Series: ${data.debug.filtersUsed.series}<br>`;
                     }
+                    
+                    if (data?.debug?.topReason || data?.topReason) {
+                        message += `<br><strong>Top filter reason:</strong> ${data.debug?.topReason || data.topReason}`;
+                    }
+                    
                     emptyMessage.innerHTML = message;
                 }
                 

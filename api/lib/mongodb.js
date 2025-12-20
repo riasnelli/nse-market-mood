@@ -65,11 +65,13 @@ async function connectToDatabase() {
 async function getUploadedDataCollection(type = 'indices') {
   const { db } = await connectToDatabase();
   
-  // Map type to collection name
+  // Map type to collection name (canonical mapping)
   const collectionMap = {
     'indices': 'uploadedIndices',
     'bhav': 'uploadedBhav',
-    'premarket': 'uploadedPreMarket'
+    'premarket': 'uploadedPreMarket',
+    'marketactivity': 'uploadedMarketActivity',
+    '52w': 'uploadedWeek52'
   };
   
   const collectionName = collectionMap[type] || 'uploadedIndices';

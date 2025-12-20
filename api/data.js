@@ -7,7 +7,7 @@ const {
 } = require('./lib/mongodb');
 const { ObjectId } = require('mongodb');
 const { authMiddleware } = require('./lib/auth');
-const { validateFileType } = require('./lib/fileType');
+const { validateFileType, detectFileType, parseDateFromFilename, getCanonicalType } = require('./lib/fileType');
 const { generateSignalsForDate } = require('./lib/signals/generateSignals');
 
 const handler = async (req, res) => {
@@ -57,24 +57,59 @@ const handler = async (req, res) => {
       // Save uploaded data to database
       const { fileName, date, indices, mood, vix, advanceDecline, timestamp, source, type } = req.body;
 
-      // Validate type
-      const validTypes = ['indices', 'bhav', 'premarket', 'marketactivity', '52w'];
-      const uploadType = (type && validTypes.includes(type)) ? type : 'indices';
+      // STRICT FILE TYPE DETECTION: Single source of truth
+      if (!fileName) {
+        return res.status(400).json({
+          success: false,
+          error: 'File name required',
+          message: 'fileName is required for file type detection'
+        });
+      }
 
-      // STRICT FILE TYPE VALIDATION: Server-side truth
-      if (fileName) {
-        const validation = validateFileType(fileName, uploadType);
-        if (!validation.valid) {
-          console.error(`❌ File type validation failed: ${validation.error}`);
-          return res.status(400).json({
-            success: false,
-            error: 'File type validation failed',
-            message: validation.error,
-            detectedType: validation.detectedType,
-            expectedType: validation.expectedType || uploadType
-          });
-        }
-        console.log(`✅ File type validated: ${fileName} -> ${validation.detectedType}`);
+      // Detect type from filename (canonical source)
+      const detectedType = detectFileType(fileName);
+      if (detectedType === 'unknown') {
+        return res.status(400).json({
+          success: false,
+          error: 'Unknown file type',
+          message: `Cannot determine file type from filename: ${fileName}. Please use a recognized filename pattern.`,
+          detectedType: 'unknown'
+        });
+      }
+
+      // Normalize user-provided type
+      const userType = getCanonicalType(type || 'indices');
+      
+      // STRICT VALIDATION: User-selected type MUST match detected type
+      if (userType !== detectedType) {
+        console.error(`❌ File type mismatch: detected="${detectedType}", user-selected="${userType}", fileName="${fileName}"`);
+        return res.status(400).json({
+          success: false,
+          error: 'File type mismatch',
+          message: `File type mismatch: filename suggests "${detectedType}" but you selected "${userType}". Please verify the file type.`,
+          detectedType,
+          expectedType: userType,
+          fileName
+        });
+      }
+
+      // Use detected type (canonical)
+      const uploadType = detectedType;
+      console.log(`✅ File type validated: ${fileName} -> ${uploadType}`);
+
+      // Parse tradeDate from filename (preferred) or use provided date
+      const tradeDateFromFilename = parseDateFromFilename(fileName);
+      const tradeDate = tradeDateFromFilename || date || new Date().toISOString().split('T')[0];
+      
+      // Runtime assertion: ensure type is valid
+      const validTypes = ['indices', 'bhav', 'premarket', 'marketactivity', '52w'];
+      if (!validTypes.includes(uploadType)) {
+        console.error(`❌ Invalid type after detection: ${uploadType}`);
+        return res.status(500).json({
+          success: false,
+          error: 'Internal error',
+          message: `Invalid type detected: ${uploadType}`
+        });
       }
 
       if (!indices || !Array.isArray(indices)) {
@@ -84,22 +119,33 @@ const handler = async (req, res) => {
         });
       }
 
-      // CRITICAL FIX: Always calculate indicesCount from actual array length
-      const indicesCount = Array.isArray(indices) ? indices.length : 0;
+      // CRITICAL FIX: Always calculate rowCount from actual array length
+      const rowCount = Array.isArray(indices) ? indices.length : 0;
       
       // For bhavcopy, ensure we have valid EQ stocks
-      if (uploadType === 'bhav' && indicesCount === 0) {
-        console.warn(`⚠️ WARNING: Bhavcopy upload has 0 indices in array. This means no EQ stocks were processed.`);
-        console.warn(`   File: ${fileName}, Date: ${date}`);
+      if (uploadType === 'bhav' && rowCount === 0) {
+        console.warn(`⚠️ WARNING: Bhavcopy upload has 0 rows. This means no EQ stocks were processed.`);
+        console.warn(`   File: ${fileName}, Date: ${tradeDate}`);
         console.warn(`   This file should NOT be saved to database as it has no valid data.`);
       }
       
+      // Runtime assertion: ensure rowCount matches array length
+      const actualArrayLength = Array.isArray(indices) ? indices.length : 0;
+      if (rowCount !== actualArrayLength) {
+        console.error(`❌ CRITICAL: rowCount mismatch: ${rowCount} vs array length ${actualArrayLength}`);
+        // Use actual array length as source of truth
+        const correctedRowCount = actualArrayLength;
+        console.log(`✅ Corrected rowCount to ${correctedRowCount}`);
+      }
+      
       const dataToSave = {
-        fileName: fileName || 'uploaded.csv',
-        date: date || new Date().toISOString().split('T')[0],
-        type: uploadType,
+        fileName: fileName,
+        date: tradeDate, // Use tradeDate (from filename or provided)
+        tradeDate: tradeDate, // Explicit tradeDate field
+        type: uploadType, // Canonical type from detection
         indices: indices || [],
-        indicesCount: indicesCount,
+        indicesCount: rowCount, // Keep for backward compatibility
+        rowCount: rowCount, // New canonical field name
         mood: mood || null,
         vix: vix || null,
         advanceDecline: advanceDecline || { advances: 0, declines: 0 },
@@ -109,14 +155,25 @@ const handler = async (req, res) => {
         updatedAt: new Date()
       };
       
-      // CRITICAL: Double-check indicesCount matches array length
-      if (dataToSave.indicesCount !== (dataToSave.indices?.length || 0)) {
-        console.warn(`⚠️ Mismatch detected: stored indicesCount=${dataToSave.indicesCount} but array length=${dataToSave.indices?.length || 0}`);
-        dataToSave.indicesCount = dataToSave.indices?.length || 0;
-        console.log(`✅ Corrected indicesCount to ${dataToSave.indicesCount}`);
+      // Runtime assertion: ensure type matches collection
+      const collectionMap = {
+        'indices': 'uploadedIndices',
+        'bhav': 'uploadedBhav',
+        'premarket': 'uploadedPreMarket',
+        'marketactivity': 'uploadedMarketActivity',
+        '52w': 'uploadedWeek52'
+      };
+      const expectedCollection = collectionMap[uploadType];
+      if (!expectedCollection) {
+        console.error(`❌ CRITICAL: No collection mapping for type: ${uploadType}`);
+        return res.status(500).json({
+          success: false,
+          error: 'Internal error',
+          message: `No collection mapping for type: ${uploadType}`
+        });
       }
-      
-      console.log(`📊 Saving ${uploadType} data: date=${dataToSave.date}, indicesCount=${indicesCount}, fileName=${fileName}`);
+
+      console.log(`📊 Saving ${uploadType} data: tradeDate=${tradeDate}, rowCount=${rowCount}, fileName=${fileName}, type=${uploadType}`);
       
       if (uploadType === 'bhav') {
         console.log(`🔍 Bhavcopy data validation:`, {
@@ -134,15 +191,27 @@ const handler = async (req, res) => {
 
       // Get the correct collection based on type
       const collection = await getUploadedDataCollection(uploadType);
+      
+      // Runtime assertion: verify collection name matches expected
+      const actualCollectionName = collection.collectionName;
+      if (actualCollectionName !== expectedCollection) {
+        console.error(`❌ CRITICAL: Collection mismatch! Expected: ${expectedCollection}, Got: ${actualCollectionName}`);
+        return res.status(500).json({
+          success: false,
+          error: 'Internal error',
+          message: `Collection mismatch: expected ${expectedCollection}, got ${actualCollectionName}`
+        });
+      }
 
       // CRITICAL: For bhavcopy with 0 count, don't save to database
-      if (uploadType === 'bhav' && indicesCount === 0) {
+      if (uploadType === 'bhav' && rowCount === 0) {
         console.warn(`⚠️ Skipping database save: bhavcopy has 0 processed EQ stocks`);
-        console.warn(`   File: ${fileName}, Date: ${date}`);
+        console.warn(`   File: ${fileName}, Date: ${tradeDate}`);
         return res.status(200).json({
           success: false,
           message: 'Bhavcopy processed 0 EQ stocks - file not saved',
           warning: 'No valid EQ stocks found in file. Check file format and parsing logic.',
+          rowCount: 0,
           indicesCount: 0,
           skipped: true
         });
@@ -151,7 +220,7 @@ const handler = async (req, res) => {
       // Insert into MongoDB (metadata)
       const result = await collection.insertOne(dataToSave);
 
-      console.log(`✅ Metadata saved to MongoDB: ${result.insertedId} (type: ${uploadType}, indicesCount: ${indicesCount})`);
+      console.log(`✅ Metadata saved to MongoDB: ${result.insertedId} (type: ${uploadType}, rowCount: ${rowCount}, tradeDate: ${tradeDate}, collection: ${actualCollectionName})`);
 
       // Also insert individual rows into daily collections
       let dailyInsertCount = 0;

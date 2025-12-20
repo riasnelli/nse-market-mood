@@ -81,16 +81,25 @@ const handler = async (req, res) => {
       dateThreshold = thresholdDate.toISOString().split('T')[0];
     }
 
-    // Get all dates that have bhavcopy data
+    // Get all dates that have bhavcopy data (from both uploaded and daily collections)
     const bhavCollection = await getUploadedDataCollection('bhav');
     const premarketCollection = await getUploadedDataCollection('premarket');
+    const { getDailyBhavcopyCollection, getPreMarketDataCollection } = require('../lib/mongodb');
+    const dailyBhavCollection = await getDailyBhavcopyCollection();
+    const dailyPremarketCollection = await getPreMarketDataCollection();
 
     // Build query for date threshold
     const dateQuery = dateThreshold ? { date: { $gte: dateThreshold } } : {};
 
-    // Get all unique dates from bhavcopy uploads
-    const bhavDates = await bhavCollection.distinct('date', dateQuery);
-    const premarketDates = await premarketCollection.distinct('date', dateQuery);
+    // Get all unique dates from both uploaded and daily collections
+    const uploadedBhavDates = await bhavCollection.distinct('date', dateQuery);
+    const uploadedPremarketDates = await premarketCollection.distinct('date', dateQuery);
+    const dailyBhavDates = await dailyBhavCollection.distinct('date', dateQuery);
+    const dailyPremarketDates = await dailyPremarketCollection.distinct('date', dateQuery);
+    
+    // Combine dates (deduplicate)
+    const allBhavDates = [...new Set([...uploadedBhavDates, ...dailyBhavDates])];
+    const allPremarketDates = [...new Set([...uploadedPremarketDates, ...dailyPremarketDates])];
 
     // Get all dates that already have signals
     const existingSignals = await signalsStoreCollection
@@ -100,17 +109,32 @@ const handler = async (req, res) => {
 
     // Find dates that need signals
     // For momentum_gap: need bhavcopy for yesterday AND premarket for today
-    // So we need to check pairs of dates
     const datesToProcess = new Set();
     
     // For each premarket date, check if we have bhavcopy for yesterday
-    for (const premarketDate of premarketDates) {
+    for (const premarketDate of allPremarketDates) {
       const yesterdayDate = getYesterdayDate(premarketDate);
-      if (bhavDates.includes(yesterdayDate)) {
+      if (allBhavDates.includes(yesterdayDate)) {
         // We have both premarket (today) and bhavcopy (yesterday)
         if (!existingSignalDates.has(premarketDate)) {
           datesToProcess.add(premarketDate);
         }
+      }
+    }
+    
+    // Also check dates that have bhavcopy but might not have premarket yet
+    // (they'll get INSUFFICIENT_DATA status)
+    for (const bhavDate of allBhavDates) {
+      // Find next trading day (tomorrow)
+      const tomorrowDate = new Date(bhavDate);
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      while (tomorrowDate.getDay() === 0 || tomorrowDate.getDay() === 6) {
+        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      }
+      const tomorrowDateStr = tomorrowDate.toISOString().split('T')[0];
+      
+      if (!existingSignalDates.has(tomorrowDateStr)) {
+        datesToProcess.add(tomorrowDateStr);
       }
     }
 
@@ -121,7 +145,12 @@ const handler = async (req, res) => {
     const report = {
       scanned: datesArray.length,
       processed: 0,
-      success: 0,
+      byStatus: {
+        READY: 0,
+        NO_MATCH: 0,
+        INSUFFICIENT_DATA: 0,
+        ERROR: 0
+      },
       errors: [],
       results: []
     };
@@ -142,19 +171,26 @@ const handler = async (req, res) => {
       for (const date of datesArray) {
         try {
           report.processed++;
-          console.log(`🔄 Generating signals for ${date}...`);
+          console.log(`🔄 [migrate-signals] Generating signals for ${date}...`);
           
           const result = await generateSignalsForDate(date, strategy);
+          
+          // Track by status
+          if (report.byStatus.hasOwnProperty(result.status)) {
+            report.byStatus[result.status]++;
+          }
           
           report.results.push({
             date: result.date,
             status: result.status,
-            signal_count: result.signal_count,
-            message: result.message
+            signal_count: result.signal_count || 0,
+            message: result.message,
+            missingFiles: result.missingFiles || null
           });
 
-          if (result.status === 'READY' || result.status === 'NO_MATCH') {
-            report.success++;
+          if (result.status === 'READY' || result.status === 'NO_MATCH' || result.status === 'INSUFFICIENT_DATA') {
+            // These are valid outcomes, not errors
+            console.log(`✅ [migrate-signals] ${date}: ${result.status} (${result.signal_count || 0} signals)`);
           } else {
             report.errors.push({
               date: result.date,
@@ -162,18 +198,22 @@ const handler = async (req, res) => {
               message: result.message,
               missingFiles: result.missingFiles
             });
+            console.error(`❌ [migrate-signals] ${date}: ${result.status} - ${result.message}`);
           }
         } catch (error) {
-          console.error(`❌ Error generating signals for ${date}:`, error.message);
+          report.byStatus.ERROR++;
+          console.error(`❌ [migrate-signals] Error generating signals for ${date}:`, error.message);
           report.errors.push({
             date,
-            error: error.message
+            error: error.message,
+            status: 'ERROR'
           });
         }
       }
     }
 
-    console.log(`✅ [migrate-signals] Migration complete: ${report.processed} processed, ${report.success} successful`);
+    const totalSuccessful = report.byStatus.READY + report.byStatus.NO_MATCH + report.byStatus.INSUFFICIENT_DATA;
+    console.log(`✅ [migrate-signals] Migration complete: ${report.processed} processed, ${totalSuccessful} successful (READY: ${report.byStatus.READY}, NO_MATCH: ${report.byStatus.NO_MATCH}, INSUFFICIENT_DATA: ${report.byStatus.INSUFFICIENT_DATA}, ERROR: ${report.byStatus.ERROR})`);
 
     return res.status(200).json({
       success: true,
@@ -184,14 +224,15 @@ const handler = async (req, res) => {
       report: {
         scanned: report.scanned,
         processed: report.processed,
-        successful: report.success,
+        byStatus: report.byStatus,
+        successful: totalSuccessful,
         errors: report.errors.length,
         results: report.results,
         errors: report.errors
       },
       message: dryRun
         ? `Dry run complete. Found ${report.scanned} dates that need signals. Set apply=true to generate.`
-        : `Migration complete. Generated signals for ${report.success} dates.`
+        : `Migration complete. Processed ${report.processed} dates: ${report.byStatus.READY} READY, ${report.byStatus.NO_MATCH} NO_MATCH, ${report.byStatus.INSUFFICIENT_DATA} INSUFFICIENT_DATA, ${report.byStatus.ERROR} ERROR.`
     });
 
   } catch (error) {

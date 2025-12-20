@@ -171,6 +171,18 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
     // Save to signals_store collection
     const signalsStoreCollection = await getSignalsStoreCollection();
     
+    // Prepare debug info (filters used, counts before filters)
+    const debugInfo = {
+      filtersUsed: {
+        minGapPercent: 0.3,
+        minVolume: 100000,
+        minScore: 50,
+        series: 'EQ'
+      },
+      countsBeforeFilters: result.filterCounters || {},
+      topReason: result.topReason || null
+    };
+    
     const storeDoc = {
       date,
       strategy,
@@ -181,6 +193,7 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
       message: result.message || (status === 'READY' ? `Generated ${signalsArray.length} signals` : 'No signals generated'),
       filterCounters: result.filterCounters || null,
       topReason: result.topReason || null,
+      debug: debugInfo, // Store debug info for optional retrieval
       createdAt: new Date(),
       updatedAt: new Date()
     };

@@ -6,8 +6,13 @@
  */
 
 /**
- * Detect file type from filename
+ * Detect file type from filename (STRICT - single source of truth)
  * Returns exactly one of: "indices" | "bhav" | "premarket" | "marketactivity" | "52w" | "unknown"
+ * 
+ * STRICT RULES:
+ * - Must match exact patterns (no fuzzy matching)
+ * - Returns "unknown" if ambiguous or no match
+ * - This is the canonical type detector - all other code should use this
  * 
  * @param {string} fileName - The filename to analyze
  * @returns {string} - The detected file type
@@ -19,9 +24,9 @@ function detectFileType(fileName) {
 
   const normalizedName = fileName.toUpperCase().trim();
 
-  // Pattern 1: Indices files
-  // - ind_close_all_YYYYMMDD.csv
-  // - MW-All-Indices-*.csv
+  // Pattern 1: Indices files (STRICT patterns only)
+  // - ind_close_all_YYYYMMDD.csv (exact match)
+  // - MW-All-Indices-*.csv (exact prefix match)
   if (normalizedName.match(/^IND_CLOSE_ALL_\d{8}\.CSV$/)) {
     return 'indices';
   }
@@ -29,59 +34,82 @@ function detectFileType(fileName) {
     return 'indices';
   }
 
-  // Pattern 2: Bhavcopy files
-  // - sec_bhavdata_full_YYYYMMDD.csv
-  // - bhavcopy_YYYYMMDD.csv
+  // Pattern 2: Bhavcopy files (STRICT patterns only)
+  // - sec_bhavdata_full_YYYYMMDD.csv (exact match)
+  // - bhavcopy_YYYYMMDD.csv (exact prefix match)
+  // - sec_bhavdata_*.csv (NSE official format)
   if (normalizedName.match(/^SEC_BHAVDATA_FULL_\d{8}\.CSV$/)) {
+    return 'bhav';
+  }
+  if (normalizedName.match(/^SEC_BHAVDATA_.*\.CSV$/i)) {
     return 'bhav';
   }
   if (normalizedName.match(/^BHAVCOPY_\d{8}\.CSV$/i)) {
     return 'bhav';
   }
-  if (normalizedName.match(/.*BHAV.*\.CSV$/i)) {
+  // More specific: must contain "bhav" AND not be indices or premarket
+  if (normalizedName.includes('BHAV') && 
+      !normalizedName.includes('IND') && 
+      !normalizedName.includes('PRE') &&
+      normalizedName.endsWith('.CSV')) {
     return 'bhav';
   }
 
-  // Pattern 3: Premarket files
-  // - MW-Pre-Open-Market-<DD-MMM-YYYY>.csv
-  // - premarket_YYYYMMDD.csv
+  // Pattern 3: Premarket files (STRICT patterns only)
+  // - MW-Pre-Open-Market-<DD-MMM-YYYY>.csv (exact prefix match)
+  // - premarket_YYYYMMDD.csv (exact prefix match)
   if (normalizedName.match(/^MW-PRE-OPEN-MARKET-.*\.CSV$/i)) {
     return 'premarket';
   }
   if (normalizedName.match(/^PREMARKET_\d{8}\.CSV$/i)) {
     return 'premarket';
   }
-  if (normalizedName.match(/.*PRE.*OPEN.*\.CSV$/i) || normalizedName.match(/.*PREMARKET.*\.CSV$/i)) {
-    return 'premarket';
+  // More specific: must contain "PRE" AND "OPEN" or "MARKET" (but not "PREMIUM")
+  if ((normalizedName.includes('PRE') && normalizedName.includes('OPEN')) ||
+      (normalizedName.includes('PREMARKET') && !normalizedName.includes('PREMIUM'))) {
+    if (normalizedName.endsWith('.CSV')) {
+      return 'premarket';
+    }
   }
 
-  // Pattern 4: Market Activity files
-  // - MA<DDMMYY>.csv
-  // - marketactivity_YYYYMMDD.csv
+  // Pattern 4: Market Activity files (STRICT patterns only)
+  // - MA<DDMMYY>.csv (exact 6-digit pattern)
+  // - marketactivity_YYYYMMDD.csv (exact prefix match)
   if (normalizedName.match(/^MA\d{6}\.CSV$/)) {
     return 'marketactivity';
   }
   if (normalizedName.match(/^MARKETACTIVITY_\d{8}\.CSV$/i)) {
     return 'marketactivity';
   }
-  if (normalizedName.match(/.*MARKET.*ACTIVITY.*\.CSV$/i)) {
+  // More specific: must contain "MARKET" AND "ACTIVITY" (not "52" or "WK")
+  if (normalizedName.includes('MARKET') && 
+      normalizedName.includes('ACTIVITY') &&
+      !normalizedName.includes('52') &&
+      !normalizedName.includes('WK') &&
+      normalizedName.endsWith('.CSV')) {
     return 'marketactivity';
   }
 
-  // Pattern 5: 52W High/Low files
-  // - CM_52_wk_High_low_<DDMMYYYY>.csv
-  // - 52w_YYYYMMDD.csv
+  // Pattern 5: 52W High/Low files (STRICT patterns only)
+  // - CM_52_wk_High_low_<DDMMYYYY>.csv (exact prefix match)
+  // - 52w_YYYYMMDD.csv (exact prefix match)
   if (normalizedName.match(/^CM_52_WK_HIGH_LOW_.*\.CSV$/i)) {
+    return '52w';
+  }
+  if (normalizedName.match(/^CM_52.*WK.*\.CSV$/i)) {
     return '52w';
   }
   if (normalizedName.match(/^52W_\d{8}\.CSV$/i)) {
     return '52w';
   }
-  if (normalizedName.match(/.*52.*WK.*\.CSV$/i) || normalizedName.match(/.*52W.*\.CSV$/i)) {
+  // More specific: must contain "52" AND ("WK" or "WEEK") (not "52W" in marketactivity)
+  if ((normalizedName.includes('52') && (normalizedName.includes('WK') || normalizedName.includes('WEEK'))) &&
+      !normalizedName.includes('MARKETACTIVITY') &&
+      normalizedName.endsWith('.CSV')) {
     return '52w';
   }
 
-  // Default: unknown
+  // Default: unknown (STRICT - no fuzzy matching)
   return 'unknown';
 }
 
@@ -169,9 +197,36 @@ function validateFileType(fileName, expectedType) {
   };
 }
 
+/**
+ * Get canonical type name (normalize variations)
+ * @param {string} type - Type string (may have variations)
+ * @returns {string} - Canonical type name
+ */
+function getCanonicalType(type) {
+  if (!type) return 'unknown';
+  const normalized = (type || '').toLowerCase().trim();
+  const map = {
+    'indices': 'indices',
+    'bhav': 'bhav',
+    'bhavcopy': 'bhav',
+    'premarket': 'premarket',
+    'pre-market': 'premarket',
+    'pre_open': 'premarket',
+    'marketactivity': 'marketactivity',
+    'market_activity': 'marketactivity',
+    'ma': 'marketactivity',
+    '52w': '52w',
+    '52_wk': '52w',
+    '52_week': '52w',
+    'week52': '52w'
+  };
+  return map[normalized] || 'unknown';
+}
+
 module.exports = {
   detectFileType,
   parseDateFromFilename,
-  validateFileType
+  validateFileType,
+  getCanonicalType
 };
 

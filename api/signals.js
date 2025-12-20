@@ -635,9 +635,10 @@ const handler = async (req, res) => {
       // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get signals for a date (READ-ONLY)
       const date = req.query.date || new Date().toISOString().split('T')[0];
       const strategy = req.query.strategy || 'momentum_gap';
+      const includeDebug = req.query.debug === '1' || process.env.NODE_ENV !== 'production';
       
       if (DEBUG) {
-        console.log(`[SIGNALS API] GET request - date: ${date}, strategy: ${strategy}`);
+        console.log(`[SIGNALS API] GET request - date: ${date}, strategy: ${strategy}, debug: ${includeDebug}`);
       }
       
       if (!mongoUri) {
@@ -676,7 +677,7 @@ const handler = async (req, res) => {
             console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}`);
           }
 
-          return res.status(200).json({
+          const response = {
             date: storedDoc.date,
             strategy: storedDoc.strategy,
             status: storedDoc.status, // READY | NO_MATCH | INSUFFICIENT_DATA | ERROR
@@ -686,7 +687,14 @@ const handler = async (req, res) => {
             message: storedDoc.message || 'Signals retrieved',
             missingFiles: storedDoc.missingFiles || null,
             run_id: storedDoc.run_id || null
-          });
+          };
+          
+          // Include debug info if requested
+          if (includeDebug && storedDoc.debug) {
+            response.debug = storedDoc.debug;
+          }
+          
+          return res.status(200).json(response);
         }
 
         // No signals found in store - return NO_DATA status
