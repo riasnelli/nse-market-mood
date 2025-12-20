@@ -2865,26 +2865,15 @@ class MarketMoodApp {
                 });
             });
             
-            // Apply button - need to use closeModal function defined later, so we'll handle it separately
-            // Store reference for later use
-            this._selectedStrategyId = selectedStrategyId;
-            this._applyStrategyHandler = () => {
-                const currentSelectedId = this._selectedStrategyId || selectedStrategyId;
-                console.log('Apply button clicked, strategy:', currentSelectedId);
-                this.selectedStrategy = currentSelectedId;
-                localStorage.setItem('selectedStrategy', currentSelectedId);
-                closeModal();
-                    // Regenerate signals with new strategy
-                    if (this.currentView === 'signals') {
-                        this.loadSignals();
-                    }
-            };
+            // Store selectedStrategyId in a variable that can be updated
+            let currentSelectedStrategyId = selectedStrategyId;
             
             // Update selectedStrategyId when user clicks on strategy options
             strategyOptions.forEach(option => {
+                const originalClickHandler = option.onclick;
                 option.addEventListener('click', () => {
                     const strategyId = option.dataset.strategy;
-                    this._selectedStrategyId = strategyId;
+                    currentSelectedStrategyId = strategyId;
                 });
             });
         }
