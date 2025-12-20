@@ -3,7 +3,8 @@
  * Supports multiple channels with adaptive intervals based on volatility
  */
 
-const DEBUG = false; // Set to true for verbose logging
+// Use a scoped variable to avoid conflicts with other DEBUG declarations
+const POLLING_DEBUG = false; // Set to true for verbose logging
 
 class PollingManager {
     constructor() {
@@ -58,9 +59,9 @@ class PollingManager {
      * Register a fetch function for a channel
      */
     registerChannel(channelName, fetchFn) {
-        if (this.channels[channelName]) {
+            if (this.channels[channelName]) {
             this.channels[channelName].fetchFn = fetchFn;
-            if (DEBUG) console.log(`[PollingManager] Registered ${channelName}`);
+            if (POLLING_DEBUG) console.log(`[PollingManager] Registered ${channelName}`);
         }
     }
 
@@ -92,12 +93,12 @@ class PollingManager {
 
         // Check if market is open
         if (this.marketOpenCheckFn && !this.marketOpenCheckFn()) {
-            if (DEBUG) console.log(`[PollingManager] Market closed - not starting ${channelName}`);
+            if (POLLING_DEBUG) console.log(`[PollingManager] Market closed - not starting ${channelName}`);
             return;
         }
 
         if (this.isPaused) {
-            if (DEBUG) console.log(`[PollingManager] Paused - not starting ${channelName}`);
+            if (POLLING_DEBUG) console.log(`[PollingManager] Paused - not starting ${channelName}`);
             return;
         }
 
@@ -145,7 +146,7 @@ class PollingManager {
         // Start immediately
         tick();
         
-        if (DEBUG) console.log(`[PollingManager] Started ${channelName} with interval ${channel.currentIntervalMs}ms`);
+        if (POLLING_DEBUG) console.log(`[PollingManager] Started ${channelName} with interval ${channel.currentIntervalMs}ms`);
     }
 
     /**
@@ -158,7 +159,7 @@ class PollingManager {
         if (channel.timerId) {
             clearTimeout(channel.timerId);
             channel.timerId = null;
-            if (DEBUG) console.log(`[PollingManager] Stopped ${channelName}`);
+            if (POLLING_DEBUG) console.log(`[PollingManager] Stopped ${channelName}`);
         }
     }
 
@@ -178,7 +179,7 @@ class PollingManager {
         const channel = this.channels[channelName];
         if (!channel || !channel.fetchFn) return;
 
-        if (DEBUG) console.log(`[PollingManager] Immediate tick for ${channelName}`);
+        if (POLLING_DEBUG) console.log(`[PollingManager] Immediate tick for ${channelName}`);
         
         channel.fetchFn().catch(error => {
             console.error(`[PollingManager] Immediate tick failed for ${channelName}:`, error);
@@ -214,7 +215,7 @@ class PollingManager {
         
         channel.currentIntervalMs = newInterval;
 
-        if (DEBUG && channel.adaptiveFactor !== 1.0) {
+        if (POLLING_DEBUG && channel.adaptiveFactor !== 1.0) {
             console.log(`[PollingManager] ${channelName} interval: ${channel.currentIntervalMs}ms (factor: ${channel.adaptiveFactor.toFixed(2)})`);
         }
     }
@@ -245,7 +246,7 @@ class PollingManager {
         this.setAdaptiveFactor('keyIndicesChannel', multiplier);
         this.setAdaptiveFactor('allIndicesChannel', multiplier);
 
-        if (DEBUG) {
+        if (POLLING_DEBUG) {
             console.log(`[PollingManager] Volatility intensity: ${intensity.toFixed(2)}%, multiplier: ${multiplier.toFixed(2)}`);
         }
     }
@@ -272,7 +273,7 @@ class PollingManager {
         this.isPaused = true;
         this.stopAll();
         
-        if (DEBUG) console.log('[PollingManager] Paused (page hidden)');
+        if (POLLING_DEBUG) console.log('[PollingManager] Paused (page hidden)');
     }
 
     /**
@@ -305,7 +306,7 @@ class PollingManager {
             }
         }, 2000);
         
-        if (DEBUG) console.log('[PollingManager] Resumed (page visible)');
+        if (POLLING_DEBUG) console.log('[PollingManager] Resumed (page visible)');
     }
 
     /**
