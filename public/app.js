@@ -2748,7 +2748,6 @@ class MarketMoodApp {
 
     setupStrategySelector() {
         const selectStrategyBtn = this.selectStrategyBtn;
-        const strategyModal = this.strategyModal;
         
         // Get elements - ensure they exist
         const closeStrategyModal = document.getElementById('closeStrategyModal');
@@ -2756,12 +2755,15 @@ class MarketMoodApp {
         const applyStrategyBtn = document.getElementById('applyStrategyBtn');
         const strategyList = document.getElementById('strategyList');
         
-        // Helper function to close modal
+        // Helper function to close modal - use this.strategyModal to always get current reference
         const closeModal = () => {
-            if (strategyModal) {
-                strategyModal.classList.remove('show');
-                strategyModal.style.display = 'none';
+            const currentModal = this.strategyModal || document.getElementById('strategyModal');
+            if (currentModal) {
+                currentModal.classList.remove('show');
+                currentModal.style.display = 'none';
                 console.log('Strategy modal closed');
+            } else {
+                console.warn('Strategy modal not found when trying to close');
             }
         };
         
