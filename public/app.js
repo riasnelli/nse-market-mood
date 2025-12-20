@@ -7270,8 +7270,8 @@ class MarketMoodApp {
                                 targetDate = latestDateData.latest_complete_date;
                                 console.log(`✅ Using latest date from API: ${targetDate}`);
                             }
-                        }
-                    } catch (e) {
+                    }
+                } catch (e) {
                         console.warn('⚠️ Could not fetch latest date from API:', e);
                     }
                 }
@@ -7300,7 +7300,7 @@ class MarketMoodApp {
                 const contentType = response.headers.get('content-type');
                 if (contentType && contentType.includes('application/json')) {
                     try {
-                        data = await response.json();
+                data = await response.json();
                         console.log('✅ Signals API response:', data);
                         
                         // Update status with signals info
@@ -7318,11 +7318,11 @@ class MarketMoodApp {
                         console.warn('⚠️ Failed to parse signals response as JSON:', parseError);
                         data = null;
                     }
-                } else {
+                            } else {
                     console.warn('⚠️ Signals response is not JSON, treating as no signals');
                     data = null;
-                }
-            } else {
+                            }
+                        } else {
                 // Non-OK response - don't try to parse JSON from 404 HTML pages
                 console.warn(`⚠️ Signals API returned ${response.status}, skipping JSON parse`);
                 data = null;
@@ -7347,11 +7347,11 @@ class MarketMoodApp {
 
             // Update status with strategy
             if (strategyAnalysis) {
-                this.updateSignalsStatus({ 
+                        this.updateSignalsStatus({
                     strategy: strategyAnalysis,
-                    mode: hasSignals ? 'signals' : 'strategy-only'
-                });
-            }
+                            mode: hasSignals ? 'signals' : 'strategy-only'
+                        });
+                    }
 
             // Handle response based on status
             if (status === 'READY' && hasSignals) {
@@ -7423,12 +7423,12 @@ class MarketMoodApp {
                 console.error('❌ Signal generation error:', signalsMessage);
                 signalsError.style.display = 'block';
                 signalsContainer.style.display = 'none';
-                signalsEmpty.style.display = 'none';
+                    signalsEmpty.style.display = 'none';
                 signalsError.textContent = `Error: ${signalsMessage || 'Signal generation failed'}`;
                 
-                signalsLoading.style.display = 'none';
-                this._switchingView = false;
-                return;
+            signalsLoading.style.display = 'none';
+                    this._switchingView = false;
+                    return;
             } else if (status === 'NO_DATA' || !data) {
                 // No signals data available yet
                 console.log('ℹ️ No signals data available yet');
@@ -8049,12 +8049,138 @@ class MarketMoodApp {
         }
     }
 
-    // REMOVED: updateSignalsStatus() - Signals Status Panel removed from UI
-    // REMOVED: updateSignalsStatus() - Signals Status Panel removed from UI
-    // Function kept for reference but does nothing (all calls commented out)
-    updateSignalsStatus_DEPRECATED({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode }) {
-        // Status panel removed - function does nothing
-        return;
+    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode }) {
+        const statusPanel = document.getElementById('signalsStatusPanel');
+        if (!statusPanel) {
+            console.warn('Signals status panel not found');
+            return;
+        }
+
+        // Update stored data
+        if (date !== undefined) this._signalsStatusData.date = date;
+        if (signalsInfo !== undefined) this._signalsStatusData.signalsInfo = signalsInfo;
+        if (dataAvailability !== undefined) this._signalsStatusData.dataAvailability = dataAvailability;
+        if (strategy !== undefined) this._signalsStatusData.strategy = strategy;
+        if (backendMessage !== undefined) this._signalsStatusData.backendMessage = backendMessage;
+        if (mode !== undefined) this._signalsStatusData.mode = mode;
+
+        // Use stored data with fallbacks
+        const targetDate = this._signalsStatusData.date || date || new Date().toISOString().split('T')[0];
+        const signals = this._signalsStatusData.signalsInfo || signalsInfo;
+        const strategyInfo = this._signalsStatusData.strategy || strategy;
+        const message = this._signalsStatusData.backendMessage || backendMessage || signals?.message || '';
+
+        // Determine signals engine status
+        let engineStatus = 'Temporarily unavailable — showing strategy only.';
+        let engineStatusColor = '#ef4444';
+        
+        if (signals) {
+            const signalCount = signals.signals ? signals.signals.length : 0;
+            const hasSignals = signals.hasSignals === true && signalCount > 0;
+            const success = signals.success !== false && signals.success !== undefined;
+            
+            if (hasSignals) {
+                engineStatus = `Active — ${signalCount} signal${signalCount !== 1 ? 's' : ''} generated.`;
+                engineStatusColor = '#10b981';
+            } else if (success || (signals.success === undefined && message)) {
+                if (message) {
+                    let cleanMessage = message;
+                    if (cleanMessage.includes('No signals available')) {
+                        cleanMessage = cleanMessage.replace('No signals available for this date yet. ', '');
+                    }
+                    engineStatus = `No signals — ${cleanMessage}`;
+                    engineStatusColor = '#f59e0b';
+                } else {
+                    engineStatus = 'Connected — no signals generated yet for this date.';
+                    engineStatusColor = '#f59e0b';
+                }
+            } else if (signals.success === false) {
+                if (message) {
+                    engineStatus = `Temporarily unavailable — ${message}`;
+                } else {
+                    engineStatus = 'Temporarily unavailable — showing strategy only.';
+                }
+                engineStatusColor = '#ef4444';
+            }
+        } else if (message) {
+            engineStatus = `No signals — ${message}`;
+            engineStatusColor = '#f59e0b';
+        }
+
+        // Get strategy name with mode indicator
+        let strategyText = 'Strategy: Not available';
+        if (strategyInfo) {
+            let strategyName = '';
+            if (typeof strategyInfo === 'string') {
+                strategyName = strategyInfo;
+            } else if (strategyInfo.strategy) {
+                strategyName = strategyInfo.strategy;
+            }
+            
+            if (strategyName) {
+                const signalCount = signals?.signals ? signals.signals.length : 0;
+                const hasSignals = signals?.hasSignals === true && signalCount > 0;
+                
+                if (!hasSignals && signalCount === 0) {
+                    strategyText = `Strategy: ${strategyName} (strategy-only mode, no entry list)`;
+                } else {
+                    strategyText = `Strategy: ${strategyName}`;
+                }
+            }
+        }
+
+        // Get the current mood color from signals greeting area
+        const signalsGreetingArea = document.querySelector('.signals-greeting-area');
+        let moodColor = '#667eea';
+        
+        if (signalsGreetingArea) {
+            const computedStyle = getComputedStyle(signalsGreetingArea);
+            const bgColor = computedStyle.backgroundColor;
+            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+                moodColor = bgColor;
+            }
+        }
+
+        // Render status panel
+        statusPanel.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+                    </div>
+            <div style="display: grid; grid-template-columns: 1fr; gap: 14px; font-size: 0.9rem;">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    <span style="color: #6b7280; font-weight: 500; min-width: 50px;">Date:</span>
+                    <span style="color: #111827; font-weight: 600;">${targetDate}</span>
+                    </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Engine:</span>
+                    <span style="color: ${engineStatusColor}; font-weight: 600; flex: 1; line-height: 1.4;">${engineStatus}</span>
+                    </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                    <span style="color: #111827; font-weight: 500; flex: 1; line-height: 1.4;">${strategyText}</span>
+                </div>
+            </div>
+        `;
+        
+        // Style the panel
+        statusPanel.style.background = `rgba(255, 255, 255, 0.95)`;
+        statusPanel.style.display = 'block';
     }
 
     // OLD CODE BELOW - KEPT FOR REFERENCE ONLY
