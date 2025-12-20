@@ -2882,26 +2882,37 @@ class MarketMoodApp {
         
         // Strategy selector button removed - modal can still be opened programmatically if needed
         
-        // Remove old event listeners by cloning elements (prevents duplicates)
-        if (closeStrategyModal) {
-            const newCloseBtn = closeStrategyModal.cloneNode(true);
-            closeStrategyModal.parentNode.replaceChild(newCloseBtn, closeStrategyModal);
-            newCloseBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Close button clicked');
-                closeModal();
-            });
-        }
-        
-        if (cancelStrategyBtn) {
-            const newCancelBtn = cancelStrategyBtn.cloneNode(true);
-            cancelStrategyBtn.parentNode.replaceChild(newCancelBtn, cancelStrategyBtn);
-            newCancelBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Cancel button clicked');
-                closeModal();
+        // Use event delegation on the modal to handle button clicks (avoids cloning issues)
+        const modalContainer = this.strategyModal || document.getElementById('strategyModal');
+        if (modalContainer) {
+            // Remove any existing listeners by using a one-time flag or event delegation
+            modalContainer.addEventListener('click', (e) => {
+                // Handle close button (X)
+                if (e.target.closest('#closeStrategyModal') || e.target.id === 'closeStrategyModal') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Close button clicked');
+                    closeModal();
+                    return;
+                }
+                
+                // Handle cancel button
+                if (e.target.closest('#cancelStrategyBtn') || e.target.id === 'cancelStrategyBtn') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Cancel button clicked');
+                    closeModal();
+                    return;
+                }
+                
+                // Handle backdrop click (only if clicking the modal itself, not its children)
+                if (e.target === modalContainer) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Backdrop clicked');
+                    closeModal();
+                    return;
+                }
             });
         }
         
