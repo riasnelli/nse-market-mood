@@ -2865,20 +2865,28 @@ class MarketMoodApp {
                 });
             });
             
-            // Apply button
-            if (applyStrategyBtn) {
-                applyStrategyBtn.addEventListener('click', () => {
-                    this.selectedStrategy = selectedStrategyId;
-                    localStorage.setItem('selectedStrategy', selectedStrategyId);
-                    if (strategyModal) {
-                        strategyModal.classList.remove('show');
-                    }
+            // Apply button - need to use closeModal function defined later, so we'll handle it separately
+            // Store reference for later use
+            this._selectedStrategyId = selectedStrategyId;
+            this._applyStrategyHandler = () => {
+                const currentSelectedId = this._selectedStrategyId || selectedStrategyId;
+                console.log('Apply button clicked, strategy:', currentSelectedId);
+                this.selectedStrategy = currentSelectedId;
+                localStorage.setItem('selectedStrategy', currentSelectedId);
+                closeModal();
                     // Regenerate signals with new strategy
                     if (this.currentView === 'signals') {
                         this.loadSignals();
                     }
+            };
+            
+            // Update selectedStrategyId when user clicks on strategy options
+            strategyOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    const strategyId = option.dataset.strategy;
+                    this._selectedStrategyId = strategyId;
                 });
-            }
+            });
         }
         
         // Strategy selector button removed - modal can still be opened programmatically if needed
