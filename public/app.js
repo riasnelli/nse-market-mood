@@ -7517,16 +7517,17 @@ class MarketMoodApp {
                 mode: 'signals'
             });
 
-            // Render strategy recommendation
-            if (strategyAnalysis) {
-                this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
-            }
-
             // Display signals
             console.log('📈 Rendering', signalsArray.length, 'signals');
             const runId = data?.run_id || data?.runId || null;
             const signalDate = data?.date || targetDate;
             this.renderSignals(signalsArray, runId, signalDate, signalsContainer);
+            
+            // Only show strategy recommendation if we have NO signals (to avoid repetition)
+            // Strategy is already shown in the selector button
+            if (strategyAnalysis && signalsArray.length === 0) {
+                this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
+            }
             
             // Debug panel removed - debug info available via API with debug=1 parameter
             
