@@ -19,8 +19,9 @@ const {
   getSignalsStoreCollection
 } = require('../mongodb');
 
-// Import the existing signal generation logic
-const { generateSimpleMomentumGapSignals } = require('../../signals');
+// Import the existing signal generation logic from signals.js
+const signalsModule = require('../signals');
+const generateSimpleMomentumGapSignals = signalsModule.generateSimpleMomentumGapSignals;
 
 /**
  * Get yesterday's date (skip weekends)
