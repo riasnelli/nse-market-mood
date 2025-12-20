@@ -8172,6 +8172,23 @@ class MarketMoodApp {
         // Style the panel
         statusPanel.style.background = `rgba(255, 255, 255, 0.95)`;
         statusPanel.style.display = 'block';
+        
+        // Add event listener for "Try other Strategies" link (after innerHTML is set)
+        setTimeout(() => {
+            const tryOtherStrategiesLink = document.getElementById('tryOtherStrategiesLinkStatus');
+            if (tryOtherStrategiesLink && this.strategyModal) {
+                // Remove any existing listeners by cloning
+                const newLink = tryOtherStrategiesLink.cloneNode(true);
+                tryOtherStrategiesLink.parentNode.replaceChild(newLink, tryOtherStrategiesLink);
+                
+                newLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (this.strategyModal) {
+                        this.strategyModal.classList.add('show');
+                    }
+                });
+            }
+        }, 0);
     }
 
     // OLD CODE BELOW - KEPT FOR REFERENCE ONLY
