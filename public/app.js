@@ -7203,7 +7203,7 @@ class MarketMoodApp {
                 const previousStrategy = this.selectedStrategy;
                 this.selectedStrategy = strategyAnalysis.strategyId;
                 localStorage.setItem('selectedStrategy', strategyAnalysis.strategyId);
-                this.updateSelectedStrategyText();
+                // Strategy selector button removed - no need to update button text
                 console.log(`✅ Auto-selected strategy: ${strategyAnalysis.strategy} (${strategyAnalysis.strategyId})${previousStrategy !== strategyAnalysis.strategyId ? ` (changed from ${previousStrategy})` : ''}`);
             }
             
