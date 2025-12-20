@@ -7099,7 +7099,7 @@ class MarketMoodApp {
             // Show and style the status panel
             if (signalsStatusPanel) {
                 signalsStatusPanel.style.display = 'block';
-                signalsStatusPanel.style.padding = '20px 10px 0 10px';
+                signalsStatusPanel.style.padding = '10px 10px 0 10px';
             }
             
             // Show and style the signals section
