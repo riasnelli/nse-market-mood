@@ -527,6 +527,18 @@ class MarketMoodApp {
         // Setup strategy selector
         this.setupStrategySelector();
         
+        // Setup "Try other Strategies" link
+        const tryOtherStrategiesLink = document.getElementById('tryOtherStrategiesLink');
+        if (tryOtherStrategiesLink) {
+            tryOtherStrategiesLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Open strategy selector modal
+                if (this.selectStrategyBtn) {
+                    this.selectStrategyBtn.click();
+                }
+            });
+        }
+        
         // Update selected strategy text on init
         this.updateSelectedStrategyText();
         if (this.refreshDataAvailabilityBtn) {
@@ -7523,11 +7535,7 @@ class MarketMoodApp {
             const signalDate = data?.date || targetDate;
             this.renderSignals(signalsArray, runId, signalDate, signalsContainer);
             
-            // Only show strategy recommendation if we have NO signals (to avoid repetition)
-            // Strategy is already shown in the selector button
-            if (strategyAnalysis && signalsArray.length === 0) {
-                this.renderStrategyRecommendation(strategyAnalysis, signalsContainer);
-            }
+            // Strategy recommendation card removed - strategy shown in selector button only
             
             // Debug panel removed - debug info available via API with debug=1 parameter
             
