@@ -7088,12 +7088,12 @@ class MarketMoodApp {
                 statusPanel.style.display = 'block';
             }
             
-            // Show initial status panel
+            // Show initial status panel with default strategy
             this.updateSignalsStatus({
                 date: new Date().toISOString().split('T')[0],
                 signalsInfo: null,
                 dataAvailability: null,
-                strategy: null
+                strategy: { strategy: this.selectedStrategy || 'momentum_gap' }
             });
             
             // Load signals data asynchronously to prevent iPhone freeze
