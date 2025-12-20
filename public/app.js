@@ -2749,10 +2749,21 @@ class MarketMoodApp {
     setupStrategySelector() {
         const selectStrategyBtn = this.selectStrategyBtn;
         const strategyModal = this.strategyModal;
+        
+        // Get elements - ensure they exist
         const closeStrategyModal = document.getElementById('closeStrategyModal');
         const cancelStrategyBtn = document.getElementById('cancelStrategyBtn');
         const applyStrategyBtn = document.getElementById('applyStrategyBtn');
         const strategyList = document.getElementById('strategyList');
+        
+        // Helper function to close modal
+        const closeModal = () => {
+            if (strategyModal) {
+                strategyModal.classList.remove('show');
+                strategyModal.style.display = 'none';
+                console.log('Strategy modal closed');
+            }
+        };
         
         // Define available strategies
         const strategies = [
@@ -2872,24 +2883,44 @@ class MarketMoodApp {
         
         // Strategy selector button removed - modal can still be opened programmatically if needed
         
-        // Close modal
-        if (closeStrategyModal && strategyModal) {
-            closeStrategyModal.addEventListener('click', () => {
-                strategyModal.classList.remove('show');
+        // Remove old event listeners by cloning elements (prevents duplicates)
+        if (closeStrategyModal) {
+            const newCloseBtn = closeStrategyModal.cloneNode(true);
+            closeStrategyModal.parentNode.replaceChild(newCloseBtn, closeStrategyModal);
+            newCloseBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Close button clicked');
+                closeModal();
             });
         }
         
-        if (cancelStrategyBtn && strategyModal) {
-            cancelStrategyBtn.addEventListener('click', () => {
-                strategyModal.classList.remove('show');
+        if (cancelStrategyBtn) {
+            const newCancelBtn = cancelStrategyBtn.cloneNode(true);
+            cancelStrategyBtn.parentNode.replaceChild(newCancelBtn, cancelStrategyBtn);
+            newCancelBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Cancel button clicked');
+                closeModal();
             });
         }
         
-        // Close on backdrop click
+        // Close on backdrop click (only if clicking the modal itself, not its children)
         if (strategyModal) {
-            strategyModal.addEventListener('click', (e) => {
-                if (e.target === strategyModal) {
-                    strategyModal.classList.remove('show');
+            // Remove old listener by cloning
+            const newModal = strategyModal.cloneNode(true);
+            strategyModal.parentNode.replaceChild(newModal, strategyModal);
+            // Update reference
+            this.strategyModal = newModal;
+            
+            newModal.addEventListener('click', (e) => {
+                // Only close if clicking the backdrop (the modal itself), not its children
+                if (e.target === newModal) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Backdrop clicked');
+                    closeModal();
                 }
             });
         }
