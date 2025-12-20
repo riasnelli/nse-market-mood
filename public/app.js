@@ -7083,9 +7083,16 @@ class MarketMoodApp {
             }
         
             // Ensure all Signals page sections are visible and properly styled
+            const signalsStatusPanel = document.getElementById('signalsStatusPanel');
         const signalsSection = document.getElementById('signalsSection');
             const signalsContainer = document.getElementById('signalsContainer');
             const signalsLoading = document.getElementById('signalsLoading');
+            
+            // Show and style the status panel
+            if (signalsStatusPanel) {
+                signalsStatusPanel.style.display = 'block';
+                signalsStatusPanel.style.padding = '20px 10px 0 10px';
+            }
             
             // Show and style the signals section
         if (signalsSection) {
