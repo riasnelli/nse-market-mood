@@ -7077,9 +7077,9 @@ class MarketMoodApp {
             }
             
             // Show data availability section (will be populated by loadDataAvailability)
-            if (dataAvailabilitySection) {
-                dataAvailabilitySection.style.display = 'block';
-                dataAvailabilitySection.style.padding = '20px 10px';
+            if (this.dataAvailabilitySection) {
+                this.dataAvailabilitySection.style.display = 'block';
+                this.dataAvailabilitySection.style.padding = '20px 10px';
             }
             
             // Show initial status panel
