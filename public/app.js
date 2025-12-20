@@ -8057,7 +8057,8 @@ class MarketMoodApp {
         }
     }
 
-    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode }) {
+    // REMOVED: updateSignalsStatus() - Signals Status Panel removed from UI
+    updateSignalsStatus_DEPRECATED({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode }) {
         const statusPanel = document.getElementById('signalsStatusPanel');
         if (!statusPanel) {
             console.warn('Signals status panel not found');
