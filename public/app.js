@@ -5905,6 +5905,9 @@ class MarketMoodApp {
                 }
             });
             
+            // Store dateMap in instance for use by loadSignals
+            this._dateMap = finalDateMap;
+            
             // Convert to array and sort by date descending
             const groupedData = Array.from(finalDateMap.values()).sort((a, b) => {
                 return new Date(b.date) - new Date(a.date);
@@ -7157,8 +7160,50 @@ class MarketMoodApp {
         }
     }
 
+    /**
+     * Get the best date for signals based on available data
+     * Priority: 1) Latest with both bhav+premarket, 2) Latest with bhav, 3) Latest in dateMap
+     * @param {Array} dateMapEntries - Array of [date, data] entries from dateMap
+     * @returns {string|null} - Best date string or null if no data
+     */
+    getBestSignalsDate(dateMapEntries) {
+        if (!dateMapEntries || dateMapEntries.length === 0) {
+            console.log('📅 No dateMap entries available, cannot determine best date');
+            return null;
+        }
 
+        // Sort by date descending (latest first)
+        const sortedEntries = [...dateMapEntries].sort((a, b) => {
+            return new Date(b[0]) - new Date(a[0]);
+        });
 
+        // Priority 1: Latest date with both bhav AND premarket
+        for (const [dateStr, dateData] of sortedEntries) {
+            if (dateData.bhav && dateData.bhav.count > 0 && 
+                dateData.premarket && dateData.premarket.count > 0) {
+                console.log(`📅 Best date (bhav+premarket): ${dateStr} (bhav: ${dateData.bhav.count}, premarket: ${dateData.premarket.count})`);
+                return dateStr;
+            }
+        }
+
+        // Priority 2: Latest date with bhav (even if premarket missing)
+        for (const [dateStr, dateData] of sortedEntries) {
+            if (dateData.bhav && dateData.bhav.count > 0) {
+                console.log(`📅 Best date (bhav only): ${dateStr} (bhav: ${dateData.bhav.count}, premarket: ${dateData.premarket?.count || 0})`);
+                return dateStr;
+            }
+        }
+
+        // Priority 3: Latest date in dateMap (any data)
+        const latestEntry = sortedEntries[0];
+        if (latestEntry) {
+            const [dateStr, dateData] = latestEntry;
+            console.log(`📅 Best date (latest available): ${dateStr}`);
+            return dateStr;
+        }
+
+        return null;
+    }
 
     async loadSignals(date = null) {
         console.log('📊 Loading signals, date:', date);
@@ -7206,31 +7251,50 @@ class MarketMoodApp {
                 console.log(`✅ Auto-selected strategy: ${strategyAnalysis.strategy} (${strategyAnalysis.strategyId})${previousStrategy !== strategyAnalysis.strategyId ? ` (changed from ${previousStrategy})` : ''}`);
             }
             
-            // Determine the date to use - prefer today's date if we have data
+            // Determine the date to use - use best available date from uploaded data
             let targetDate = date;
             if (!targetDate) {
-                // Use today's date if we have current market data
-                const today = new Date().toISOString().split('T')[0];
-                if (this.lastMarketData && this.lastMarketData.indices && this.lastMarketData.indices.length > 0) {
-                    targetDate = today;
-                    console.log('Using today\'s date for signals:', targetDate);
-                } else {
-                    // Try to get latest available date from API
+                // Ensure dateMap is populated (if not already)
+                if (!this._dateMap || this._dateMap.size === 0) {
+                    // Try to load uploaded data info to populate dateMap
+                    // This is async, so we'll check again after a short delay
+                    if (typeof this.updateUploadedDataInfo === 'function') {
+                        this.updateUploadedDataInfo().catch(err => {
+                            console.warn('⚠️ Could not load uploaded data info:', err);
+                        });
+                    }
+                }
+                
+                // Try to get best date from dateMap (uploaded data summary)
+                if (this._dateMap && this._dateMap.size > 0) {
+                    const dateMapEntries = Array.from(this._dateMap.entries());
+                    const bestDate = this.getBestSignalsDate(dateMapEntries);
+                    if (bestDate) {
+                        targetDate = bestDate;
+                        console.log(`✅ Using best available date from uploaded data: ${targetDate}`);
+                    }
+                }
+                
+                // Fallback: Try to get latest available date from API
+                if (!targetDate) {
                     try {
                         const latestDateResponse = await apiConfig.fetch('/api/signals?operation=latest');
                         if (latestDateResponse.ok) {
                             const latestDateData = await latestDateResponse.json();
                             if (latestDateData.latest_complete_date) {
                                 targetDate = latestDateData.latest_complete_date;
-                            } else {
-                                targetDate = today;
+                                console.log(`✅ Using latest date from API: ${targetDate}`);
                             }
-                        } else {
-                            targetDate = today;
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Could not fetch latest date from API:', e);
                     }
-                } catch (e) {
-                        targetDate = today;
-                    }
+                }
+                
+                // Final fallback: Use today's date
+                if (!targetDate) {
+                    targetDate = new Date().toISOString().split('T')[0];
+                    console.log(`⚠️ No uploaded data found, using today's date: ${targetDate}`);
                 }
             }
 
