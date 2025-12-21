@@ -774,12 +774,16 @@ const handler = async (req, res) => {
           .sort({ uploadedAt: -1 })
           .toArray();
       } catch (error) {
-        console.error('Error querying collection:', error);
+        console.error(`❌ Error querying collection ${uploadType}:`, error);
+        console.error('Query:', JSON.stringify(query, null, 2));
+        console.error('Error stack:', error.stack);
+        // Return 200 with error info instead of 500, so frontend can handle gracefully
         return res.status(200).json({
           success: false,
           data: [],
           count: 0,
-          error: error.message
+          error: error.message,
+          errorType: error.name || 'UnknownError'
         });
       }
       
@@ -854,9 +858,12 @@ const handler = async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Error in data endpoint:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     
     // Provide helpful error messages
-    if (error.message.includes('MONGODB_URI')) {
+    if (error.message && error.message.includes('MONGODB_URI')) {
       return res.status(500).json({
         error: 'Database configuration error',
         message: 'MongoDB connection string is not configured. Please set MONGODB_URI environment variable.',
@@ -864,11 +871,24 @@ const handler = async (req, res) => {
       });
     }
 
-    if (error.name === 'MongoServerError' || error.name === 'MongoNetworkError') {
+    if (error.name === 'MongoServerError' || error.name === 'MongoNetworkError' || error.name === 'MongoTimeoutError') {
       return res.status(500).json({
         error: 'Database connection error',
         message: 'Failed to connect to MongoDB. Please check your connection string and network settings.',
-        details: error.message
+        details: error.message,
+        errorType: error.name
+      });
+    }
+
+    // For GET requests, try to return 200 with error info instead of 500
+    // This allows frontend to show a helpful message instead of just failing
+    if (req.method === 'GET' && (req.query.action === 'get' || !req.query.action)) {
+      return res.status(200).json({
+        success: false,
+        data: [],
+        count: 0,
+        error: error.message || 'Unknown error occurred',
+        errorType: error.name || 'UnknownError'
       });
     }
 
