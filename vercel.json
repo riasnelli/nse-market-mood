@@ -68,6 +68,10 @@
       "dest": "/api/admin/migrate-signals.js"
     },
     {
+      "src": "/api/test-db",
+      "dest": "/api/test-db.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }
