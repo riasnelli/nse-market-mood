@@ -5438,9 +5438,19 @@ class MarketMoodApp {
                     indicesResult = await indicesResponse.json();
                 } else {
                     console.warn('Indices API returned non-OK status:', indicesResponse.status);
+                    // Try to parse error response
+                    try {
+                        const errorData = await indicesResponse.json();
+                        console.warn('Indices API error data:', errorData);
+                        indicesResult = { success: false, data: [], error: errorData.message || errorData.error };
+                    } catch (parseErr) {
+                        console.error('Error parsing indices error response:', parseErr);
+                        indicesResult = { success: false, data: [], error: `HTTP ${indicesResponse.status}` };
+                    }
                 }
             } catch (err) {
                 console.error('Error parsing indices response:', err);
+                indicesResult = { success: false, data: [], error: err.message };
             }
 
             try {
@@ -5448,9 +5458,19 @@ class MarketMoodApp {
                     bhavResult = await bhavResponse.json();
                 } else {
                     console.warn('Bhav API returned non-OK status:', bhavResponse.status);
+                    // Try to parse error response
+                    try {
+                        const errorData = await bhavResponse.json();
+                        console.warn('Bhav API error data:', errorData);
+                        bhavResult = { success: false, data: [], error: errorData.message || errorData.error };
+                    } catch (parseErr) {
+                        console.error('Error parsing bhav error response:', parseErr);
+                        bhavResult = { success: false, data: [], error: `HTTP ${bhavResponse.status}` };
+                    }
                 }
             } catch (err) {
                 console.error('Error parsing bhav response:', err);
+                bhavResult = { success: false, data: [], error: err.message };
             }
 
             try {
@@ -5458,9 +5478,19 @@ class MarketMoodApp {
                     premarketResult = await premarketResponse.json();
                 } else {
                     console.warn('Premarket API returned non-OK status:', premarketResponse.status);
+                    // Try to parse error response
+                    try {
+                        const errorData = await premarketResponse.json();
+                        console.warn('Premarket API error data:', errorData);
+                        premarketResult = { success: false, data: [], error: errorData.message || errorData.error };
+                    } catch (parseErr) {
+                        console.error('Error parsing premarket error response:', parseErr);
+                        premarketResult = { success: false, data: [], error: `HTTP ${premarketResponse.status}` };
+                    }
                 }
             } catch (err) {
                 console.error('Error parsing premarket response:', err);
+                premarketResult = { success: false, data: [], error: err.message };
             }
 
             try {
@@ -5468,9 +5498,19 @@ class MarketMoodApp {
                     marketActivityResult = await marketActivityResponse.json();
                 } else {
                     console.warn('Market Activity API returned non-OK status:', marketActivityResponse.status);
+                    // Try to parse error response
+                    try {
+                        const errorData = await marketActivityResponse.json();
+                        console.warn('Market Activity API error data:', errorData);
+                        marketActivityResult = { success: false, data: [], error: errorData.message || errorData.error };
+                    } catch (parseErr) {
+                        console.error('Error parsing market activity error response:', parseErr);
+                        marketActivityResult = { success: false, data: [], error: `HTTP ${marketActivityResponse.status}` };
+                    }
                 }
             } catch (err) {
                 console.error('Error parsing market activity response:', err);
+                marketActivityResult = { success: false, data: [], error: err.message };
             }
 
             try {
@@ -5478,9 +5518,19 @@ class MarketMoodApp {
                     week52Result = await week52Response.json();
                 } else {
                     console.warn('52W API returned non-OK status:', week52Response.status);
+                    // Try to parse error response
+                    try {
+                        const errorData = await week52Response.json();
+                        console.warn('52W API error data:', errorData);
+                        week52Result = { success: false, data: [], error: errorData.message || errorData.error };
+                    } catch (parseErr) {
+                        console.error('Error parsing 52W error response:', parseErr);
+                        week52Result = { success: false, data: [], error: `HTTP ${week52Response.status}` };
+                    }
                 }
             } catch (err) {
                 console.error('Error parsing 52W response:', err);
+                week52Result = { success: false, data: [], error: err.message };
             }
 
             // Debug: Log API responses
