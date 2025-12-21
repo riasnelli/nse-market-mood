@@ -6181,16 +6181,30 @@ class MarketMoodApp {
                 // Setup row selection handlers
                 this.setupRowSelectionHandlers();
             } else {
-                // No data found
+                // No data found - check if API calls failed
+                const apiFailed = !indicesResponse.ok || !bhavResponse.ok || !premarketResponse.ok || !marketActivityResponse.ok || !week52Response.ok;
+                
                 if (tableEl) tableEl.style.display = 'none';
-                if (emptyEl) emptyEl.style.display = 'block';
+                if (emptyEl) {
+                    emptyEl.style.display = 'block';
+                    if (apiFailed) {
+                        // API failed - show helpful message
+                        emptyEl.innerHTML = 'Unable to load uploaded files. The database may be temporarily unavailable.<br><br>Your files are still saved - please try refreshing or check your connection.';
+                        emptyEl.style.color = '#f59e0b';
+                    } else {
+                        // No files in database
+                        emptyEl.innerHTML = 'No uploaded CSV files found.';
+                        emptyEl.style.color = '#666';
+                    }
+                }
                 uploadedDataInfo.style.display = 'block';
             }
         } catch (error) {
             console.error('Error fetching uploaded files:', error);
             if (loadingEl) loadingEl.style.display = 'none';
             if (emptyEl) {
-                emptyEl.textContent = 'Error loading uploaded files.';
+                emptyEl.innerHTML = 'Error loading uploaded files. The database may be temporarily unavailable.<br><br>Your files are still saved - please try refreshing.';
+                emptyEl.style.color = '#f59e0b';
                 emptyEl.style.display = 'block';
             }
             if (tableEl) tableEl.style.display = 'none';
