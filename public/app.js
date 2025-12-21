@@ -7105,7 +7105,7 @@ class MarketMoodApp {
             // Show and style the signals section
         if (signalsSection) {
             signalsSection.style.display = 'block';
-                signalsSection.style.padding = '10px 10px';
+                signalsSection.style.padding = '0 10px';
                 signalsSection.style.minHeight = 'auto';
             }
             
