@@ -7381,7 +7381,11 @@ class MarketMoodApp {
             } else if (status === 'NO_MATCH') {
                 // Strategy ran but found no matches
                 console.log('ℹ️ No stocks met criteria for this date');
-                signalsEmpty.style.display = 'block';
+                signalsEmpty.style.display = 'flex';
+                signalsEmpty.style.flexDirection = 'column';
+                signalsEmpty.style.justifyContent = 'center';
+                signalsEmpty.style.alignItems = 'center';
+                signalsEmpty.style.minHeight = '50vh';
                 signalsContainer.style.display = 'none';
                 
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
@@ -7419,7 +7423,11 @@ class MarketMoodApp {
             } else if (status === 'INSUFFICIENT_DATA') {
                 // Missing required CSV files
                 console.log('⚠️ Insufficient data for signal generation');
-                signalsEmpty.style.display = 'block';
+                signalsEmpty.style.display = 'flex';
+                signalsEmpty.style.flexDirection = 'column';
+                signalsEmpty.style.justifyContent = 'center';
+                signalsEmpty.style.alignItems = 'center';
+                signalsEmpty.style.minHeight = '50vh';
                 signalsContainer.style.display = 'none';
                 
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
@@ -7453,7 +7461,11 @@ class MarketMoodApp {
             } else if (status === 'NO_DATA' || !data) {
                 // No signals data available yet
                 console.log('ℹ️ No signals data available yet');
-                signalsEmpty.style.display = 'block';
+                signalsEmpty.style.display = 'flex';
+                signalsEmpty.style.flexDirection = 'column';
+                signalsEmpty.style.justifyContent = 'center';
+                signalsEmpty.style.alignItems = 'center';
+                signalsEmpty.style.minHeight = '50vh';
                 signalsContainer.style.display = 'none';
                 
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
@@ -7475,7 +7487,11 @@ class MarketMoodApp {
             
             // If we reach here and still no signals, show empty state
             if (!hasSignals) {
-                signalsEmpty.style.display = 'block';
+                signalsEmpty.style.display = 'flex';
+                signalsEmpty.style.flexDirection = 'column';
+                signalsEmpty.style.justifyContent = 'center';
+                signalsEmpty.style.alignItems = 'center';
+                signalsEmpty.style.minHeight = '50vh';
                 signalsContainer.style.display = 'none';
                 
                 const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
