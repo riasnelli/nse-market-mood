@@ -478,12 +478,16 @@ const handler = async (req, res) => {
             .toArray();
         }
       } catch (error) {
-        console.error('Error querying collection:', error);
+        console.error(`❌ Error querying collection ${uploadType}:`, error);
+        console.error('Query:', query);
+        console.error('Error stack:', error.stack);
+        // Return 200 with error info instead of 500, so frontend can handle gracefully
         return res.status(200).json({
           success: false,
           data: [],
           count: 0,
-          error: error.message
+          error: error.message,
+          errorType: error.name || 'UnknownError'
         });
       }
       
