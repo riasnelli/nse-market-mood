@@ -30,6 +30,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/test-db.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
