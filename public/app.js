@@ -4541,14 +4541,25 @@ class MarketMoodApp {
         const indices = [];
         
         normalizedRows.forEach((row) => {
-            if (!row.symbol || !row.prevClose || !row.iep) return;
+            if (!row.symbol) return;
+            
+            // Use IEP, FINAL, or prevClose as price (in that order)
+            const price = row.iep || row.final || row.prevClose || 0;
+            if (!price || price <= 0) return; // Must have at least one valid price
+            
+            // Calculate prevClose if missing
+            let prevClose = row.prevClose;
+            if (!prevClose && row.iep && row.chngPct !== null && row.chngPct !== -100) {
+                prevClose = row.iep / (1 + row.chngPct / 100);
+            }
+            if (!prevClose) prevClose = price; // Fallback to price if still missing
             
             indices.push({
                 symbol: row.symbol,
-                prevClose: row.prevClose,
-                pre_open_price: row.iep,
-                price: row.iep,
-                last_price: row.iep,
+                prevClose: prevClose,
+                pre_open_price: row.iep || row.final || price,
+                price: price,
+                last_price: price,
                 change: row.chng || 0,
                 pChange: row.chngPct || 0,
                 final: row.final,
