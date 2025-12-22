@@ -4972,8 +4972,24 @@ class MarketMoodApp {
                 }
                 return result;
             } else {
-                const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                const errorMsg = errorData.message || `Failed to save: ${response.statusText}`;
+                // Try to get error message from response
+                let errorMsg = `Failed to save: ${response.status} ${response.statusText}`;
+                try {
+                    const errorText = await response.text();
+                    console.error('❌ API error response (raw):', errorText.substring(0, 500));
+                    // Try to parse as JSON
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.message || errorJson.error || errorMsg;
+                        console.error('❌ Parsed error JSON:', errorJson);
+                    } catch (e) {
+                        // Not JSON, use text (might be HTML error page)
+                        errorMsg = errorText.substring(0, 200) || errorMsg;
+                        console.error('❌ Error response is not JSON, using text');
+                    }
+                } catch (e) {
+                    console.error('❌ Could not read error response:', e);
+                }
                 console.error(`❌ Database save failed (${response.status}):`, errorMsg);
                 throw new Error(errorMsg);
             }
