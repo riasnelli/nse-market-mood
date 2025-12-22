@@ -3230,19 +3230,21 @@ class MarketMoodApp {
                         
                         // Also save to database (optional - will work even if DB is not configured)
                         // Wait for save to complete before refreshing the table
+                        let responseData = null;
                         try {
-                            await this.saveToDatabase(processedData, file.name, date, uploadType);
+                            responseData = await this.saveToDatabase(processedData, file.name, date, uploadType);
                             console.log('✅ Data saved to database successfully');
+                            
+                            // Check if this was a duplicate file
+                            const isDuplicate = responseData?.isDuplicate || false;
+                            const successMessage = isDuplicate 
+                                ? 'File already exists - updated successfully!' 
+                                : 'Data uploaded successfully!';
+                            this.showUploadStatus(successMessage, 'success');
                         } catch (err) {
                             console.warn('Failed to save to database (continuing with localStorage):', err);
+                            this.showUploadStatus('Data uploaded successfully!', 'success');
                         }
-                        
-                        // Check if this was a duplicate file
-                        const isDuplicate = responseData.isDuplicate || false;
-                        const successMessage = isDuplicate 
-                            ? 'File already exists - updated successfully!' 
-                            : 'Data uploaded successfully!';
-                        this.showUploadStatus(successMessage, 'success');
                         
                         // Refresh the uploaded data table after a delay to ensure DB is updated
                         // Clear any existing update flag to ensure refresh happens
