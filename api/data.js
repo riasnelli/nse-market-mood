@@ -14,6 +14,7 @@ const handler = async (req, res) => {
   // Set Content-Type header early to ensure JSON responses
   res.setHeader('Content-Type', 'application/json');
   
+  // Wrap entire handler in try-catch to catch any crashes
   try {
     // Early validation: Check request size for POST requests
     if (req.method === 'POST') {
@@ -26,9 +27,9 @@ const handler = async (req, res) => {
           return res.status(200).json({
             success: false,
             error: 'Request too large',
-            message: `Request body is ${sizeMB.toFixed(2)}MB which exceeds Vercel's limit. Please split the file or reduce data size.`,
+            message: `Request body is ${sizeMB.toFixed(2)}MB which exceeds Vercel's limit (~4.5MB). The file has too many rows. Please split the file or contact support.`,
             sizeMB: sizeMB.toFixed(2),
-            maxSizeMB: 4
+            maxSizeMB: 4.5
           });
         }
       }
