@@ -632,6 +632,12 @@ const handler = async (req, res) => {
         }
       }
       
+      // Support backward compatibility: ?operation=get (from get-signals.js)
+      if (operation === 'get') {
+        // Legacy get-signals.js endpoint - redirect to main GET handler below
+        // This maintains backward compatibility
+      }
+      
       // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get signals for a date (READ-ONLY)
       const date = req.query.date || new Date().toISOString().split('T')[0];
       const strategy = req.query.strategy || 'momentum_gap';

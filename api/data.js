@@ -40,7 +40,7 @@ const handler = async (req, res) => {
     const action = req.query.action || req.body?.action;
     
     // Validate action
-    const validActions = ['save', 'get', 'dates', 'flush'];
+    const validActions = ['save', 'get', 'dates', 'flush', 'check'];
     if (action && !validActions.includes(action)) {
       return res.status(400).json({ 
         error: 'Invalid action',
@@ -685,6 +685,122 @@ const handler = async (req, res) => {
         });
       }
 
+    } else if (req.method === 'GET' && action === 'check') {
+      // Check date data availability (check-date-data.js logic)
+      const { date } = req.query;
+      
+      if (!date) {
+        return res.status(400).json({
+          success: false,
+          error: 'Date parameter is required',
+          message: 'Please provide a date query parameter (YYYY-MM-DD)'
+        });
+      }
+
+      const { 
+        getDailyBhavcopyCollection, 
+        getDailyIndicesCollection, 
+        getPreMarketDataCollection,
+        getSignalCollection,
+        getSignalRunCollection,
+        getUploadedDataCollection
+      } = require('./lib/mongodb');
+
+      function getYesterdayDate(todayDate) {
+        const d = new Date(todayDate);
+        d.setDate(d.getDate() - 1);
+        while (d.getDay() === 0 || d.getDay() === 6) {
+          d.setDate(d.getDate() - 1);
+        }
+        return d.toISOString().split('T')[0];
+      }
+
+      try {
+        const yesterdayDate = getYesterdayDate(date);
+        const bhavcopyCollection = await getDailyBhavcopyCollection();
+        const indicesCollection = await getDailyIndicesCollection();
+        const premarketCollection = await getPreMarketDataCollection();
+        const signalCollection = await getSignalCollection();
+        const signalRunCollection = await getSignalRunCollection();
+        const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+        const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
+
+        let bhavcopyCount = await bhavcopyCollection.countDocuments({ date: yesterdayDate, series: 'EQ' });
+        if (bhavcopyCount === 0) {
+          const uploadedBhavDocs = await uploadedBhavCollection.find({ date: yesterdayDate }).toArray();
+          for (const doc of uploadedBhavDocs) {
+            if (doc.indices && Array.isArray(doc.indices)) {
+              bhavcopyCount += doc.indices.filter(item => !item.series || item.series === 'EQ').length;
+            }
+          }
+        }
+
+        let indicesCount = await indicesCollection.countDocuments({ date: date });
+        if (indicesCount === 0) {
+          indicesCount = await indicesCollection.countDocuments({ date: yesterdayDate });
+        }
+
+        let premarketCount = await premarketCollection.countDocuments({ date: date });
+        if (premarketCount === 0) {
+          const uploadedPremarketDocs = await uploadedPremarketCollection.find({ date: date }).toArray();
+          for (const doc of uploadedPremarketDocs) {
+            if (doc.indices && Array.isArray(doc.indices)) {
+              premarketCount += doc.indices.length;
+            }
+          }
+        }
+
+        const signalRun = await signalRunCollection.findOne({ date: date });
+        let signalsCount = 0;
+        if (signalRun && signalRun.run_id) {
+          signalsCount = await signalCollection.countDocuments({ run_id: signalRun.run_id });
+        }
+
+        const signalRuns = await signalRunCollection.find({ date: date }).sort({ created_at: -1 }).toArray();
+
+        const hasBhav = bhavcopyCount > 0;
+        const hasIndices = indicesCount > 0;
+        const hasPremarket = premarketCount > 0;
+        const hasSignals = signalsCount > 0;
+        const canGenerateSignals = hasBhav && hasPremarket;
+
+        return res.status(200).json({
+          success: true,
+          date: date,
+          canGenerateSignals: canGenerateSignals,
+          data: {
+            bhavcopy: { available: hasBhav, count: bhavcopyCount },
+            indices: { available: hasIndices, count: indicesCount },
+            premarket: { available: hasPremarket, count: premarketCount },
+            signals: { available: hasSignals, count: signalsCount },
+            signalRuns: { count: signalRuns.length, runs: signalRuns.map(r => ({ run_id: r.run_id, regime_code: r.regime_code, strategies_used: r.strategies_used })) }
+          },
+          hasBhav: hasBhav,
+          hasPremarket: hasPremarket,
+          hasIndices: hasIndices,
+          message: canGenerateSignals 
+            ? `Data available for ${date}. Signals can be generated.`
+            : `Incomplete data for ${date}. Need bhavcopy and premarket to generate signals.`
+        });
+      } catch (error) {
+        console.error('Error checking date data:', error);
+        return res.status(200).json({
+          success: false,
+          date: date,
+          canGenerateSignals: false,
+          data: {
+            bhavcopy: { available: false, count: 0 },
+            indices: { available: false, count: 0 },
+            premarket: { available: false, count: 0 },
+            signals: { available: false, count: 0 },
+            signalRuns: { count: 0, runs: [] }
+          },
+          hasBhav: false,
+          hasPremarket: false,
+          hasIndices: false,
+          error: error.message
+        });
+      }
     } else if (req.method === 'GET' && action === 'dates') {
       // Get uploaded dates (get-uploaded-dates.js logic)
       // Check if MongoDB is configured
