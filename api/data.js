@@ -217,10 +217,40 @@ const handler = async (req, res) => {
         });
       }
 
-      // Insert into MongoDB (metadata)
-      const result = await collection.insertOne(dataToSave);
+      // Check for existing file with same fileName and tradeDate to prevent duplicates
+      const existingFile = await collection.findOne({ 
+        fileName: fileName, 
+        tradeDate: tradeDate,
+        type: uploadType 
+      });
 
-      console.log(`✅ Metadata saved to MongoDB: ${result.insertedId} (type: ${uploadType}, rowCount: ${rowCount}, tradeDate: ${tradeDate}, collection: ${actualCollectionName})`);
+      let result;
+      let documentId;
+      let isDuplicate = false;
+      
+      if (existingFile) {
+        // File already exists - update it instead of creating duplicate
+        console.log(`⚠️ File already exists: ${fileName} (${tradeDate}). Updating existing record...`);
+        result = await collection.updateOne(
+          { _id: existingFile._id },
+          { 
+            $set: {
+              ...dataToSave,
+              updatedAt: new Date()
+            }
+          }
+        );
+        documentId = existingFile._id;
+        isDuplicate = true;
+        console.log(`✅ Updated existing file record: ${documentId}`);
+      } else {
+        // New file - insert it
+        result = await collection.insertOne(dataToSave);
+        documentId = result.insertedId;
+        console.log(`✅ New file inserted: ${documentId}`);
+      }
+
+      console.log(`✅ Metadata ${isDuplicate ? 'updated' : 'saved'} to MongoDB: ${documentId} (type: ${uploadType}, rowCount: ${rowCount}, tradeDate: ${tradeDate}, collection: ${actualCollectionName})`);
 
       // Also insert individual rows into daily collections
       let dailyInsertCount = 0;
@@ -357,7 +387,7 @@ const handler = async (req, res) => {
                 dataToSave.indicesCount = dailyInsertCount;
                 // Update the document with correct count
                 await collection.updateOne(
-                  { _id: result.insertedId },
+                  { _id: documentId },
                   { $set: { indicesCount: dailyInsertCount } }
                 );
                 console.log(`✅ Updated metadata document with correct count: ${dailyInsertCount}`);
@@ -373,7 +403,7 @@ const handler = async (req, res) => {
       // Summary log
       if (uploadType === 'bhav') {
         console.log(`📊 BHAVCOPY SAVE SUMMARY:`);
-        console.log(`   ✅ Metadata saved: ${result.insertedId}`);
+        console.log(`   ✅ Metadata ${isDuplicate ? 'updated' : 'saved'}: ${documentId}`);
         console.log(`   ✅ Daily records: ${dailyInsertCount} EQ stocks`);
         console.log(`   📅 Date: ${dataToSave.date}`);
         console.log(`   📁 File: ${fileName}`);
@@ -402,14 +432,17 @@ const handler = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        message: `Data saved successfully to MongoDB${dailyInsertCount > 0 ? ` (${dailyInsertCount} rows inserted into daily collections)` : ''}${signalGenerationTriggered ? ' (signal generation triggered)' : ''}`,
-        id: result.insertedId.toString(),
+        message: isDuplicate 
+          ? `File already existed - updated successfully${dailyInsertCount > 0 ? ` (${dailyInsertCount} rows updated in daily collections)` : ''}${signalGenerationTriggered ? ' (signal generation triggered)' : ''}`
+          : `Data saved successfully to MongoDB${dailyInsertCount > 0 ? ` (${dailyInsertCount} rows inserted into daily collections)` : ''}${signalGenerationTriggered ? ' (signal generation triggered)' : ''}`,
+        id: documentId.toString(),
+        isDuplicate: isDuplicate,
         dailyInsertCount: dailyInsertCount,
         indicesCount: indicesCount,
         signalGenerationTriggered: signalGenerationTriggered,
         data: {
           ...dataToSave,
-          _id: result.insertedId.toString()
+          _id: documentId.toString()
         }
       });
 
