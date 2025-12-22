@@ -34,10 +34,20 @@ async function connectToDatabase() {
 
   try {
     // Attach the client to Vercel's database pool for proper cleanup
-    attachDatabasePool(client);
+    // Note: attachDatabasePool might not be available in all Vercel environments
+    try {
+      attachDatabasePool(client);
+    } catch (attachError) {
+      console.warn('⚠️ attachDatabasePool not available, continuing without it:', attachError.message);
+    }
     
-    // Connect to MongoDB
-    await client.connect();
+    // Connect to MongoDB with timeout
+    await Promise.race([
+      client.connect(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('MongoDB connection timeout after 10 seconds')), 10000)
+      )
+    ]);
     
     // Get database name from URI or use default
     // Database name should be in the connection string: mongodb+srv://.../intraq?...

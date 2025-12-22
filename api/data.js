@@ -11,6 +11,9 @@ const { validateFileType, detectFileType, parseDateFromFilename, getCanonicalTyp
 const { generateSignalsForDate } = require('./lib/signals/generateSignals');
 
 const handler = async (req, res) => {
+  // Set Content-Type header early to ensure JSON responses
+  res.setHeader('Content-Type', 'application/json');
+  
   try {
     // Get action from query params or body
     const action = req.query.action || req.body?.action;
