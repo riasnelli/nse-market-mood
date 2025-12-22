@@ -13,7 +13,7 @@ const { generateSignalsForDate } = require('./lib/signals/generateSignals');
 const handler = async (req, res) => {
   // Set Content-Type header early to ensure JSON responses
   res.setHeader('Content-Type', 'application/json');
-  // Version: 3d7c140 - Fixed undefined variable bugs
+  // Version: ba8d7b3 - All critical bugs fixed, chunked uploads implemented
   
   // Wrap entire handler in try-catch to catch any crashes
   try {
