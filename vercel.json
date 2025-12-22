@@ -44,6 +44,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/data-debug.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "public/**/*",
       "use": "@vercel/static"
     }
@@ -80,6 +84,10 @@
     {
       "src": "/api/test-db",
       "dest": "/api/test-db.js"
+    },
+    {
+      "src": "/api/data-debug",
+      "dest": "/api/data-debug.js"
     },
     {
       "src": "/(.*)",

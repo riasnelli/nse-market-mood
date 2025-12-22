@@ -79,10 +79,10 @@ const handler = async (req, res) => {
     if (req.method === 'POST' && action === 'save') {
       // Save uploaded data to database
       // Support chunked uploads: chunkIndex, totalChunks, and data array
-      const { fileName, date, indices, data, mood, vix, advanceDecline, timestamp, source, type, _originalCount, _isLargeFile, chunkIndex, totalChunks } = req.body;
+      const { fileName, date, indices: indicesOld, data, mood, vix, advanceDecline, timestamp, source, type, _originalCount, _isLargeFile, chunkIndex, totalChunks } = req.body;
       
       // Support both 'indices' (old format) and 'data' (new chunked format)
-      const dataArray = data || indices || [];
+      const dataArray = data || indicesOld || [];
 
       // STRICT FILE TYPE DETECTION: Single source of truth
       if (!fileName) {
@@ -138,9 +138,6 @@ const handler = async (req, res) => {
           message: `Invalid type detected: ${uploadType}`
         });
       }
-
-      // Support both 'indices' (old format) and 'data' (new chunked format)
-      const dataArray = data || indices || [];
       
       if (!dataArray || !Array.isArray(dataArray)) {
         return res.status(400).json({ 
@@ -165,7 +162,7 @@ const handler = async (req, res) => {
         console.log(`📦 Processing chunk ${chunkIndex}/${totalChunks} for ${fileName || 'upload'}`);
       }
       
-      // Use dataArray instead of indices throughout
+      // Use dataArray as indices throughout
       const indices = dataArray;
       
       // CRITICAL FIX: Always calculate rowCount from actual array length
@@ -532,7 +529,7 @@ const handler = async (req, res) => {
         id: documentId.toString(),
         isDuplicate: isDuplicate,
         dailyInsertCount: dailyInsertCount,
-        indicesCount: indicesCount,
+        indicesCount: finalRowCount,
         signalGenerationTriggered: signalGenerationTriggered,
         data: {
           ...dataToSave,
