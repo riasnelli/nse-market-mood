@@ -217,6 +217,20 @@ const handler = async (req, res) => {
         });
       }
 
+      // CRITICAL: For premarket with 0 count, don't save to database
+      if (uploadType === 'premarket' && rowCount === 0) {
+        console.warn(`⚠️ Skipping database save: premarket has 0 processed rows`);
+        console.warn(`   File: ${fileName}, Date: ${tradeDate}`);
+        return res.status(200).json({
+          success: false,
+          message: 'Premarket processed 0 rows - file not saved',
+          warning: 'No valid premarket data found in file. Check file format and parsing logic.',
+          rowCount: 0,
+          indicesCount: 0,
+          skipped: true
+        });
+      }
+
       // Check for existing file with same fileName and tradeDate to prevent duplicates
       const existingFile = await collection.findOne({ 
         fileName: fileName, 
