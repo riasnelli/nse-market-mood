@@ -6274,6 +6274,7 @@ class MarketMoodApp {
         } finally {
             // Always clear the flag when done
             this._updatingUploadedDataInfo = false;
+            console.log('✅ updateUploadedDataInfo completed, flag cleared');
         }
     }
 
