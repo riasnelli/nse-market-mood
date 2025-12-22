@@ -10,48 +10,6 @@
       "memory": 512
     }
   },
-  "builds": [
-    {
-      "src": "api/nse-data.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/data.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/signals.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/market.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/download-nse-csvs.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/admin/cleanup-types.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/admin/migrate-signals.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/test-db.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/data-debug.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**/*",
-      "use": "@vercel/static"
-    }
-  ],
   "routes": [
     {
       "src": "/api/nse-data",
