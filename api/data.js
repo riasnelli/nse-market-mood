@@ -909,9 +909,16 @@ const handler = async (req, res) => {
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     
+    // Ensure we haven't already sent a response
+    if (res.headersSent) {
+      console.error('⚠️ Response already sent, cannot send error response');
+      return;
+    }
+    
     // Provide helpful error messages
     if (error.message && error.message.includes('MONGODB_URI')) {
-      return res.status(500).json({
+      return res.status(200).json({
+        success: false,
         error: 'Database configuration error',
         message: 'MongoDB connection string is not configured. Please set MONGODB_URI environment variable.',
         details: error.message
