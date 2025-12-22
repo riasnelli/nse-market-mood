@@ -1,7 +1,14 @@
 const { MongoClient } = require('mongodb');
-const { authMiddleware } = require('./lib/auth');
 
 const handler = async (req, res) => {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
   const diagnostics = {
     timestamp: new Date().toISOString(),
     environment: {},
@@ -112,8 +119,5 @@ const handler = async (req, res) => {
   }
 };
 
-module.exports = authMiddleware({
-  requireAuth: false,
-  rateLimitType: 'public'
-})(handler);
+module.exports = handler;
 
