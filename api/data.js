@@ -78,7 +78,7 @@ const handler = async (req, res) => {
     // Route based on HTTP method and action
     if (req.method === 'POST' && action === 'save') {
       // Save uploaded data to database
-      const { fileName, date, indices, mood, vix, advanceDecline, timestamp, source, type } = req.body;
+      const { fileName, date, indices, mood, vix, advanceDecline, timestamp, source, type, _originalCount, _isLargeFile } = req.body;
 
       // STRICT FILE TYPE DETECTION: Single source of truth
       if (!fileName) {
@@ -167,7 +167,7 @@ const handler = async (req, res) => {
       const maxSize = 15 * 1024 * 1024; // 15MB (leave 1MB buffer)
       const isLargeFile = estimatedSize > maxSize;
       
-      if (isLargeFile) {
+      if (isLargeFileBySize) {
         console.warn(`⚠️ Large file detected: ${estimatedSize} bytes (estimated), max: ${maxSize} bytes`);
         console.warn(`   Will store metadata only, data will be in daily collection`);
       }
@@ -175,7 +175,7 @@ const handler = async (req, res) => {
       // For large files, don't store all rows in metadata document
       // Store only a sample or empty array - actual data goes to daily collection
       const maxRowsInMetadata = 100; // Store max 100 rows in metadata for small files
-      const indicesForMetadata = isLargeFile ? [] : (indices || []).slice(0, maxRowsInMetadata);
+      const indicesForMetadata = isLargeFileBySize ? [] : (indices || []).slice(0, maxRowsInMetadata);
 
       const dataToSave = {
         fileName: fileName,
@@ -184,7 +184,7 @@ const handler = async (req, res) => {
         type: uploadType, // Canonical type from detection
         indices: indicesForMetadata, // Only store sample for large files
         indicesCount: rowCount, // Keep for backward compatibility
-        rowCount: rowCount, // New canonical field name
+        rowCount: finalRowCount, // Use finalRowCount (includes _originalCount for large files)
         mood: mood || null,
         vix: vix || null,
         advanceDecline: advanceDecline || { advances: 0, declines: 0 },
@@ -192,7 +192,7 @@ const handler = async (req, res) => {
         source: source || 'uploaded',
         uploadedAt: new Date(),
         updatedAt: new Date(),
-        _largeFile: isLargeFile // Flag to indicate data is in daily collection
+        _largeFile: isLargeFileBySize // Flag to indicate data is in daily collection
       };
       
       // Runtime assertion: ensure type matches collection
