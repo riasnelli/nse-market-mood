@@ -4906,184 +4906,123 @@ class MarketMoodApp {
     }
     
     async uploadSingleChunk(indicesArray, fileName, dataDate, type, data, chunkIndex = undefined, totalChunks = undefined) {
-            
-            // Enhanced logging for bhavcopy
-            if (type === 'bhav') {
-                console.log(`🔍 SAVING BHAVCOPY TO DB:`, {
-                    fileName,
-                    date: dataDate,
-                    processedCount: processedCount,
-                    indicesArrayLength: indicesArray.length,
-                    indicesCount: data.indicesCount,
-                    count: data.count,
-                    hasIndices: Array.isArray(indicesArray),
-                    sampleItem: indicesArray.length > 0 ? {
-                        symbol: indicesArray[0].symbol,
-                        series: indicesArray[0].series,
-                        close: indicesArray[0].close,
-                        hasRaw: !!indicesArray[0].raw
-                    } : null
-                });
-                
-                // Guard: Don't save if no processed rows
-                if (processedCount === 0 || indicesArray.length === 0) {
-                    console.warn(`⚠️ Skipping save to MongoDB: bhavcopy has 0 processed EQ stocks.`);
-                    console.warn(`   File: ${fileName}, Date: ${dataDate}`);
-                    console.warn(`   Check: 1) Header mapping (SERIES should be at index 2), 2) EQ filter, 3) Close price validation`);
-                    return { success: false, error: 'No rows processed', skipped: true };
-                }
-                
-                // Validate data structure before sending
-                const validItems = indicesArray.filter(item => 
-                    item && 
-                    (item.symbol || item.SYMBOL) && 
-                    item.series === 'EQ' && 
-                    (item.close !== null && item.close !== undefined)
-                );
-                
-                if (validItems.length === 0) {
-                    console.warn(`⚠️ Skipping save: No valid EQ items found after validation.`);
-                    console.warn(`   Total items: ${indicesArray.length}, Valid items: ${validItems.length}`);
-                    return { success: false, error: 'No valid EQ items', skipped: true };
-                }
-                
-                console.log(`✅ Validated ${validItems.length} EQ items ready for database save`);
-            }
-            
-            // Debug logging for premarket
-            if (type === 'premarket') {
-                console.log(`🔍 SAVING PREMARKET TO DB:`, {
-                    fileName,
-                    date: dataDate,
-                    indicesCount: data.indicesCount,
-                    count: data.count,
-                    dateDataPremarketCount: data.dateDataPremarketCount,
-                    indicesArrayLength: indicesArray.length
-                });
-            }
-            
-            // CRITICAL: Ensure indicesArray is always a valid array
-            if (!Array.isArray(indicesArray)) {
-                console.error(`❌ Invalid indicesArray:`, indicesArray);
-                indicesArray = [];
-            }
-            
-            // Calculate count from actual array length (don't trust stored values)
-            const actualIndicesCount = indicesArray.length;
-            
-            // For bhavcopy, validate we have data before sending
-            if (type === 'bhav' && actualIndicesCount === 0) {
-                console.warn(`⚠️ Cannot save bhavcopy: indicesArray is empty`);
-                console.warn(`   File: ${fileName}, Date: ${dataDate}`);
-                throw new Error('Bhavcopy has 0 processed EQ stocks - cannot save to database');
-            }
-            
-            // CRITICAL: Ensure type is correctly set from data.type if provided, otherwise use parameter
-            // This ensures MA and 52W files are saved with correct type
-            let finalType = data.type || type || 'indices';
-            
-            // Validate type matches what we expect
-            const validTypes = ['indices', 'bhav', 'premarket', 'marketactivity', '52w'];
-            if (!validTypes.includes(finalType)) {
-                console.warn(`⚠️ Invalid type '${finalType}', defaulting to 'indices'`);
-                finalType = 'indices';
-            }
-            
-            console.log(`📤 Saving to database: type=${finalType}, fileName=${fileName}, date=${dataDate}, count=${actualIndicesCount}`);
-            
-            const payload = {
-                fileName: fileName || 'uploaded.csv',
-                date: dataDate || new Date().toISOString().split('T')[0],
-                type: finalType, // Use validated type
-                indices: indicesArray, // Always send the actual array
-                indicesCount: actualIndicesCount, // Always calculate from array length
-                count: actualIndicesCount,
-                dateDataPremarketCount: data.dateDataPremarketCount || actualIndicesCount,
-                header: data.header || null,
-                mood: data.mood,
-                vix: data.vix,
-                advanceDecline: data.advanceDecline,
-                timestamp: data.timestamp || new Date().toISOString(),
-                source: data.source || 'uploaded'
-            };
-            
-            // Debug log before sending
-            if (type === 'bhav') {
-                console.log(`📤 Sending bhavcopy to backend:`, {
-                    fileName: payload.fileName,
-                    date: payload.date,
-                    indicesArrayLength: indicesArray.length,
-                    indicesCount: payload.indicesCount,
-                    sampleItem: indicesArray.length > 0 ? {
-                        symbol: indicesArray[0].symbol,
-                        series: indicesArray[0].series,
-                        close: indicesArray[0].close
-                    } : null
-                });
-            }
-            
-            const response = await apiConfig.fetch('/api/data?action=save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ ...payload, action: 'save' })
+        // CRITICAL: Ensure indicesArray is always a valid array
+        if (!Array.isArray(indicesArray)) {
+            console.error(`❌ Invalid indicesArray:`, indicesArray);
+            indicesArray = [];
+        }
+        
+        // Calculate count from actual array length (don't trust stored values)
+        const actualIndicesCount = indicesArray.length;
+        
+        // For bhavcopy, validate we have data before sending
+        if (type === 'bhav' && actualIndicesCount === 0) {
+            console.warn(`⚠️ Cannot save bhavcopy: indicesArray is empty`);
+            console.warn(`   File: ${fileName}, Date: ${dataDate}`);
+            throw new Error('Bhavcopy has 0 processed EQ stocks - cannot save to database');
+        }
+        
+        // CRITICAL: Ensure type is correctly set from data.type if provided, otherwise use parameter
+        // This ensures MA and 52W files are saved with correct type
+        let finalType = data.type || type || 'indices';
+        
+        // Validate type matches what we expect
+        const validTypes = ['indices', 'bhav', 'premarket', 'marketactivity', '52w'];
+        if (!validTypes.includes(finalType)) {
+            console.warn(`⚠️ Invalid type '${finalType}', defaulting to 'indices'`);
+            finalType = 'indices';
+        }
+        
+        const chunkInfo = chunkIndex ? ` (chunk ${chunkIndex}/${totalChunks})` : '';
+        console.log(`📤 Saving to database: type=${finalType}, fileName=${fileName}, date=${dataDate}, count=${actualIndicesCount}${chunkInfo}`);
+        
+        const payload = {
+            fileName: fileName || 'uploaded.csv',
+            date: dataDate || new Date().toISOString().split('T')[0],
+            type: finalType, // Use validated type
+            data: indicesArray, // Use 'data' field for chunked uploads
+            indices: indicesArray, // Keep 'indices' for backward compatibility
+            indicesCount: actualIndicesCount, // Always calculate from array length
+            count: actualIndicesCount,
+            dateDataPremarketCount: data.dateDataPremarketCount || actualIndicesCount,
+            header: data.header || null,
+            mood: data.mood,
+            vix: data.vix,
+            advanceDecline: data.advanceDecline,
+            timestamp: data.timestamp || new Date().toISOString(),
+            source: data.source || 'uploaded',
+            chunkIndex: chunkIndex,
+            totalChunks: totalChunks
+        };
+        
+        // Debug log before sending
+        if (type === 'bhav') {
+            console.log(`📤 Sending bhavcopy to backend:`, {
+                fileName: payload.fileName,
+                date: payload.date,
+                indicesArrayLength: indicesArray.length,
+                indicesCount: payload.indicesCount,
+                chunkIndex: chunkIndex,
+                totalChunks: totalChunks,
+                sampleItem: indicesArray.length > 0 ? {
+                    symbol: indicesArray[0].symbol,
+                    series: indicesArray[0].series,
+                    close: indicesArray[0].close
+                } : null
             });
+        }
+        
+        const response = await apiConfig.fetch('/api/data?action=save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ...payload, action: 'save' })
+        });
 
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    if (type === 'bhav') {
-                        console.log(`✅ Bhavcopy saved to MongoDB successfully!`);
-                        console.log(`   Document ID: ${result.id}`);
-                        console.log(`   Date: ${dataDate}`);
-                        console.log(`   EQ Stocks: ${result.dailyInsertCount || processedCount}`);
-                        console.log(`   File: ${fileName}`);
-                    } else {
-                        console.log('✅ Data saved to MongoDB:', result.id);
-                    }
-                    if (result.warning) {
-                        console.warn('⚠️', result.warning);
-                    }
-                    if (result.dailyInsertCount !== undefined) {
-                        console.log(`   Daily collection insert count: ${result.dailyInsertCount}`);
-                    }
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                if (type === 'bhav') {
+                    console.log(`✅ Bhavcopy saved to MongoDB successfully!`);
+                    console.log(`   Document ID: ${result.id}`);
+                    console.log(`   Date: ${dataDate}`);
+                    console.log(`   EQ Stocks: ${result.dailyInsertCount || actualIndicesCount}`);
+                    console.log(`   File: ${fileName}`);
                 } else {
-                    console.warn('⚠️ Database save returned:', result);
+                    console.log('✅ Data saved to MongoDB:', result.id);
                 }
-                return result;
+                if (result.warning) {
+                    console.warn('⚠️', result.warning);
+                }
+                if (result.dailyInsertCount !== undefined) {
+                    console.log(`   Daily collection insert count: ${result.dailyInsertCount}`);
+                }
             } else {
-                // Try to get error message from response
-                let errorMsg = `Failed to save: ${response.status} ${response.statusText}`;
+                console.warn('⚠️ Database save returned:', result);
+            }
+            return result;
+        } else {
+            // Try to get error message from response
+            let errorMsg = `Failed to save: ${response.status} ${response.statusText}`;
+            try {
+                const errorText = await response.text();
+                console.error('❌ API error response (raw):', errorText.substring(0, 500));
+                // Try to parse as JSON
                 try {
-                    const errorText = await response.text();
-                    console.error('❌ API error response (raw):', errorText.substring(0, 500));
-                    // Try to parse as JSON
-                    try {
-                        const errorJson = JSON.parse(errorText);
-                        errorMsg = errorJson.message || errorJson.error || errorMsg;
-                        console.error('❌ Parsed error JSON:', errorJson);
-                    } catch (e) {
-                        // Not JSON, use text (might be HTML error page)
-                        errorMsg = errorText.substring(0, 200) || errorMsg;
-                        console.error('❌ Error response is not JSON, using text');
-                    }
+                    const errorJson = JSON.parse(errorText);
+                    errorMsg = errorJson.message || errorJson.error || errorMsg;
+                    console.error('❌ Parsed error JSON:', errorJson);
                 } catch (e) {
-                    console.error('❌ Could not read error response:', e);
+                    // Not JSON, use text (might be HTML error page)
+                    errorMsg = errorText.substring(0, 200) || errorMsg;
+                    console.error('❌ Error response is not JSON, using text');
                 }
-                console.error(`❌ Database save failed (${response.status}):`, errorMsg);
-                throw new Error(errorMsg);
+            } catch (e) {
+                console.error('❌ Could not read error response:', e);
             }
-        } catch (error) {
-            console.error('❌ Error saving to database:', error);
-            if (type === 'bhav') {
-                console.error('   Bhavcopy save failed. Check:');
-                console.error('   1. MongoDB connection (MONGODB_URI environment variable)');
-                console.error('   2. Data format (indices array structure)');
-                console.error('   3. Network connectivity');
-            }
-            // Don't throw - allow localStorage to work as fallback
-            return { success: false, error: error.message };
+            console.error(`❌ Database save failed (${response.status}):`, errorMsg);
+            throw new Error(errorMsg);
         }
     }
 
