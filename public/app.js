@@ -3231,19 +3231,33 @@ class MarketMoodApp {
                         // Also save to database (optional - will work even if DB is not configured)
                         // Wait for save to complete before refreshing the table
                         let responseData = null;
+                        let saveSuccess = false;
                         try {
                             responseData = await this.saveToDatabase(processedData, file.name, date, uploadType);
-                            console.log('✅ Data saved to database successfully');
                             
-                            // Check if this was a duplicate file
-                            const isDuplicate = responseData?.isDuplicate || false;
-                            const successMessage = isDuplicate 
-                                ? 'File already exists - updated successfully!' 
-                                : 'Data uploaded successfully!';
-                            this.showUploadStatus(successMessage, 'success');
+                            // Check if save actually succeeded
+                            if (responseData && responseData.success !== false) {
+                                saveSuccess = true;
+                                console.log('✅ Data saved to database successfully');
+                                
+                                // Check if this was a duplicate file
+                                const isDuplicate = responseData?.isDuplicate || false;
+                                const successMessage = isDuplicate 
+                                    ? 'File already exists - updated successfully!' 
+                                    : 'Data uploaded successfully!';
+                                this.showUploadStatus(successMessage, 'success');
+                            } else {
+                                // Save returned but with success: false
+                                const errorMsg = responseData?.error || responseData?.message || 'Unknown error';
+                                console.error('❌ Database save failed:', errorMsg);
+                                this.showUploadStatus(`Upload failed: ${errorMsg}`, 'error');
+                                // Still continue to refresh table in case data exists
+                            }
                         } catch (err) {
-                            console.warn('Failed to save to database (continuing with localStorage):', err);
-                            this.showUploadStatus('Data uploaded successfully!', 'success');
+                            console.error('❌ Failed to save to database:', err);
+                            const errorMsg = err.message || 'Database connection failed';
+                            this.showUploadStatus(`Upload failed: ${errorMsg}. Data saved to browser only.`, 'error');
+                            // Don't show false success - show actual error
                         }
                         
                         // Refresh the uploaded data table after a delay to ensure DB is updated
@@ -4980,28 +4994,32 @@ class MarketMoodApp {
             body: JSON.stringify({ ...payload, action: 'save' })
         });
 
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                if (type === 'bhav') {
-                    console.log(`✅ Bhavcopy saved to MongoDB successfully!`);
-                    console.log(`   Document ID: ${result.id}`);
-                    console.log(`   Date: ${dataDate}`);
-                    console.log(`   EQ Stocks: ${result.dailyInsertCount || actualIndicesCount}`);
-                    console.log(`   File: ${fileName}`);
+            if (response.ok) {
+                const result = await response.json();
+                // Check if result indicates success
+                if (result.success !== false) {
+                    if (type === 'bhav') {
+                        console.log(`✅ Bhavcopy saved to MongoDB successfully!`);
+                        console.log(`   Document ID: ${result.id}`);
+                        console.log(`   Date: ${dataDate}`);
+                        console.log(`   EQ Stocks: ${result.dailyInsertCount || actualIndicesCount}`);
+                        console.log(`   File: ${fileName}`);
+                    } else {
+                        console.log('✅ Data saved to MongoDB:', result.id || 'saved');
+                    }
+                    if (result.warning) {
+                        console.warn('⚠️', result.warning);
+                    }
+                    if (result.dailyInsertCount !== undefined) {
+                        console.log(`   Daily collection insert count: ${result.dailyInsertCount}`);
+                    }
+                    return result;
                 } else {
-                    console.log('✅ Data saved to MongoDB:', result.id);
+                    // Success is explicitly false
+                    console.error('❌ Database save returned success: false', result);
+                    const errorMsg = result.message || result.error || 'Save failed';
+                    throw new Error(errorMsg);
                 }
-                if (result.warning) {
-                    console.warn('⚠️', result.warning);
-                }
-                if (result.dailyInsertCount !== undefined) {
-                    console.log(`   Daily collection insert count: ${result.dailyInsertCount}`);
-                }
-            } else {
-                console.warn('⚠️ Database save returned:', result);
-            }
-            return result;
         } else {
             // Try to get error message from response
             let errorMsg = `Failed to save: ${response.status} ${response.statusText}`;
