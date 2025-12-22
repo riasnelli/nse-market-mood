@@ -78,7 +78,11 @@ const handler = async (req, res) => {
     // Route based on HTTP method and action
     if (req.method === 'POST' && action === 'save') {
       // Save uploaded data to database
-      const { fileName, date, indices, mood, vix, advanceDecline, timestamp, source, type, _originalCount, _isLargeFile } = req.body;
+      // Support chunked uploads: chunkIndex, totalChunks, and data array
+      const { fileName, date, indices, data, mood, vix, advanceDecline, timestamp, source, type, _originalCount, _isLargeFile, chunkIndex, totalChunks } = req.body;
+      
+      // Support both 'indices' (old format) and 'data' (new chunked format)
+      const dataArray = data || indices || [];
 
       // STRICT FILE TYPE DETECTION: Single source of truth
       if (!fileName) {
@@ -135,13 +139,35 @@ const handler = async (req, res) => {
         });
       }
 
-      if (!indices || !Array.isArray(indices)) {
+      // Support both 'indices' (old format) and 'data' (new chunked format)
+      const dataArray = data || indices || [];
+      
+      if (!dataArray || !Array.isArray(dataArray)) {
         return res.status(400).json({ 
           error: 'Invalid data format',
-          message: 'indices must be an array'
+          message: 'data or indices must be an array'
         });
       }
-
+      
+      // For chunked uploads, validate chunk size
+      const MAX_CHUNK_SIZE = 500;
+      if (dataArray.length > MAX_CHUNK_SIZE) {
+        return res.status(413).json({
+          success: false,
+          error: 'Chunk too large',
+          message: `Chunk contains ${dataArray.length} rows. Maximum ${MAX_CHUNK_SIZE} rows per request.`,
+          suggestion: 'Split data into smaller chunks on client side'
+        });
+      }
+      
+      // Log chunk info if present
+      if (chunkIndex !== undefined && totalChunks !== undefined) {
+        console.log(`📦 Processing chunk ${chunkIndex}/${totalChunks} for ${fileName || 'upload'}`);
+      }
+      
+      // Use dataArray instead of indices throughout
+      const indices = dataArray;
+      
       // CRITICAL FIX: Always calculate rowCount from actual array length
       // For large files, frontend may send limited array but provide _originalCount
       // Use _originalCount if provided, otherwise use array length
@@ -153,6 +179,10 @@ const handler = async (req, res) => {
         console.log(`⚠️ Large file: ${_originalCount} total rows, but only ${rowCount} sent in request`);
         console.log(`   Using original count ${_originalCount} for metadata, but only ${rowCount} rows will be saved to daily collection`);
       }
+      
+      // For chunked uploads, we need to handle metadata differently
+      // Only update metadata on the last chunk
+      const isLastChunk = chunkIndex === undefined || chunkIndex === totalChunks;
       
       // For bhavcopy, ensure we have valid EQ stocks
       if (uploadType === 'bhav' && finalRowCount === 0) {

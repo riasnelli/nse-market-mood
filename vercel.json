@@ -1,5 +1,15 @@
 {
   "version": 2,
+  "functions": {
+    "api/data.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/**/*.js": {
+      "maxDuration": 30,
+      "memory": 512
+    }
+  },
   "builds": [
     {
       "src": "api/nse-data.js",
@@ -74,6 +84,16 @@
     {
       "src": "/(.*)",
       "dest": "/public/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-API-Key, X-Internal-Key, x-app-key" }
+      ]
     }
   ]
 }

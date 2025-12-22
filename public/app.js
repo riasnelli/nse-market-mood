@@ -4824,21 +4824,88 @@ class MarketMoodApp {
     async saveToDatabase(data, fileName, dataDate, type = 'indices') {
         try {
             const processedCount = data.count || data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0);
-            let indicesArray = data.indices || [];
+            const indicesArray = data.indices || [];
             
-            // For large files (>1000 rows), limit what we send in request body
-            // Vercel has ~4.5MB request body limit, and 2106 rows can exceed this
-            const MAX_ROWS_IN_REQUEST = 500; // Conservative limit
-            const isLargeFile = processedCount > MAX_ROWS_IN_REQUEST;
+            // CHUNKED UPLOAD: Split large files into chunks of 500 rows
+            const CHUNK_SIZE = 500;
+            const totalRows = indicesArray.length;
             
-            if (isLargeFile) {
-                console.warn(`⚠️ Large file detected: ${processedCount} rows. Limiting request body to ${MAX_ROWS_IN_REQUEST} rows to prevent FUNCTION_INVOCATION_FAILED.`);
-                console.warn(`   Server will save all ${processedCount} rows to daily collection from the limited sample.`);
-                // Send only first MAX_ROWS_IN_REQUEST rows as sample
-                // Server will use this to save to daily collection, but we're losing data
-                // TODO: Implement chunked upload or server-side file processing
-                indicesArray = indicesArray.slice(0, MAX_ROWS_IN_REQUEST);
+            console.log(`📊 Saving ${type} for date ${dataDate}:`, {
+                totalRows,
+                fileName,
+                chunksNeeded: totalRows > CHUNK_SIZE ? Math.ceil(totalRows / CHUNK_SIZE) : 1
+            });
+            
+            // If file is small enough, upload in single request
+            if (totalRows <= CHUNK_SIZE) {
+                return await this.uploadSingleChunk(indicesArray, fileName, dataDate, type, data);
             }
+            
+            // Large file - split into chunks
+            const totalChunks = Math.ceil(totalRows / CHUNK_SIZE);
+            console.log(`📦 Splitting into ${totalChunks} chunks of ${CHUNK_SIZE} rows each`);
+            
+            let successfulChunks = 0;
+            const errors = [];
+            
+            for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
+                const chunk = indicesArray.slice(i, i + CHUNK_SIZE);
+                const chunkIndex = Math.floor(i / CHUNK_SIZE) + 1;
+                
+                try {
+                    console.log(`📤 Uploading chunk ${chunkIndex}/${totalChunks} (${chunk.length} rows)...`);
+                    
+                    const result = await this.uploadSingleChunk(
+                        chunk, 
+                        fileName, 
+                        dataDate, 
+                        type, 
+                        data,
+                        chunkIndex,
+                        totalChunks
+                    );
+                    
+                    successfulChunks++;
+                    console.log(`✅ Chunk ${chunkIndex}/${totalChunks} uploaded: ${result.dailyInsertCount || chunk.length} rows`);
+                    
+                    // Small delay between chunks to avoid overwhelming the server
+                    if (chunkIndex < totalChunks) {
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+                    
+                } catch (error) {
+                    console.error(`❌ Failed to upload chunk ${chunkIndex}/${totalChunks}:`, error);
+                    errors.push({
+                        chunk: chunkIndex,
+                        error: error.message
+                    });
+                }
+            }
+            
+            if (errors.length > 0) {
+                console.warn(`⚠️ ${errors.length} chunks failed:`, errors);
+            }
+            
+            if (successfulChunks === 0) {
+                throw new Error('All chunks failed to upload');
+            }
+            
+            console.log(`✅ Upload complete: ${successfulChunks}/${totalChunks} chunks successful`);
+            
+            return {
+                success: true,
+                totalRows,
+                totalChunks,
+                successfulChunks,
+                errors: errors.length > 0 ? errors : undefined
+            };
+        } catch (error) {
+            console.error('❌ Error saving to database:', error);
+            return { success: false, error: error.message };
+        }
+    }
+    
+    async uploadSingleChunk(indicesArray, fileName, dataDate, type, data, chunkIndex = undefined, totalChunks = undefined) {
             
             // Enhanced logging for bhavcopy
             if (type === 'bhav') {
