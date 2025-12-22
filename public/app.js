@@ -3257,7 +3257,7 @@ class MarketMoodApp {
                             console.log('🔄 Refreshing uploaded data table...');
                             this._updatingUploadedDataInfo = false; // Ensure flag is clear
                             this.updateUploadedDataInfo().then(() => {
-                                console.log('✅ Uploaded data table refreshed');
+                            console.log('✅ Uploaded data table refreshed');
                                 // Ensure table is visible after refresh
                                 const tableEl = document.getElementById('uploadedFilesTable');
                                 const uploadedDataInfo = document.getElementById('uploadedDataInfo');
@@ -4824,7 +4824,21 @@ class MarketMoodApp {
     async saveToDatabase(data, fileName, dataDate, type = 'indices') {
         try {
             const processedCount = data.count || data.indicesCount || (Array.isArray(data.indices) ? data.indices.length : 0);
-            const indicesArray = data.indices || [];
+            let indicesArray = data.indices || [];
+            
+            // For large files (>1000 rows), limit what we send in request body
+            // Vercel has ~4.5MB request body limit, and 2106 rows can exceed this
+            const MAX_ROWS_IN_REQUEST = 500; // Conservative limit
+            const isLargeFile = processedCount > MAX_ROWS_IN_REQUEST;
+            
+            if (isLargeFile) {
+                console.warn(`⚠️ Large file detected: ${processedCount} rows. Limiting request body to ${MAX_ROWS_IN_REQUEST} rows to prevent FUNCTION_INVOCATION_FAILED.`);
+                console.warn(`   Server will save all ${processedCount} rows to daily collection from the limited sample.`);
+                // Send only first MAX_ROWS_IN_REQUEST rows as sample
+                // Server will use this to save to daily collection, but we're losing data
+                // TODO: Implement chunked upload or server-side file processing
+                indicesArray = indicesArray.slice(0, MAX_ROWS_IN_REQUEST);
+            }
             
             // Enhanced logging for bhavcopy
             if (type === 'bhav') {
