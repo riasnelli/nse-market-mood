@@ -3239,12 +3239,25 @@ class MarketMoodApp {
                         
                         this.showUploadStatus('Data uploaded successfully!', 'success');
                         
-                        // Refresh the uploaded data table after a short delay to ensure DB is updated
-                        // Use a longer delay to ensure database has processed the insert
+                        // Refresh the uploaded data table after a delay to ensure DB is updated
+                        // Clear any existing update flag to ensure refresh happens
+                        this._updatingUploadedDataInfo = false;
+                        
+                        // Use a longer delay for multiple files or ensure DB has processed
                         setTimeout(() => {
-                        this.updateUploadedDataInfo();
-                            console.log('✅ Uploaded data table refreshed');
-                        }, 1000);
+                            console.log('🔄 Refreshing uploaded data table...');
+                            this.updateUploadedDataInfo().then(() => {
+                                console.log('✅ Uploaded data table refreshed');
+                            }).catch(err => {
+                                console.error('❌ Error refreshing table:', err);
+                                // Retry once after another delay
+                                setTimeout(() => {
+                                    console.log('🔄 Retrying table refresh...');
+                                    this._updatingUploadedDataInfo = false;
+                                    this.updateUploadedDataInfo();
+                                }, 2000);
+                            });
+                        }, 1500);
                         
                         // Check and show date picker after upload
                         this.checkAndShowDatePicker();
