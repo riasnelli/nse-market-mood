@@ -915,6 +915,11 @@ const handler = async (req, res) => {
       return;
     }
     
+    // Ensure Content-Type is set to JSON
+    if (!res.getHeader('Content-Type')) {
+      res.setHeader('Content-Type', 'application/json');
+    }
+    
     // Provide helpful error messages
     if (error.message && error.message.includes('MONGODB_URI')) {
       return res.status(200).json({

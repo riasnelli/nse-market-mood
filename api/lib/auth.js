@@ -206,13 +206,20 @@ function authMiddleware(options = {}) {
     try {
       await handler(req, res);
     } catch (error) {
-      console.error('API Error:', error);
+      console.error('API Error in authMiddleware:', error);
+      console.error('Error stack:', error.stack);
       if (!res.headersSent) {
-        res.status(500).json({
+        // Ensure Content-Type is set to JSON
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).json({
           success: false,
           error: 'Internal server error',
-          message: error.message
+          message: error.message || 'An unexpected error occurred',
+          errorType: error.name || 'UnknownError',
+          details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
         });
+      } else {
+        console.error('⚠️ Response already sent, cannot send error response');
       }
     }
     };
