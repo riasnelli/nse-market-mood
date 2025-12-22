@@ -255,7 +255,7 @@ const handler = async (req, res) => {
       if (uploadType === 'bhav') {
         console.log(`🔍 Bhavcopy data validation:`, {
           indicesArrayLength: indices ? indices.length : 0,
-          indicesCount: indicesCount,
+          indicesCount: finalRowCount,
           hasIndices: Array.isArray(indices),
           sampleItem: indices && indices.length > 0 ? {
             symbol: indices[0].symbol,
