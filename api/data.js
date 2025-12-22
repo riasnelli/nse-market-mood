@@ -145,25 +145,24 @@ const handler = async (req, res) => {
       // Estimate size: each row ~500 bytes, plus metadata ~1KB
       const estimatedSize = (rowCount * 500) + 1000; // bytes
       const maxSize = 15 * 1024 * 1024; // 15MB (leave 1MB buffer)
+      const isLargeFile = estimatedSize > maxSize;
       
-      if (estimatedSize > maxSize) {
-        console.warn(`⚠️ Data too large: ${estimatedSize} bytes (estimated), max: ${maxSize} bytes`);
-        return res.status(200).json({
-          success: false,
-          error: 'Data too large',
-          message: `File contains ${rowCount} rows which exceeds MongoDB's 16MB document limit. Please split the file or reduce data size.`,
-          rowCount: rowCount,
-          estimatedSize: estimatedSize,
-          maxSize: maxSize
-        });
+      if (isLargeFile) {
+        console.warn(`⚠️ Large file detected: ${estimatedSize} bytes (estimated), max: ${maxSize} bytes`);
+        console.warn(`   Will store metadata only, data will be in daily collection`);
       }
+
+      // For large files, don't store all rows in metadata document
+      // Store only a sample or empty array - actual data goes to daily collection
+      const maxRowsInMetadata = 100; // Store max 100 rows in metadata for small files
+      const indicesForMetadata = isLargeFile ? [] : (indices || []).slice(0, maxRowsInMetadata);
 
       const dataToSave = {
         fileName: fileName,
         date: tradeDate, // Use tradeDate (from filename or provided)
         tradeDate: tradeDate, // Explicit tradeDate field
         type: uploadType, // Canonical type from detection
-        indices: indices || [],
+        indices: indicesForMetadata, // Only store sample for large files
         indicesCount: rowCount, // Keep for backward compatibility
         rowCount: rowCount, // New canonical field name
         mood: mood || null,
@@ -172,7 +171,8 @@ const handler = async (req, res) => {
         timestamp: timestamp || new Date().toISOString(),
         source: source || 'uploaded',
         uploadedAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        _largeFile: isLargeFile // Flag to indicate data is in daily collection
       };
       
       // Runtime assertion: ensure type matches collection
