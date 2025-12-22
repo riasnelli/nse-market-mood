@@ -215,7 +215,18 @@ function parsePreOpenCsv(text) {
             finalQty: cleanNumber(row['FINAL QUANTITY'] || row['FINAL_QTY'] || row['QUANTITY'])
         };
         
-        if (normalized.symbol && normalized.prevClose !== null && normalized.iep !== null) {
+        // Accept row if it has symbol and at least one price field (prevClose OR iep OR final)
+        // This is more lenient - some rows might have FINAL but not IEP, or vice versa
+        const hasPrice = normalized.prevClose !== null || normalized.iep !== null || normalized.final !== null;
+        if (normalized.symbol && hasPrice) {
+            // If IEP is null but FINAL exists, use FINAL as IEP
+            if (normalized.iep === null && normalized.final !== null) {
+                normalized.iep = normalized.final;
+            }
+            // If prevClose is null but we have other data, try to calculate it
+            if (normalized.prevClose === null && normalized.iep !== null && normalized.chngPct !== null && normalized.chngPct !== -100) {
+                normalized.prevClose = normalized.iep / (1 + normalized.chngPct / 100);
+            }
             rows.push(normalized);
         }
     }
