@@ -10,46 +10,10 @@
       "memory": 512
     }
   },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/nse-data",
-      "dest": "/api/nse-data.js"
-    },
-    {
-      "src": "/api/data",
-      "dest": "/api/data.js"
-    },
-    {
-      "src": "/api/signals",
-      "dest": "/api/signals.js"
-    },
-    {
-      "src": "/api/market",
-      "dest": "/api/market.js"
-    },
-    {
-      "src": "/api/download-nse-csvs",
-      "dest": "/api/download-nse-csvs.js"
-    },
-    {
-      "src": "/api/admin/cleanup-types",
-      "dest": "/api/admin/cleanup-types.js"
-    },
-    {
-      "src": "/api/admin/migrate-signals",
-      "dest": "/api/admin/migrate-signals.js"
-    },
-    {
-      "src": "/api/test-db",
-      "dest": "/api/test-db.js"
-    },
-    {
-      "src": "/api/data-debug",
-      "dest": "/api/data-debug.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
+      "source": "/(.*)",
+      "destination": "/public/$1"
     }
   ],
   "headers": [
