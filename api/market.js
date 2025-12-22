@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
     const action = req.query.action;
     
     // Validate action
-    const validActions = ['check-date', 'history'];
+    const validActions = ['check-date', 'history', 'index-history'];
     if (action && !validActions.includes(action)) {
       return res.status(400).json({ 
         error: 'Invalid action',
