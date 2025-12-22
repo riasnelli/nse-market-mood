@@ -931,11 +931,12 @@ const handler = async (req, res) => {
     }
 
     if (error.name === 'MongoServerError' || error.name === 'MongoNetworkError' || error.name === 'MongoTimeoutError') {
-      return res.status(500).json({
+      return res.status(200).json({
+        success: false,
         error: 'Database connection error',
         message: 'Failed to connect to MongoDB. Please check your connection string and network settings.',
-        details: error.message,
-        errorType: error.name
+        errorType: error.name || 'DatabaseError',
+        details: process.env.NODE_ENV !== 'production' ? error.message : undefined
       });
     }
 
@@ -951,10 +952,13 @@ const handler = async (req, res) => {
       });
     }
 
-    return res.status(500).json({
+    // For POST and other methods, also return 200 with error info
+    return res.status(200).json({
+      success: false,
       error: 'Internal server error',
-      message: error.message,
-      type: error.name || 'UnknownError'
+      message: error.message || 'An unexpected error occurred',
+      errorType: error.name || 'UnknownError',
+      details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
     });
   }
 };
