@@ -498,7 +498,7 @@ const handler = async (req, res) => {
         console.log(`   ✅ Daily records: ${dailyInsertCount} EQ stocks`);
         console.log(`   📅 Date: ${dataToSave.date}`);
         console.log(`   📁 File: ${fileName}`);
-        console.log(`   📈 Total processed: ${indicesCount} items`);
+        console.log(`   📈 Total processed: ${finalRowCount} items`);
       }
 
       // TRIGGER SIGNAL GENERATION: After successful upload, check if we can generate signals
