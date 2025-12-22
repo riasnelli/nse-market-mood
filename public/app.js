@@ -3244,10 +3244,24 @@ class MarketMoodApp {
                         this._updatingUploadedDataInfo = false;
                         
                         // Use a longer delay for multiple files or ensure DB has processed
+                        // For multiple files (like 22), use longer delay
+                        const delay = 2000; // 2 seconds for DB to process
                         setTimeout(() => {
                             console.log('🔄 Refreshing uploaded data table...');
+                            this._updatingUploadedDataInfo = false; // Ensure flag is clear
                             this.updateUploadedDataInfo().then(() => {
                                 console.log('✅ Uploaded data table refreshed');
+                                // Ensure table is visible after refresh
+                                const tableEl = document.getElementById('uploadedFilesTable');
+                                const uploadedDataInfo = document.getElementById('uploadedDataInfo');
+                                if (tableEl && tableEl.style.display === 'none') {
+                                    tableEl.style.display = 'table';
+                                    console.log('✅ Table visibility forced to visible');
+                                }
+                                if (uploadedDataInfo && uploadedDataInfo.style.display === 'none') {
+                                    uploadedDataInfo.style.display = 'block';
+                                    console.log('✅ Uploaded data info visibility forced to visible');
+                                }
                             }).catch(err => {
                                 console.error('❌ Error refreshing table:', err);
                                 // Retry once after another delay
@@ -3257,7 +3271,7 @@ class MarketMoodApp {
                                     this.updateUploadedDataInfo();
                                 }, 2000);
                             });
-                        }, 1500);
+                        }, delay);
                         
                         // Check and show date picker after upload
                         this.checkAndShowDatePicker();
