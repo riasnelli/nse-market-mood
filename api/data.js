@@ -143,19 +143,28 @@ const handler = async (req, res) => {
       }
 
       // CRITICAL FIX: Always calculate rowCount from actual array length
+      // For large files, frontend may send limited array but provide _originalCount
+      // Use _originalCount if provided, otherwise use array length
       const rowCount = Array.isArray(indices) ? indices.length : 0;
+      const finalRowCount = _originalCount || rowCount;
+      const isLargeFileFlag = _isLargeFile || false;
+      
+      if (isLargeFileFlag && _originalCount) {
+        console.log(`⚠️ Large file: ${_originalCount} total rows, but only ${rowCount} sent in request`);
+        console.log(`   Using original count ${_originalCount} for metadata, but only ${rowCount} rows will be saved to daily collection`);
+      }
       
       // For bhavcopy, ensure we have valid EQ stocks
-      if (uploadType === 'bhav' && rowCount === 0) {
+      if (uploadType === 'bhav' && finalRowCount === 0) {
         console.warn(`⚠️ WARNING: Bhavcopy upload has 0 rows. This means no EQ stocks were processed.`);
         console.warn(`   File: ${fileName}, Date: ${tradeDate}`);
         console.warn(`   This file should NOT be saved to database as it has no valid data.`);
       }
       
-      // Runtime assertion: ensure rowCount matches array length
+      // Runtime assertion: ensure rowCount matches array length (unless it's a large file)
       const actualArrayLength = Array.isArray(indices) ? indices.length : 0;
-      if (rowCount !== actualArrayLength) {
-        console.error(`❌ CRITICAL: rowCount mismatch: ${rowCount} vs array length ${actualArrayLength}`);
+      if (!isLargeFileFlag && finalRowCount !== actualArrayLength) {
+        console.error(`❌ CRITICAL: rowCount mismatch: ${finalRowCount} vs array length ${actualArrayLength}`);
         // Use actual array length as source of truth
         const correctedRowCount = actualArrayLength;
         console.log(`✅ Corrected rowCount to ${correctedRowCount}`);
@@ -163,9 +172,10 @@ const handler = async (req, res) => {
       
       // Check data size before saving (MongoDB has 16MB document limit)
       // Estimate size: each row ~500 bytes, plus metadata ~1KB
-      const estimatedSize = (rowCount * 500) + 1000; // bytes
+      // Use finalRowCount (which includes _originalCount for large files)
+      const estimatedSize = (finalRowCount * 500) + 1000; // bytes
       const maxSize = 15 * 1024 * 1024; // 15MB (leave 1MB buffer)
-      const isLargeFile = estimatedSize > maxSize;
+      const isLargeFileBySize = estimatedSize > maxSize || isLargeFileFlag;
       
       if (isLargeFileBySize) {
         console.warn(`⚠️ Large file detected: ${estimatedSize} bytes (estimated), max: ${maxSize} bytes`);
