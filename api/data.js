@@ -141,6 +141,23 @@ const handler = async (req, res) => {
         console.log(`✅ Corrected rowCount to ${correctedRowCount}`);
       }
       
+      // Check data size before saving (MongoDB has 16MB document limit)
+      // Estimate size: each row ~500 bytes, plus metadata ~1KB
+      const estimatedSize = (rowCount * 500) + 1000; // bytes
+      const maxSize = 15 * 1024 * 1024; // 15MB (leave 1MB buffer)
+      
+      if (estimatedSize > maxSize) {
+        console.warn(`⚠️ Data too large: ${estimatedSize} bytes (estimated), max: ${maxSize} bytes`);
+        return res.status(200).json({
+          success: false,
+          error: 'Data too large',
+          message: `File contains ${rowCount} rows which exceeds MongoDB's 16MB document limit. Please split the file or reduce data size.`,
+          rowCount: rowCount,
+          estimatedSize: estimatedSize,
+          maxSize: maxSize
+        });
+      }
+
       const dataToSave = {
         fileName: fileName,
         date: tradeDate, // Use tradeDate (from filename or provided)
