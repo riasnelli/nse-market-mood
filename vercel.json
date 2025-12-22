@@ -5,7 +5,7 @@
       "maxDuration": 60,
       "memory": 1024
     },
-    "api/admin/*.js": {
+    "api/admin.js": {
       "maxDuration": 30,
       "memory": 512
     },
