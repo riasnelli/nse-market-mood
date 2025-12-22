@@ -15,6 +15,25 @@ const handler = async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   
   try {
+    // Early validation: Check request size for POST requests
+    if (req.method === 'POST') {
+      const contentLength = req.headers['content-length'];
+      if (contentLength) {
+        const sizeMB = parseInt(contentLength) / (1024 * 1024);
+        // Vercel has ~4.5MB request body limit for serverless functions
+        if (sizeMB > 4) {
+          console.warn(`⚠️ Request too large: ${sizeMB.toFixed(2)}MB`);
+          return res.status(200).json({
+            success: false,
+            error: 'Request too large',
+            message: `Request body is ${sizeMB.toFixed(2)}MB which exceeds Vercel's limit. Please split the file or reduce data size.`,
+            sizeMB: sizeMB.toFixed(2),
+            maxSizeMB: 4
+          });
+        }
+      }
+    }
+    
     // Get action from query params or body
     const action = req.query.action || req.body?.action;
     
