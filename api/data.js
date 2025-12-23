@@ -697,6 +697,7 @@ const handler = async (req, res) => {
             date: doc.date,
             type: doc.type || uploadType, // CRITICAL: Include type field for frontend validation
             indicesCount: actualCount,
+            rowCount: doc.rowCount || actualCount, // Include rowCount for 52W and other types
             indices: full === 'true' ? stocks : undefined, // Only include if full=true
             uploadedAt: doc.uploadedAt,
             updatedAt: doc.updatedAt,
