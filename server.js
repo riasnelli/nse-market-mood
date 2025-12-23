@@ -11,9 +11,9 @@ const PORT = process.env.PORT || 3001;
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Body parser for API routes
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parser for API routes with increased limits for large CSV uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // CORS middleware
 app.use((req, res, next) => {
@@ -41,7 +41,17 @@ const apiRoutes = [
 // Mount API routes
 apiRoutes.forEach(({ path, file }) => {
   try {
-    const handler = require(`./api/${file}`);
+    const handlerModule = require(`./api/${file}`);
+    // Handle both direct exports and authMiddleware-wrapped exports
+    const handler = typeof handlerModule === 'function' 
+      ? handlerModule 
+      : (handlerModule.default || handlerModule);
+    
+    if (typeof handler !== 'function') {
+      console.warn(`⚠️ Handler for ${path} is not a function:`, typeof handler);
+      return;
+    }
+    
     app.all(`/api/${path}`, async (req, res) => {
       try {
         await handler(req, res);
@@ -52,9 +62,23 @@ apiRoutes.forEach(({ path, file }) => {
         }
       }
     });
+    
+    // Also handle query parameter routes (e.g., /api/data?action=save)
+    app.all(`/api/${path}/*`, async (req, res) => {
+      try {
+        await handler(req, res);
+      } catch (error) {
+        console.error(`Error in /api/${path}/*:`, error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: error.message });
+        }
+      }
+    });
+    
     console.log(`✅ Mounted API route: /api/${path}`);
   } catch (error) {
-    console.warn(`⚠️ Could not load API route ${path}:`, error.message);
+    console.error(`❌ Could not load API route ${path}:`, error.message);
+    console.error(`   Stack:`, error.stack);
   }
 });
 
