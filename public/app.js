@@ -6174,19 +6174,30 @@ class MarketMoodApp {
                     
                     const row = document.createElement('tr');
                     
-                    // Format date as DD/MM
+                    // Format date as DD/MM with validation
                     let formattedDate = 'N/A';
                     if (dateData.date) {
                         try {
                             const dateParts = dateData.date.split('-');
                             if (dateParts.length === 3) {
-                                const day = dateParts[2];
-                                const month = dateParts[1];
-                                formattedDate = `${day}/${month}`;
+                                const year = parseInt(dateParts[0], 10);
+                                const month = parseInt(dateParts[1], 10);
+                                const day = parseInt(dateParts[2], 10);
+                                
+                                // Validate date values
+                                if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                                    // Format as DD/MM with zero-padding
+                                    formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
+                                } else {
+                                    // Invalid date - show raw value for debugging
+                                    console.warn(`⚠️ Invalid date in database: ${dateData.date} (year=${year}, month=${month}, day=${day})`);
+                                    formattedDate = `${day}/${month}`; // Still show it but log warning
+                                }
                             } else {
                                 formattedDate = dateData.date;
                             }
                         } catch (e) {
+                            console.error(`❌ Error formatting date: ${dateData.date}`, e);
                             formattedDate = dateData.date;
                         }
                     }
