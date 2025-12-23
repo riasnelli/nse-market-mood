@@ -19,14 +19,6 @@ const {
   getSignalsStoreCollection
 } = require('../mongodb');
 
-// Import collections needed for signal generation
-const { 
-  getDailyBhavcopyCollection, 
-  getPreMarketDataCollection,
-  getDailyIndicesCollection,
-  getUploadedDataCollection
-} = require('../mongodb');
-
 /**
  * Get yesterday's date (skip weekends)
  */
