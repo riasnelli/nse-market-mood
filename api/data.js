@@ -670,11 +670,59 @@ const handler = async (req, res) => {
       if (date && !id && !full) {
         // Single document or date query - return in get-uploaded-data format (most recent if multiple)
         const data = documents[0]; // Already sorted by uploadedAt: -1, so [0] is most recent
+        
+        // If metadata has fewer rows than total, fetch from daily collection
+        let indices = data.indices || [];
+        const metadataCount = indices.length;
+        const totalRowCount = data.rowCount || data.indicesCount || metadataCount;
+        
+        if (totalRowCount > metadataCount) {
+          try {
+            const { getDailyIndicesCollection, getDailyBhavcopyCollection, getPreMarketDataCollection } = require('./lib/mongodb');
+            let dailyCollection;
+            
+            if (uploadType === 'bhav') {
+              dailyCollection = await getDailyBhavcopyCollection();
+              const dailyDocs = await dailyCollection.find({ 
+                date: data.date || data.tradeDate,
+                fileName: data.fileName 
+              }).toArray();
+              if (dailyDocs.length > 0) {
+                indices = dailyDocs;
+                console.log(`📊 Fetched ${dailyDocs.length} rows from daily_bhavcopy for ${data.fileName}`);
+              }
+            } else if (uploadType === 'premarket') {
+              dailyCollection = await getPreMarketDataCollection();
+              const dailyDocs = await dailyCollection.find({ 
+                date: data.date || data.tradeDate,
+                fileName: data.fileName 
+              }).toArray();
+              if (dailyDocs.length > 0) {
+                indices = dailyDocs;
+                console.log(`📊 Fetched ${dailyDocs.length} rows from premarket_data for ${data.fileName}`);
+              }
+            } else if (uploadType === 'indices') {
+              dailyCollection = await getDailyIndicesCollection();
+              const dailyDocs = await dailyCollection.find({ 
+                date: data.date || data.tradeDate,
+                fileName: data.fileName 
+              }).toArray();
+              if (dailyDocs.length > 0) {
+                indices = dailyDocs;
+                console.log(`📊 Fetched ${dailyDocs.length} rows from daily_indices for ${data.fileName}`);
+              }
+            }
+          } catch (error) {
+            console.warn(`⚠️ Error fetching from daily collection for ${data.fileName}:`, error.message);
+            // Continue with metadata rows if daily fetch fails
+          }
+        }
+        
         return res.status(200).json({
           date: data.date,
           fileName: data.fileName || `Uploaded CSV - ${data.date}`,
           type: data.type || uploadType,
-          indices: data.indices || [],
+          indices: indices,
           mood: data.mood || null,
           vix: data.vix || null,
           advanceDecline: data.advanceDecline || { advances: 0, declines: 0 },
