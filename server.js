@@ -37,46 +37,69 @@ const apiRoutes = [
 ];
 
 // Mount API routes BEFORE static files and catch-all
+console.log('🔌 Loading API routes...');
 apiRoutes.forEach(({ path, file }) => {
   try {
+    console.log(`📦 Loading ${file}...`);
     const handlerModule = require(`./api/${file}`);
+    
     // Handle both direct exports and authMiddleware-wrapped exports
-    const handler = typeof handlerModule === 'function' 
-      ? handlerModule 
-      : (handlerModule.default || handlerModule);
+    let handler;
+    if (typeof handlerModule === 'function') {
+      handler = handlerModule;
+    } else if (handlerModule.default) {
+      handler = handlerModule.default;
+    } else {
+      handler = handlerModule;
+    }
     
     if (typeof handler !== 'function') {
-      console.warn(`⚠️ Handler for ${path} is not a function:`, typeof handler);
+      console.error(`❌ Handler for ${path} is not a function. Type: ${typeof handler}`);
+      console.error(`   Module keys:`, Object.keys(handlerModule || {}));
       return;
     }
     
     // Mount route - use app.all to handle all HTTP methods
-    app.all(`/api/${path}`, async (req, res) => {
+    // Also handle query parameters (e.g., /api/data?action=save)
+    const routePath = `/api/${path}`;
+    app.all(routePath, async (req, res) => {
       try {
         await handler(req, res);
       } catch (error) {
-        console.error(`Error in /api/${path}:`, error);
+        console.error(`❌ Error in ${routePath}:`, error);
         if (!res.headersSent) {
-          res.status(500).json({ error: error.message });
+          res.status(500).json({ 
+            success: false,
+            error: error.message,
+            stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+          });
         }
       }
     });
     
-    console.log(`✅ Mounted API route: /api/${path}`);
+    console.log(`✅ Mounted API route: ${routePath} (${typeof handler})`);
   } catch (error) {
     console.error(`❌ Could not load API route ${path}:`, error.message);
     console.error(`   Stack:`, error.stack);
+    // Don't exit - continue loading other routes
   }
 });
+console.log(`✅ Finished loading ${apiRoutes.length} API routes`);
 
 // Serve static files from public directory (AFTER API routes)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve index.html for all non-API routes (SPA routing) - MUST be last
-app.get('*', (req, res) => {
+// Only match GET requests that aren't API routes
+app.get('*', (req, res, next) => {
   // Don't serve HTML for API routes
   if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'API route not found' });
+    return res.status(404).json({ 
+      success: false,
+      error: 'API route not found',
+      path: req.path,
+      method: req.method
+    });
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
