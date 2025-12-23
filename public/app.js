@@ -5986,7 +5986,9 @@ class MarketMoodApp {
                             });
                         }
                         const dateData = dateMap.get(normalizedDate);
-                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        // For 52W, count can come from rowCount, indicesCount, or indices array length
+                        const count = file.rowCount || file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        console.log(`📊 52W file processing: fileName="${file.fileName}", type="${file.type}", count=${count}, rowCount=${file.rowCount}, indicesCount=${file.indicesCount}, indicesLength=${Array.isArray(file.indices) ? file.indices.length : 'N/A'}`);
                         // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file or MA file
                         // This ensures we only show green checkmark for actual 52w files
                         if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile && !isMAFile) {
