@@ -3264,24 +3264,47 @@ class MarketMoodApp {
                         // Clear any existing update flag to ensure refresh happens
                         this._updatingUploadedDataInfo = false;
                         
-                        // Use a longer delay for multiple files or ensure DB has processed
-                        // For multiple files (like 22), use longer delay
-                        const delay = 2000; // 2 seconds for DB to process
+                        // Use a longer delay to ensure DB has fully processed the upload
+                        // Increased delay for better reliability
+                        const delay = 3000; // 3 seconds for DB to process
                         setTimeout(() => {
                             console.log('🔄 Refreshing uploaded data table...');
                             this._updatingUploadedDataInfo = false; // Ensure flag is clear
                             this.updateUploadedDataInfo().then(() => {
-                            console.log('✅ Uploaded data table refreshed');
-                                // Ensure table is visible after refresh
+                                console.log('✅ Uploaded data table refreshed');
+                                
+                                // Force table visibility after refresh
                                 const tableEl = document.getElementById('uploadedFilesTable');
                                 const uploadedDataInfo = document.getElementById('uploadedDataInfo');
-                                if (tableEl && tableEl.style.display === 'none') {
-                                    tableEl.style.display = 'table';
-                                    console.log('✅ Table visibility forced to visible');
+                                const emptyEl = document.getElementById('uploadedFilesEmpty');
+                                const tableBody = document.getElementById('uploadedFilesTableBody');
+                                
+                                // Check if table has rows
+                                const hasRows = tableBody && tableBody.children.length > 0;
+                                
+                                if (hasRows) {
+                                    // Show table if it has data
+                                    if (tableEl) {
+                                        tableEl.style.display = 'table';
+                                        console.log('✅ Table shown (has data)');
+                                    }
+                                    if (emptyEl) {
+                                        emptyEl.style.display = 'none';
+                                    }
+                                } else {
+                                    // Show empty state if no data
+                                    if (tableEl) {
+                                        tableEl.style.display = 'none';
+                                    }
+                                    if (emptyEl) {
+                                        emptyEl.style.display = 'block';
+                                    }
                                 }
-                                if (uploadedDataInfo && uploadedDataInfo.style.display === 'none') {
+                                
+                                // Always show the container
+                                if (uploadedDataInfo) {
                                     uploadedDataInfo.style.display = 'block';
-                                    console.log('✅ Uploaded data info visibility forced to visible');
+                                    console.log('✅ Uploaded data info container shown');
                                 }
                             }).catch(err => {
                                 console.error('❌ Error refreshing table:', err);
@@ -3289,8 +3312,16 @@ class MarketMoodApp {
                                 setTimeout(() => {
                                     console.log('🔄 Retrying table refresh...');
                                     this._updatingUploadedDataInfo = false;
-                                    this.updateUploadedDataInfo();
-                                }, 2000);
+                                    this.updateUploadedDataInfo().then(() => {
+                                        // Force visibility on retry too
+                                        const tableEl = document.getElementById('uploadedFilesTable');
+                                        const tableBody = document.getElementById('uploadedFilesTableBody');
+                                        if (tableEl && tableBody && tableBody.children.length > 0) {
+                                            tableEl.style.display = 'table';
+                                            console.log('✅ Table shown after retry');
+                                        }
+                                    });
+                                }, 3000);
                             });
                         }, delay);
                         
@@ -6095,9 +6126,16 @@ class MarketMoodApp {
 
             if (finalGroupedData.length > 0) {
                 // Show table and hide empty message
-                if (tableEl) tableEl.style.display = 'table';
+                if (tableEl) {
+                    tableEl.style.display = 'table';
+                    tableEl.style.visibility = 'visible';
+                }
                 if (emptyEl) emptyEl.style.display = 'none';
-                uploadedDataInfo.style.display = 'block';
+                if (uploadedDataInfo) {
+                    uploadedDataInfo.style.display = 'block';
+                    uploadedDataInfo.style.visibility = 'visible';
+                }
+                console.log(`✅ Showing table with ${finalGroupedData.length} dates`);
 
                 // Populate table - final check to ensure no duplicates
                 const addedDates = new Set();
