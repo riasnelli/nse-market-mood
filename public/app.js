@@ -6113,8 +6113,8 @@ class MarketMoodApp {
             groupedData.forEach(item => {
                 const dateKey = normalizeDateForKey(item.date);
                 if (!dateKey) {
-                    console.warn(`Skipping item with invalid date: ${item.date}`);
-                    return;
+                    console.warn(`⚠️ Skipping item with invalid date: ${item.date}`);
+                    return; // Skip invalid dates (e.g., "2025-20-25")
                 }
                 if (!uniqueDates.has(dateKey)) {
                     uniqueDates.add(dateKey);
@@ -6160,8 +6160,8 @@ class MarketMoodApp {
                     // Normalize date one more time before checking
                     const normalizedDate = normalizeDateForKey(dateData.date);
                     if (!normalizedDate) {
-                        console.warn(`Skipping item with invalid date: ${dateData.date}`);
-                        return;
+                        console.warn(`⚠️ Skipping item with invalid date: ${dateData.date}`);
+                        return; // Skip invalid dates (e.g., "2025-20-25") - this will hide "25/20" from table
                     }
                     
                     // Skip if this date was already added (should not happen, but safety check)
