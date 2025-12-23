@@ -8,14 +8,12 @@ const { createServer } = require('http');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Serve static files from public directory
-app.use(express.static(path.join(__dirname, 'public')));
-
 // Body parser for API routes with increased limits for large CSV uploads
+// MUST be before static files to handle POST requests
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// CORS middleware
+// CORS middleware - MUST be before routes
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -38,7 +36,7 @@ const apiRoutes = [
   { path: 'admin', file: 'admin.js' }
 ];
 
-// Mount API routes
+// Mount API routes BEFORE static files and catch-all
 apiRoutes.forEach(({ path, file }) => {
   try {
     const handlerModule = require(`./api/${file}`);
@@ -52,23 +50,12 @@ apiRoutes.forEach(({ path, file }) => {
       return;
     }
     
+    // Mount route - use app.all to handle all HTTP methods
     app.all(`/api/${path}`, async (req, res) => {
       try {
         await handler(req, res);
       } catch (error) {
         console.error(`Error in /api/${path}:`, error);
-        if (!res.headersSent) {
-          res.status(500).json({ error: error.message });
-        }
-      }
-    });
-    
-    // Also handle query parameter routes (e.g., /api/data?action=save)
-    app.all(`/api/${path}/*`, async (req, res) => {
-      try {
-        await handler(req, res);
-      } catch (error) {
-        console.error(`Error in /api/${path}/*:`, error);
         if (!res.headersSent) {
           res.status(500).json({ error: error.message });
         }
@@ -82,7 +69,10 @@ apiRoutes.forEach(({ path, file }) => {
   }
 });
 
-// Serve index.html for all non-API routes (SPA routing)
+// Serve static files from public directory (AFTER API routes)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve index.html for all non-API routes (SPA routing) - MUST be last
 app.get('*', (req, res) => {
   // Don't serve HTML for API routes
   if (req.path.startsWith('/api/')) {
