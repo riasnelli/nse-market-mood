@@ -6030,7 +6030,15 @@ class MarketMoodApp {
                 dateOnly = dateOnly.replace(/[^\d-]/g, '');
                 // Validate and normalize format
                 if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    return dateOnly;
+                    // Additional validation: check if date values are actually valid
+                    const [year, month, day] = dateOnly.split('-').map(Number);
+                    if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                        return dateOnly;
+                    } else {
+                        // Invalid date values (e.g., 2025-20-25) - return null to skip
+                        console.warn(`⚠️ Skipping invalid date: ${dateOnly} (year=${year}, month=${month}, day=${day})`);
+                        return null;
+                    }
                 }
                 // Try to parse and reformat if needed
                 try {
