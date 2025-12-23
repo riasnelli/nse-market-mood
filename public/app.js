@@ -5936,16 +5936,24 @@ class MarketMoodApp {
             if (week52Result.success && week52Result.data) {
                 week52Result.data.forEach(file => {
                     // CRITICAL: Only accept files that are actually 52w type
-                    // Check file type field first - must be '52w'
-                    const fileType = (file.type || '').toLowerCase();
-                    if (fileType !== '52w') {
-                        console.warn(`⚠️ Skipping file with wrong type in 52w collection: ${file.fileName} (type: ${file.type}, expected: 52w)`);
-                        return; // Skip files that aren't actually 52w
+                    // Check file type field first - must be '52w' (case-insensitive)
+                    // Also accept if type is missing but filename suggests 52w (for backward compatibility)
+                    const fileType = (file.type || '').toLowerCase().trim();
+                    const fileName = (file.fileName || '').toLowerCase();
+                    const looksLike52W = fileName.includes('52') && (fileName.includes('wk') || fileName.includes('week'));
+                    
+                    // Accept if type is '52w' OR if type is missing/unknown but filename suggests 52w
+                    if (fileType && fileType !== '52w' && fileType !== 'unknown') {
+                        // Only skip if type is explicitly set to something other than 52w
+                        if (!looksLike52W) {
+                            console.warn(`⚠️ Skipping file with wrong type in 52w collection: ${file.fileName} (type: ${file.type}, expected: 52w)`);
+                            return; // Skip files that aren't actually 52w
+                        }
                     }
                     
                     // Also filter out indices files and MA files that were incorrectly saved as 52w
                     // Check file name patterns to exclude indices files and MA files
-                    const fileName = (file.fileName || '').toLowerCase();
+                    // (fileName already defined above)
                     const isIndicesFile = fileName.includes('ind_close') || 
                                          (fileName.includes('indices') && !fileName.includes('52')) ||
                                          (fileName.includes('dhan') && fileName.includes('nse') && fileName.includes('indices'));
