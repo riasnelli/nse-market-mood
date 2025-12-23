@@ -682,12 +682,58 @@ const handler = async (req, res) => {
         });
       } else {
         // Multiple documents or full=true - return in save-uploaded-data GET format
-        const formattedData = documents.map(doc => {
-          const stocks = 
+        const formattedData = await Promise.all(documents.map(async (doc) => {
+          let stocks = 
             Array.isArray(doc.indices) ? doc.indices :
             Array.isArray(doc.records) ? doc.records :
             Array.isArray(doc.normalized?.stocks) ? doc.normalized.stocks :
             [];
+          
+          const metadataCount = stocks.length;
+          const totalRowCount = doc.rowCount || doc.indicesCount || metadataCount;
+          
+          // If metadata has fewer rows than total, fetch from daily collection
+          if (totalRowCount > metadataCount && (full === 'true' || metadataCount < totalRowCount)) {
+            try {
+              const { getDailyIndicesCollection, getDailyBhavcopyCollection, getPreMarketDataCollection } = require('./lib/mongodb');
+              let dailyCollection;
+              
+              if (uploadType === 'bhav') {
+                dailyCollection = await getDailyBhavcopyCollection();
+                const dailyDocs = await dailyCollection.find({ 
+                  date: doc.date || doc.tradeDate,
+                  fileName: doc.fileName 
+                }).toArray();
+                if (dailyDocs.length > 0) {
+                  stocks = dailyDocs;
+                  console.log(`📊 Fetched ${dailyDocs.length} rows from daily_bhavcopy for ${doc.fileName}`);
+                }
+              } else if (uploadType === 'premarket') {
+                dailyCollection = await getPreMarketDataCollection();
+                const dailyDocs = await dailyCollection.find({ 
+                  date: doc.date || doc.tradeDate,
+                  fileName: doc.fileName 
+                }).toArray();
+                if (dailyDocs.length > 0) {
+                  stocks = dailyDocs;
+                  console.log(`📊 Fetched ${dailyDocs.length} rows from premarket_data for ${doc.fileName}`);
+                }
+              } else if (uploadType === 'indices') {
+                dailyCollection = await getDailyIndicesCollection();
+                const dailyDocs = await dailyCollection.find({ 
+                  date: doc.date || doc.tradeDate,
+                  fileName: doc.fileName 
+                }).toArray();
+                if (dailyDocs.length > 0) {
+                  stocks = dailyDocs;
+                  console.log(`📊 Fetched ${dailyDocs.length} rows from daily_indices for ${doc.fileName}`);
+                }
+              }
+            } catch (error) {
+              console.warn(`⚠️ Error fetching from daily collection for ${doc.fileName}:`, error.message);
+              // Continue with metadata rows if daily fetch fails
+            }
+          }
           
           const actualCount = stocks.length;
           
@@ -697,14 +743,14 @@ const handler = async (req, res) => {
             date: doc.date,
             type: doc.type || uploadType, // CRITICAL: Include type field for frontend validation
             indicesCount: actualCount,
-            rowCount: doc.rowCount || actualCount, // Include rowCount for 52W and other types
+            rowCount: totalRowCount, // Use total rowCount from metadata
             indices: full === 'true' ? stocks : undefined, // Only include if full=true
             uploadedAt: doc.uploadedAt,
             updatedAt: doc.updatedAt,
             mood: doc.mood,
             source: doc.source
           };
-        });
+        }));
 
         return res.status(200).json({
           success: true,
