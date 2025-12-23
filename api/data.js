@@ -127,7 +127,34 @@ const handler = async (req, res) => {
 
       // Parse tradeDate from filename (preferred) or use provided date
       const tradeDateFromFilename = parseDateFromFilename(fileName);
-      const tradeDate = tradeDateFromFilename || date || new Date().toISOString().split('T')[0];
+      let tradeDate = tradeDateFromFilename || date || new Date().toISOString().split('T')[0];
+      
+      // Validate and normalize date format (must be YYYY-MM-DD)
+      if (tradeDate) {
+        // Extract just the date part (YYYY-MM-DD) if it includes time
+        const dateOnly = tradeDate.toString().split('T')[0].split(' ')[0].trim();
+        // Validate format
+        if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Validate date is actually valid (not 2025-20-25)
+          const [year, month, day] = dateOnly.split('-').map(Number);
+          if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            tradeDate = dateOnly;
+          } else {
+            console.warn(`⚠️ Invalid date values: ${dateOnly}, using provided date or today`);
+            tradeDate = date || new Date().toISOString().split('T')[0];
+          }
+        } else {
+          console.warn(`⚠️ Invalid date format: ${tradeDate}, using provided date or today`);
+          tradeDate = date || new Date().toISOString().split('T')[0];
+        }
+      }
+      
+      // Final fallback to today if still invalid
+      if (!tradeDate || !tradeDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        tradeDate = new Date().toISOString().split('T')[0];
+      }
+      
+      console.log(`📅 Date validation: filename="${fileName}", parsed="${tradeDateFromFilename}", provided="${date}", final="${tradeDate}"`);
       
       // Runtime assertion: ensure type is valid
       const validTypes = ['indices', 'bhav', 'premarket', 'marketactivity', '52w'];
