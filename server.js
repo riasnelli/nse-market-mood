@@ -113,6 +113,18 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`📁 Serving static files from: ${path.join(__dirname, 'public')}`);
   console.log(`🔌 API routes available at: /api/*`);
   console.log(`💡 Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Log all mounted routes for debugging
+  console.log('\n📋 Mounted Routes:');
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
+      console.log(`   ${methods} ${middleware.route.path}`);
+    } else if (middleware.name === 'router') {
+      // This is a router middleware
+      console.log(`   Router: ${middleware.regexp}`);
+    }
+  });
 });
 
 // Graceful shutdown
