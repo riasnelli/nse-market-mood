@@ -6384,7 +6384,11 @@ class MarketMoodApp {
                         emptyEl.style.color = '#666';
                     }
                 }
-                uploadedDataInfo.style.display = 'block';
+                if (uploadedDataInfo) {
+                    uploadedDataInfo.style.display = 'block';
+                    uploadedDataInfo.style.visibility = 'visible';
+                }
+                console.log('✅ Uploaded data info section displayed (empty state)');
             }
         } catch (error) {
             console.error('Error fetching uploaded files:', error);
