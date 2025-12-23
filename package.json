@@ -4,11 +4,14 @@
   "description": "Real-time NSE market sentiment PWA",
   "main": "app.js",
   "scripts": {
-    "build": "echo 'No build step required'"
+    "start": "node server.js",
+    "build": "echo 'No build step required'",
+    "dev": "node server.js"
   },
   "dependencies": {
     "@vercel/functions": "^3.3.3",
     "chart.js": "^4.5.1",
+    "express": "^4.18.2",
     "mongodb": "^7.0.0",
     "node-fetch": "^2.6.7"
   },

@@ -15,53 +15,46 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Import and mount API routes
+// CORS middleware
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key, X-Internal-Key, x-app-key');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
+// Import and mount API routes (current routes)
 const apiRoutes = [
-  'nse-data',
-  'save-uploaded-data',
-  'get-uploaded-data',
-  'get-uploaded-dates',
-  'generate-signals',
-  'get-latest-signal-date',
-  'test-generate-signals',
-  'get-signals',
-  'check-date-data',
-  'manifest',
-  'index-history'
+  { path: 'data', file: 'data.js' },
+  { path: 'signals', file: 'signals.js' },
+  { path: 'market', file: 'market.js' },
+  { path: 'nse-data', file: 'nse-data.js' },
+  { path: 'download-nse-csvs', file: 'download-nse-csvs.js' },
+  { path: 'data-debug', file: 'data-debug.js' },
+  { path: 'admin', file: 'admin.js' }
 ];
 
 // Mount API routes
-apiRoutes.forEach(route => {
+apiRoutes.forEach(({ path, file }) => {
   try {
-    const handler = require(`./api/${route}.js`);
-    app.all(`/api/${route}`, async (req, res) => {
+    const handler = require(`./api/${file}`);
+    app.all(`/api/${path}`, async (req, res) => {
       try {
         await handler(req, res);
       } catch (error) {
-        console.error(`Error in /api/${route}:`, error);
-        res.status(500).json({ error: error.message });
+        console.error(`Error in /api/${path}:`, error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: error.message });
+        }
       }
     });
+    console.log(`✅ Mounted API route: /api/${path}`);
   } catch (error) {
-    console.warn(`Could not load API route ${route}:`, error.message);
-  }
-});
-
-// Handle upload routes
-const uploadRoutes = ['bhavcopy', 'indices', 'preopen'];
-uploadRoutes.forEach(route => {
-  try {
-    const handler = require(`./api/upload/${route}.js`);
-    app.all(`/api/upload/${route}`, async (req, res) => {
-      try {
-        await handler(req, res);
-      } catch (error) {
-        console.error(`Error in /api/upload/${route}:`, error);
-        res.status(500).json({ error: error.message });
-      }
-    });
-  } catch (error) {
-    console.warn(`Could not load upload route ${route}:`, error.message);
+    console.warn(`⚠️ Could not load API route ${path}:`, error.message);
   }
 });
 
