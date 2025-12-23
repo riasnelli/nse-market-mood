@@ -36,8 +36,21 @@ const apiRoutes = [
   { path: 'admin', file: 'admin.js' }
 ];
 
+// Add a test route first to verify server is working
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    nodeVersion: process.version
+  });
+});
+
 // Mount API routes BEFORE static files and catch-all
 console.log('🔌 Loading API routes...');
+let loadedRoutes = 0;
+let failedRoutes = 0;
+
 apiRoutes.forEach(({ path, file }) => {
   try {
     console.log(`📦 Loading ${file}...`);
@@ -56,6 +69,7 @@ apiRoutes.forEach(({ path, file }) => {
     if (typeof handler !== 'function') {
       console.error(`❌ Handler for ${path} is not a function. Type: ${typeof handler}`);
       console.error(`   Module keys:`, Object.keys(handlerModule || {}));
+      failedRoutes++;
       return;
     }
     
@@ -78,13 +92,15 @@ apiRoutes.forEach(({ path, file }) => {
     });
     
     console.log(`✅ Mounted API route: ${routePath} (${typeof handler})`);
+    loadedRoutes++;
   } catch (error) {
     console.error(`❌ Could not load API route ${path}:`, error.message);
     console.error(`   Stack:`, error.stack);
+    failedRoutes++;
     // Don't exit - continue loading other routes
   }
 });
-console.log(`✅ Finished loading ${apiRoutes.length} API routes`);
+console.log(`✅ Finished loading routes: ${loadedRoutes} successful, ${failedRoutes} failed`);
 
 // Serve static files from public directory (AFTER API routes)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -116,15 +132,20 @@ server.listen(PORT, '0.0.0.0', () => {
   
   // Log all mounted routes for debugging
   console.log('\n📋 Mounted Routes:');
+  let routeCount = 0;
   app._router.stack.forEach((middleware) => {
     if (middleware.route) {
       const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
       console.log(`   ${methods} ${middleware.route.path}`);
+      routeCount++;
     } else if (middleware.name === 'router') {
-      // This is a router middleware
       console.log(`   Router: ${middleware.regexp}`);
+    } else if (middleware.regexp) {
+      console.log(`   Middleware: ${middleware.name || 'unnamed'} - ${middleware.regexp}`);
     }
   });
+  console.log(`\n✅ Total routes mounted: ${routeCount}`);
+  console.log(`✅ Test route: GET /api/test`);
 });
 
 // Graceful shutdown
