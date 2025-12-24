@@ -596,7 +596,7 @@ class SettingsManager {
             // NSE API - show as "Available" (not "Connected" since we can't test it easily)
             // The actual connection will be tested when data is fetched
             apiStatus.textContent = 'Available';
-            apiStatus.className = 'status-badge';
+                    apiStatus.className = 'status-badge';
         }
     }
 

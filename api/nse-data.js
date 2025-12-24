@@ -358,8 +358,18 @@ const handler = async (req, res) => {
               change: indexData.change,
               pChange: indexData.pChange
             });
+          } else {
+            console.warn(`⚠️ Index symbol "${indices[index]}" not found in API response data`);
           }
         }
+      } else if (data === null) {
+        // Log when a fetch promise returned null (failed request)
+        const indexName = index < indices.length ? indices[index] : 'unknown';
+        console.warn(`⚠️ Index fetch failed for "${indexName}": request returned null`);
+      } else if (data && (!data.data || data.data.length === 0)) {
+        // Log when response has no data
+        const indexName = index < indices.length ? indices[index] : 'unknown';
+        console.warn(`⚠️ Index fetch for "${indexName}" returned empty data array`);
       }
     });
     
@@ -376,7 +386,13 @@ const handler = async (req, res) => {
       }
     }
     
-    console.log(`NSE data fetched successfully: ${allData.indices.length} indices`);
+    // Log results - warn if indices array is empty
+    if (allData.indices.length === 0) {
+      console.warn(`⚠️ NSE data fetched but indices array is empty. Expected ${indices.length} indices, got 0.`);
+      console.warn(`   This may indicate API failures or invalid responses. Check logs above for individual index fetch errors.`);
+    } else {
+      console.log(`✅ NSE data fetched successfully: ${allData.indices.length} indices`);
+    }
     console.log(`Market Breadth: Advances=${allData.marketBreadth.advances}, Declines=${allData.marketBreadth.declines}`);
     
     // If advances/declines are 0, try to calculate from indices
@@ -410,7 +426,7 @@ const handler = async (req, res) => {
     res.status(200).json(processedData);
     
   } catch (error) {
-    console.error('Error fetching NSE data:', error);
+    console.error('❌ Error fetching NSE data:', error);
     console.error('Error details:', {
       message: error.message,
       stack: error.stack,
@@ -420,10 +436,15 @@ const handler = async (req, res) => {
     // Check market status even on error
     const marketStatus = await checkMarketStatus(req).catch(() => checkMarketStatusByTime());
     
-    // Return error response instead of mock data
+    // Return error response with empty arrays (not mock data)
+    // Client will handle empty arrays and show "No data available"
     res.status(500).json({
       error: 'Failed to fetch NSE data',
       message: error.message || 'NSE API request failed',
+      mood: null,
+      indices: [], // Explicitly empty on error
+      vix: null,
+      advanceDecline: { advances: 0, declines: 0 },
       marketStatus: {
         isOpen: marketStatus.isOpen,
         verified: marketStatus.verified,

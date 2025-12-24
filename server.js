@@ -64,7 +64,7 @@ apiRoutes.forEach(({ path, file }) => {
       handler = handlerModule.default;
     } else {
       handler = handlerModule;
-    }
+      }
     
     if (typeof handler !== 'function') {
       console.error(`❌ Handler for ${path} is not a function. Type: ${typeof handler}`);
@@ -87,7 +87,7 @@ apiRoutes.forEach(({ path, file }) => {
             error: error.message,
             stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
           });
-        }
+      }
       }
     });
     

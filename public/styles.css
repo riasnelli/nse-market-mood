@@ -2039,6 +2039,16 @@ footer:not(.hidden) {
     display: block; /* Always show by default */
 }
 
+/* Hide uploadedDataInfo by default, JavaScript will show it when modal opens */
+.settings-section#uploadedDataInfo {
+    display: none;
+}
+
+/* Ensure uploadedDataInfo is visible when explicitly set via JavaScript inline style */
+.settings-section#uploadedDataInfo[style*="display: block"] {
+    display: block !important;
+}
+
 /* Only hide uploadedDataSection if it doesn't have .show class */
 .settings-section#uploadedDataSection:not(.show) {
     display: none !important;

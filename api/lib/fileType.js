@@ -114,34 +114,87 @@ function detectFileType(fileName) {
 }
 
 /**
- * Parse date from filename
- * Attempts to extract date in YYYY-MM-DD format from various filename patterns
+ * Parse date from NSE filename (centralized, robust parser)
+ * Extracts DDMMYYYY sequence and converts to YYYY-MM-DD format
+ * 
+ * Expected patterns:
+ * - CM_52_wk_High_low_22122025.csv → 2025-12-22
+ * - sec_bhavdata_full_23122025.csv → 2025-12-23
+ * - ind_close_all_22122025.csv → 2025-12-22
+ * - MA191225.csv → 2025-12-19 (DDMMYY format)
  * 
  * @param {string} fileName - The filename to parse
- * @returns {string|null} - Date in YYYY-MM-DD format, or null if not found
+ * @returns {string|null} - Date in YYYY-MM-DD format, or null if not found/invalid
+ * @throws {Error} - If date is found but invalid (out of range)
  */
 function parseDateFromFilename(fileName) {
   if (!fileName || typeof fileName !== 'string') {
     return null;
   }
 
-  // Pattern 1: YYYYMMDD in filename (e.g., ind_close_all_20251219.csv)
+  // Pattern 1: DDMMYYYY (8 digits) - most common for NSE files
+  // e.g., CM_52_wk_High_low_22122025.csv, sec_bhavdata_full_23122025.csv
+  const ddmmyyyyMatch = fileName.match(/(\d{2})(\d{2})(\d{4})/);
+  if (ddmmyyyyMatch) {
+    const [, dd, mm, yyyy] = ddmmyyyyMatch;
+    const day = Number(dd);
+    const month = Number(mm);
+    const year = Number(yyyy);
+
+    // Validate date range
+    if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
+      throw new Error(
+        `Invalid parsed date from filename ${fileName}: ${year}-${month}-${day}. ` +
+        `Year must be 2000-2100, month 1-12, day 1-31.`
+      );
+    }
+
+    return `${yyyy}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  // Pattern 2: YYYYMMDD (8 digits) - alternative format
+  // e.g., ind_close_all_20251219.csv
   const yyyymmddMatch = fileName.match(/(\d{4})(\d{2})(\d{2})/);
   if (yyyymmddMatch) {
     const [, year, month, day] = yyyymmddMatch;
+    const yearNum = Number(year);
+    const monthNum = Number(month);
+    const dayNum = Number(day);
+
+    // Validate date range
+    if (yearNum < 2000 || yearNum > 2100 || monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
+      throw new Error(
+        `Invalid parsed date from filename ${fileName}: ${year}-${month}-${day}. ` +
+        `Year must be 2000-2100, month 1-12, day 1-31.`
+      );
+    }
+
     return `${year}-${month}-${day}`;
   }
 
-  // Pattern 2: DDMMYY in filename (e.g., MA191225.csv -> 2019-12-25)
+  // Pattern 3: DDMMYY (6 digits at end) - for MA files
+  // e.g., MA191225.csv -> 2025-12-19
   const ddmmyyMatch = fileName.match(/(\d{2})(\d{2})(\d{2})\.csv$/i);
   if (ddmmyyMatch) {
-    const [, day, month, year] = ddmmyyMatch;
+    const [, day, month, yy] = ddmmyyMatch;
     // Assume 20XX for years
-    const fullYear = `20${year}`;
-    return `${fullYear}-${month}-${day}`;
+    const year = `20${yy}`;
+    const yearNum = Number(year);
+    const monthNum = Number(month);
+    const dayNum = Number(day);
+
+    // Validate date range
+    if (yearNum < 2000 || yearNum > 2100 || monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
+      throw new Error(
+        `Invalid parsed date from filename ${fileName}: ${year}-${month}-${day}. ` +
+        `Year must be 2000-2100, month 1-12, day 1-31.`
+      );
+    }
+
+    return `${year}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
   }
 
-  // Pattern 3: DD-MMM-YYYY in filename (e.g., MW-Pre-Open-Market-19-Dec-2025.csv)
+  // Pattern 4: DD-MMM-YYYY in filename (e.g., MW-Pre-Open-Market-19-Dec-2025.csv)
   const ddmmyyyyMatch = fileName.match(/(\d{2})-([A-Z]{3})-(\d{4})/i);
   if (ddmmyyyyMatch) {
     const [, day, monthStr, year] = ddmmyyyyMatch;
@@ -151,14 +204,19 @@ function parseDateFromFilename(fileName) {
       'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
     };
     const month = monthMap[monthStr.toUpperCase()] || '01';
-    return `${year}-${month}-${day}`;
-  }
+    const yearNum = Number(year);
+    const monthNum = Number(month);
+    const dayNum = Number(day);
 
-  // Pattern 4: DDMMYYYY in filename (e.g., CM_52_wk_High_low_19122025.csv)
-  const ddmmyyyyMatch2 = fileName.match(/(\d{2})(\d{2})(\d{4})/);
-  if (ddmmyyyyMatch2) {
-    const [, day, month, year] = ddmmyyyyMatch2;
-    return `${year}-${month}-${day}`;
+    // Validate date range
+    if (yearNum < 2000 || yearNum > 2100 || monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
+      throw new Error(
+        `Invalid parsed date from filename ${fileName}: ${year}-${month}-${day}. ` +
+        `Year must be 2000-2100, month 1-12, day 1-31.`
+      );
+    }
+
+    return `${year}-${month}-${String(dayNum).padStart(2, '0')}`;
   }
 
   return null;

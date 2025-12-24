@@ -719,100 +719,136 @@ class MarketMoodApp {
         
         try {
             const apiUrlWithCacheBust = this.apiUrl + (this.apiUrl.includes('?') ? '&' : '?') + `_=${Date.now()}`;
-            const response = await fetch(apiUrlWithCacheBust, {
-                cache: 'no-store',
-                headers: {
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache'
-                }
-            });
             
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            // Add timeout to prevent hanging requests
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
             
-            const data = await response.json();
-            if (data.error) throw new Error(data.message || 'API error');
-            
-            // Filter to key indices only (NIFTY 50, NIFTY BANK, INDIA VIX)
-            const keySymbols = ['NIFTY 50', 'NIFTY BANK', 'INDIA VIX'];
-            const keyIndices = (data.indices || []).filter(idx => {
-                const symbol = idx.symbol?.toUpperCase() || '';
-                return keySymbols.some(key => {
-                    if (key === 'NIFTY 50') {
-                        return symbol === 'NIFTY 50' || symbol === 'NIFTY50';
-                    }
-                    if (key === 'NIFTY BANK') {
-                        return symbol === 'NIFTY BANK' || symbol === 'NIFTYBANK';
-                    }
-                    if (key === 'INDIA VIX') {
-                        return symbol.includes('VIX');
-                    }
-                    return symbol.includes(key) || key.includes(symbol);
-                });
-            });
-            
-            // Add VIX if available
-            if (data.vix) {
-                const vixIndex = {
-                    symbol: 'INDIA VIX',
-                    lastPrice: data.vix.last,
-                    change: data.vix.change,
-                    pChange: data.vix.pChange
-                };
-                const existingVix = keyIndices.find(i => i.symbol?.toUpperCase().includes('VIX'));
-                if (!existingVix) {
-                    keyIndices.push(vixIndex);
-                }
-            }
-            
-            // Update only key indices with animation
-            if (keyIndices.length > 0 && this.lastMarketData) {
-                // Merge with existing data
-                const updatedIndices = [...this.lastMarketData.indices];
-                keyIndices.forEach(keyIdx => {
-                    const symbolUpper = (keyIdx.symbol || '').toUpperCase();
-                    const idx = updatedIndices.findIndex(i => {
-                        const iSymbol = (i.symbol || '').toUpperCase();
-                        if (symbolUpper.includes('NIFTY 50') || symbolUpper === 'NIFTY50') {
-                            return iSymbol === 'NIFTY 50' || iSymbol === 'NIFTY50';
-                        }
-                        if (symbolUpper.includes('NIFTY BANK') || symbolUpper === 'NIFTYBANK') {
-                            return iSymbol === 'NIFTY BANK' || iSymbol === 'NIFTYBANK';
-                        }
-                        if (symbolUpper.includes('VIX')) {
-                            return iSymbol.includes('VIX');
-                        }
-                        return iSymbol === symbolUpper;
-                    });
-                    if (idx >= 0) {
-                        // Store previous value for animation
-                        const prevSymbol = updatedIndices[idx].symbol?.toUpperCase() || symbolUpper;
-                        this.previousValues[prevSymbol] = { ...updatedIndices[idx] };
-                        updatedIndices[idx] = keyIdx;
+            try {
+                const response = await fetch(apiUrlWithCacheBust, {
+                    cache: 'no-store',
+                    signal: controller.signal,
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache'
                     }
                 });
                 
-                // Update lastMarketData
-                this.lastMarketData.indices = updatedIndices;
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    // Don't log 404s or other expected errors as errors (they're handled gracefully)
+                    if (response.status >= 500) {
+                        console.warn(`Key indices API returned ${response.status}, skipping this update`);
+                    }
+                    return; // Silently skip failed requests during polling
+                }
+                
+                const data = await response.json();
+                if (data.error) throw new Error(data.message || 'API error');
+                
+                // Filter to key indices only (NIFTY 50, NIFTY BANK, INDIA VIX)
+                const keySymbols = ['NIFTY 50', 'NIFTY BANK', 'INDIA VIX'];
+                const keyIndices = (data.indices || []).filter(idx => {
+                    const symbol = idx.symbol?.toUpperCase() || '';
+                    return keySymbols.some(key => {
+                        if (key === 'NIFTY 50') {
+                            return symbol === 'NIFTY 50' || symbol === 'NIFTY50';
+                        }
+                        if (key === 'NIFTY BANK') {
+                            return symbol === 'NIFTY BANK' || symbol === 'NIFTYBANK';
+                        }
+                        if (key === 'INDIA VIX') {
+                            return symbol.includes('VIX');
+                        }
+                        return symbol.includes(key) || key.includes(symbol);
+                    });
+                });
+                
+                // Add VIX if available
                 if (data.vix) {
-                    this.lastMarketData.vix = data.vix;
+                    const vixIndex = {
+                        symbol: 'INDIA VIX',
+                        lastPrice: data.vix.last,
+                        change: data.vix.change,
+                        pChange: data.vix.pChange
+                    };
+                    const existingVix = keyIndices.find(i => i.symbol?.toUpperCase().includes('VIX'));
+                    if (!existingVix) {
+                        keyIndices.push(vixIndex);
+                    }
                 }
                 
-                // Update volatility for adaptive polling
-                const nifty50 = keyIndices.find(i => i.symbol?.toUpperCase().includes('NIFTY 50'));
-                const vix = data.vix || keyIndices.find(i => i.symbol?.toUpperCase().includes('VIX'));
-                if (nifty50 && vix) {
-                    this.pollingManager.updateVolatilityData({
-                        niftyChangePct: Math.abs(nifty50.pChange || 0),
-                        vixChangePct: Math.abs(vix.pChange || 0)
+                // Update only key indices with animation
+                if (keyIndices.length > 0 && this.lastMarketData) {
+                    // Merge with existing data
+                    const updatedIndices = [...this.lastMarketData.indices];
+                    keyIndices.forEach(keyIdx => {
+                        const symbolUpper = (keyIdx.symbol || '').toUpperCase();
+                        const idx = updatedIndices.findIndex(i => {
+                            const iSymbol = (i.symbol || '').toUpperCase();
+                            if (symbolUpper.includes('NIFTY 50') || symbolUpper === 'NIFTY50') {
+                                return iSymbol === 'NIFTY 50' || iSymbol === 'NIFTY50';
+                            }
+                            if (symbolUpper.includes('NIFTY BANK') || symbolUpper === 'NIFTYBANK') {
+                                return iSymbol === 'NIFTY BANK' || iSymbol === 'NIFTYBANK';
+                            }
+                            if (symbolUpper.includes('VIX')) {
+                                return iSymbol.includes('VIX');
+                            }
+                            return iSymbol === symbolUpper;
+                        });
+                        if (idx >= 0) {
+                            // Store previous value for animation
+                            const prevSymbol = updatedIndices[idx].symbol?.toUpperCase() || symbolUpper;
+                            this.previousValues[prevSymbol] = { ...updatedIndices[idx] };
+                            updatedIndices[idx] = keyIdx;
+                        }
                     });
+                    
+                    // Update lastMarketData
+                    this.lastMarketData.indices = updatedIndices;
+                    if (data.vix) {
+                        this.lastMarketData.vix = data.vix;
+                    }
+                    
+                    // Update volatility for adaptive polling
+                    const nifty50 = keyIndices.find(i => i.symbol?.toUpperCase().includes('NIFTY 50'));
+                    const vix = data.vix || keyIndices.find(i => i.symbol?.toUpperCase().includes('VIX'));
+                    if (nifty50 && vix) {
+                        this.pollingManager.updateVolatilityData({
+                            niftyChangePct: Math.abs(nifty50.pChange || 0),
+                            vixChangePct: Math.abs(vix.pChange || 0)
+                        });
+                    }
+                    
+                    // Update UI with animation
+                    this.animateIndicesUpdate(keyIndices);
+                    this.updateLastUpdatedTime();
+                    this._lastKeyIndicesSuccess = Date.now(); // Track successful fetch
                 }
-                
-                // Update UI with animation
-                this.animateIndicesUpdate(keyIndices);
-                this.updateLastUpdatedTime();
+            } catch (fetchError) {
+                clearTimeout(timeoutId);
+                // Handle fetch errors (network, timeout, etc.)
+                if (fetchError.name === 'AbortError') {
+                    console.warn('Key indices fetch timeout, skipping this update');
+                } else if (fetchError.name === 'TypeError' && fetchError.message.includes('NetworkError')) {
+                    // Network errors are common during polling, don't spam console
+                    // Only log if it's been a while since last successful fetch
+                    const now = Date.now();
+                    if (!this._lastKeyIndicesSuccess || (now - this._lastKeyIndicesSuccess) > 60000) {
+                        console.warn('Key indices network error (this is normal during polling)');
+                    }
+                } else {
+                    console.warn('Key indices fetch error:', fetchError.message);
+                }
+                return; // Silently skip failed requests during polling
             }
         } catch (error) {
-            console.error('Error loading key indices:', error);
+            // Only log unexpected errors that aren't fetch-related
+            if (error.name !== 'AbortError' && !(error.name === 'TypeError' && error.message.includes('NetworkError'))) {
+                console.error('Error loading key indices:', error);
+            }
         }
     }
     
@@ -1236,21 +1272,46 @@ class MarketMoodApp {
                 throw new Error(data.message || 'API returned an error');
             }
             
-            // Check if we got valid data
-            const hasValidData = data.indices && data.indices.length > 0;
-            console.log(`Valid data: ${hasValidData}, Indices count: ${data.indices?.length || 0}`);
+            // Check if we got valid data - treat as valid if mood + marketStatus are present
+            // Even if indices array is empty, we can still show mood, VIX, advance/decline, etc.
+            const indicesArray = Array.isArray(data.indices) ? data.indices : [];
+            const hasValidIndices = indicesArray.length > 0;
+            
+            const hasMood = !!(data.mood && typeof data.mood === 'object');
+            const hasMarketState = !!data.marketStatus; // marketStatus object exists
+            
+            // Treat payload as valid if mood & marketStatus exist, even if indices are empty
+            const isValid = hasMood && hasMarketState;
+            
+            const hasAdvanceDecline = data.advanceDecline && 
+                (data.advanceDecline.advances > 0 || data.advanceDecline.declines > 0);
+            
+            console.log(`Valid data: ${isValid}, Indices count: ${indicesArray.length}`);
+            
+            if (!isValid) {
+                console.warn('NSE data invalid: missing mood or marketStatus', {
+                    hasMood,
+                    hasMarketState,
+                    mood: data.mood,
+                    marketStatus: data.marketStatus
+                });
+            } else {
+                if (!hasValidIndices) {
+                    console.warn('NSE data: mood/marketStatus ok but indices array is empty – using mood view only.');
+                }
+            }
             
             // Store market status from API response
             if (data.marketStatus) {
-                // Only update status if we have valid data or if it's explicitly marked as closed
-                if (hasValidData || (data.marketStatus.verified && !data.marketStatus.isOpen)) {
+                // Update status if data is valid (mood + marketStatus present)
+                if (isValid) {
                     this.lastMarketStatus = data.marketStatus;
                     this.lastSuccessfulStatus = data.marketStatus;
                     this.consecutiveFailures = 0; // Reset failure counter on success
                     console.log('Market status from API:', this.lastMarketStatus);
                 } else {
-                    // Invalid data but API responded - might be transient error
-                    console.warn(`API responded but no valid data (${this.consecutiveFailures + 1}/${this.maxFailures} failures). Keeping last known status.`);
+                    // Invalid data (missing mood or marketStatus) - increment failure counter
+                    console.warn(`API responded but no valid NSE mood data (${this.consecutiveFailures + 1}/${this.maxFailures} failures). Keeping last known status.`);
                     this.consecutiveFailures++;
                     
                     // Use last successful status if available
@@ -1274,8 +1335,15 @@ class MarketMoodApp {
                 }
             }
             
-            // Only update UI if we have valid data
-            if (hasValidData) {
+            // Update UI if we have valid data (mood + marketStatus present)
+            // From here, we know mood + marketStatus are fine, so we can safely update UI
+            if (isValid) {
+                // Reset failure count since we have valid mood data
+                this.consecutiveFailures = 0;
+                
+                if (!hasValidIndices) {
+                    console.warn('⚠️ Partial data available: indices temporarily unavailable, but showing mood/advanceDecline/marketStatus data');
+                }
                 console.log('Updating UI with fresh data from API');
                 // Update data source display for API
                 this.updateDataSourceDisplay('api');
@@ -1284,10 +1352,10 @@ class MarketMoodApp {
                 // Update last updated time
                 this.updateLastUpdatedTime();
             } else {
-                console.warn('No valid data received from API');
+                // No valid data (missing mood or marketStatus) - show empty state
+                console.warn('No valid NSE mood data received from API');
                 // Update data source display for API
                 this.updateDataSourceDisplay('api');
-                // No special handling needed
                 // Use mock data as fallback only for NSE API
                 this.useMockData();
             }
@@ -3207,6 +3275,24 @@ class MarketMoodApp {
                             const week52Count = processedData.indices?.length || 0;
                             processedData.indicesCount = week52Count;
                             processedData.count = week52Count;
+                            
+                            // CRITICAL: Guard against zero rows - do not save if file is empty
+                            if (!week52Count || week52Count === 0) {
+                                const errorMsg = `52W upload for ${date} has 0 usable rows – file could not be parsed.`;
+                                console.warn(`⚠️ ${errorMsg}`);
+                                console.warn(`   Parsed rows from parser: ${parsedData.length}, Processed rows: ${week52Count}`);
+                                
+                                // Show error with clearer message
+                                this.showUploadStatus('52W file could not be parsed. Please check the CSV format.', 'error');
+                                
+                                // Reset button on error
+                                if (uploadDataBtn) {
+                                    uploadDataBtn.disabled = false;
+                                    uploadDataBtn.textContent = 'Upload Data';
+                                }
+                                return; // Do NOT save to database - prevent creating documents with count=0
+                            }
+                            
                             console.log(`📊 Saving 52W High/Low for date ${date} with count=${week52Count}`);
                         } else if (uploadType === 'indices') {
                             // Parsed data is already normalized from parseAllIndicesCsv
@@ -3240,12 +3326,32 @@ class MarketMoodApp {
                                 saveSuccess = true;
                                 console.log('✅ Data saved to database successfully');
                                 
-                                // Check if this was a duplicate file
-                                const isDuplicate = responseData?.isDuplicate || false;
-                                const successMessage = isDuplicate 
-                                    ? 'File already exists - updated successfully!' 
-                                    : 'Data uploaded successfully!';
-                                this.showUploadStatus(successMessage, 'success');
+                                // Check total rows saved - only show success if rows > 0
+                                const totalRows = responseData?.rowCount || responseData?.indicesCount || processedData?.count || 0;
+                                
+                                if (totalRows === 0) {
+                                    // No rows were saved - treat as failure
+                                    console.warn('⚠️ Upload succeeded but 0 rows were saved');
+                                    this.showUploadStatus('Upload completed but no data rows were saved. Please check the file format.', 'error');
+                                } else {
+                                    // Check if this was a duplicate file
+                                    const isDuplicate = responseData?.isDuplicate || false;
+                                    const successMessage = isDuplicate 
+                                        ? 'File already exists - updated successfully!' 
+                                        : 'Data uploaded successfully!';
+                                    this.showUploadStatus(successMessage, 'success');
+                                    
+                                    // CRITICAL: Force table refresh after successful upload/update
+                                    // Wait a bit for backend to process and commit to DB
+                                    console.log('🔄 Forcing immediate table refresh after file upload/update...');
+                                    setTimeout(() => {
+                                        this.updateUploadedDataInfo().then(() => {
+                                            console.log('✅ Table refreshed after upload');
+                                        }).catch(err => {
+                                            console.error('❌ Error refreshing table after upload:', err);
+                                        });
+                                    }, 1500); // 1.5 second delay to ensure DB is updated
+                                }
                             } else {
                                 // Save returned but with success: false
                                 const errorMsg = responseData?.error || responseData?.message || 'Unknown error';
@@ -3264,9 +3370,8 @@ class MarketMoodApp {
                         // Clear any existing update flag to ensure refresh happens
                         this._updatingUploadedDataInfo = false;
                         
-                        // Use a longer delay to ensure DB has fully processed the upload
-                        // Increased delay for better reliability
-                        const delay = 3000; // 3 seconds for DB to process
+                        // Use a delay to ensure DB has fully processed all chunks
+                        const delay = 2000; // 2 seconds for DB to process all chunks
                         setTimeout(() => {
                             console.log('🔄 Refreshing uploaded data table...');
                             this._updatingUploadedDataInfo = false; // Ensure flag is clear
@@ -3301,10 +3406,15 @@ class MarketMoodApp {
                                     }
                                 }
                                 
-                                // Always show the container
+                                // Always show the container and scroll into view
                                 if (uploadedDataInfo) {
-                                    uploadedDataInfo.style.display = 'block';
+                                    uploadedDataInfo.style.setProperty('display', 'block', 'important');
+                                    uploadedDataInfo.style.setProperty('visibility', 'visible', 'important');
                                     console.log('✅ Uploaded data info container shown');
+                                    // Scroll section into view after a brief delay
+                                    setTimeout(() => {
+                                        uploadedDataInfo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                    }, 200);
                                 }
                             }).catch(err => {
                                 console.error('❌ Error refreshing table:', err);
@@ -4981,14 +5091,21 @@ class MarketMoodApp {
         const chunkInfo = chunkIndex ? ` (chunk ${chunkIndex}/${totalChunks})` : '';
         console.log(`📤 Saving to database: type=${finalType}, fileName=${fileName}, date=${dataDate}, count=${actualIndicesCount}${chunkInfo}`);
         
+        // CRITICAL: For single-chunk uploads, send _originalCount so backend knows the true total
+        // This ensures backend uses the actual count, not just array.length (which might be sliced)
+        // For chunked uploads, backend will sum chunks, so we don't need to send _originalCount per chunk
+        const isSingleChunk = !chunkIndex || !totalChunks || (chunkIndex === totalChunks && totalChunks === 1);
+        const _originalCount = isSingleChunk ? actualIndicesCount : undefined;
+        
         const payload = {
             fileName: fileName || 'uploaded.csv',
             date: dataDate || new Date().toISOString().split('T')[0],
             type: finalType, // Use validated type
             data: indicesArray, // Use 'data' field for chunked uploads
             indices: indicesArray, // Keep 'indices' for backward compatibility
-            indicesCount: actualIndicesCount, // Always calculate from array length
+            indicesCount: actualIndicesCount, // Chunk count (or full count if single chunk)
             count: actualIndicesCount,
+            _originalCount: _originalCount, // Send original count for single-chunk uploads so backend knows true total
             dateDataPremarketCount: data.dateDataPremarketCount || actualIndicesCount,
             header: data.header || null,
             mood: data.mood,
@@ -5502,6 +5619,10 @@ class MarketMoodApp {
             return;
         }
 
+        // Always show the section when updating
+        uploadedDataInfo.style.setProperty('display', 'block', 'important');
+        uploadedDataInfo.style.setProperty('visibility', 'visible', 'important');
+
         // Show loading state
         if (loadingEl) loadingEl.style.display = 'block';
         if (emptyEl) emptyEl.style.display = 'none';
@@ -5663,22 +5784,44 @@ class MarketMoodApp {
                 week52Result = { success: false, data: [], error: err.message };
             }
 
-            // Debug: Log API responses
+            // Debug: Log API responses with detailed structure
             console.log('📥 API Responses:', {
                 indices: {
                     success: indicesResult.success,
                     count: indicesResult.data?.length || 0,
-                    todayFiles: indicesResult.data?.filter(f => f.date === '2025-12-01') || []
+                    sampleFile: indicesResult.data?.[0] || null,
+                    allFiles: indicesResult.data?.map(f => ({
+                        date: f.date,
+                        fileName: f.fileName,
+                        totalCount: f.totalCount,
+                        rowCount: f.rowCount,
+                        indicesCount: f.indicesCount,
+                        id: f.id,
+                        type: f.type
+                    })) || []
                 },
                 bhav: {
                     success: bhavResult.success,
                     count: bhavResult.data?.length || 0,
-                    todayFiles: bhavResult.data?.filter(f => f.date === '2025-12-01') || []
+                    sampleFile: bhavResult.data?.[0] || null,
+                    allFiles: bhavResult.data?.map(f => ({
+                        date: f.date,
+                        fileName: f.fileName,
+                        rowCount: f.rowCount,
+                        indicesCount: f.indicesCount,
+                        id: f.id,
+                        type: f.type
+                    })) || []
                 },
                 premarket: {
                     success: premarketResult.success,
                     count: premarketResult.data?.length || 0,
-                    todayFiles: premarketResult.data?.filter(f => f.date === '2025-12-01') || []
+                    sampleFile: premarketResult.data?.[0] || null
+                },
+                week52: {
+                    success: week52Result.success,
+                    count: week52Result.data?.length || 0,
+                    sampleFile: week52Result.data?.[0] || null
                 }
             });
 
@@ -5700,8 +5843,11 @@ class MarketMoodApp {
             const dateMap = new Map();
 
             // Process indices data
+            console.log(`🔍 Indices API result: success=${indicesResult.success}, dataCount=${indicesResult.data?.length || 0}`);
             if (indicesResult.success && indicesResult.data) {
-                indicesResult.data.forEach(file => {
+                console.log(`📊 Processing ${indicesResult.data.length} indices files from API`);
+                indicesResult.data.forEach((file, index) => {
+                    console.log(`📊 Indices file ${index + 1}: fileName="${file.fileName}", type="${file.type}", date="${file.date}", totalCount=${file.totalCount}, rowCount=${file.rowCount}, indicesCount=${file.indicesCount}`);
                     // CRITICAL: Only accept files that are actually indices type
                     // Check file type field first - must be 'indices'
                     const fileType = (file.type || '').toLowerCase();
@@ -5736,14 +5882,52 @@ class MarketMoodApp {
                             });
                         }
                         const dateData = dateMap.get(normalizedDate);
-                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        // CRITICAL: Read count from aggregated backend response
+                        // Backend aggregation returns totalCount, rowCount, and indicesCount (all are the aggregated sum)
+                        // ALWAYS prefer totalCount/rowCount/indicesCount over array.length fallback
+                        // The array.length is limited to 100 for metadata preview, so it's unreliable
+                        let count = file.totalCount || file.rowCount || file.indicesCount;
+                        
+                        // Only use array.length as absolute last resort (and warn about it)
+                        if (!count && Array.isArray(file.indices)) {
+                            console.warn(`⚠️ WARNING: No count fields found, using array.length (${file.indices.length}) for ${normalizedDate}. This may be inaccurate due to metadata limit.`);
+                            count = file.indices.length;
+                        } else if (!count) {
+                            count = 0;
+                        }
+                        
+                        // Debug log for ALL indices files to see what values we're getting
+                        console.log(`📊 Reading indices data for ${normalizedDate}: fileName="${file.fileName}", totalCount=${file.totalCount}, rowCount=${file.rowCount}, indicesCount=${file.indicesCount}, chunkCount=${file._chunkCount || 1}, finalCount=${count}, indicesArrayLength=${Array.isArray(file.indices) ? file.indices.length : 'N/A'}`);
+                        
+                        // CRITICAL FIX: If count is exactly 100, check if rowCount/totalCount exists and is different
+                        // This handles the case where array.length (100) was used but actual count is higher
+                        let finalCount = count;
+                        if (count === 100) {
+                            // Check if we have a better source of truth
+                            if (file.totalCount && file.totalCount !== 100) {
+                                finalCount = file.totalCount;
+                                console.warn(`⚠️ Corrected count from 100 to ${finalCount} using totalCount for ${normalizedDate} (file: ${file.fileName})`);
+                            } else if (file.rowCount && file.rowCount !== 100) {
+                                finalCount = file.rowCount;
+                                console.warn(`⚠️ Corrected count from 100 to ${finalCount} using rowCount for ${normalizedDate} (file: ${file.fileName})`);
+                            } else if (file.indicesCount && file.indicesCount !== 100) {
+                                finalCount = file.indicesCount;
+                                console.warn(`⚠️ Corrected count from 100 to ${finalCount} using indicesCount for ${normalizedDate} (file: ${file.fileName})`);
+                            // Note: Frontend can't directly query database, so we rely on backend fix
+                            // For immediate fix: commit and push code so Railway/Vercel deploys backend changes
+                            console.warn(`⚠️ Count is 100 for ${normalizedDate} - backend needs to be redeployed to fix this`);
+                        }
                         
                         // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not a bhavcopy file
                         // This ensures we only show green checkmark for actual indices files
-                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isBhavcopyFile) {
-                        if (count > dateData.indices.count) {
-                            dateData.indices.count = count;
-                            dateData.indices.id = file.id;
+                        if (finalCount > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isBhavcopyFile) {
+                            // SUM counts instead of taking max (for chunked uploads)
+                            // Backend should already aggregate, but sum here as backup
+                            dateData.indices.count = (dateData.indices.count || 0) + finalCount;
+                            
+                            // Keep the most recent file's metadata (ID, fileName, uploadedAt)
+                            if (!dateData.indices.id || new Date(file.uploadedAt) > new Date(dateData.indices.uploadedAt || 0)) {
+                                dateData.indices.id = file.id;
                                 dateData.indices.fileName = file.fileName || 'Unknown';
                                 dateData.indices.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             }
@@ -5766,7 +5950,8 @@ class MarketMoodApp {
 
             // Process bhav data
             if (bhavResult.success && bhavResult.data) {
-                bhavResult.data.forEach(file => {
+                console.log(`🔍 Processing ${bhavResult.data.length} bhav files from API`);
+                bhavResult.data.forEach((file, index) => {
                     // CRITICAL: Only accept files that are actually bhav type
                     // Check file type field first - must be 'bhav'
                     const fileType = (file.type || '').toLowerCase();
@@ -5789,25 +5974,65 @@ class MarketMoodApp {
                             });
                         }
                         const dateData = dateMap.get(normalizedDate);
-                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        // CRITICAL: Read count from aggregated backend response
+                        // Backend aggregation returns totalCount, rowCount, and indicesCount (all are the aggregated sum)
+                        // Try totalCount first (explicit aggregated field), then rowCount, then indicesCount, then fall back to array length
+                        const count = file.totalCount || file.rowCount || file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
                         
-                        // Only update if count > 0 (valid processed data exists)
-                        // Don't set ID or count for files with 0 processed rows (failed processing)
-                        if (count > 0) {
-                            // Update if count is higher OR if no valid ID is set yet
-                            if (count > dateData.bhav.count || !dateData.bhav.id || dateData.bhav.count === 0) {
-                                dateData.bhav.count = count;
+                        // Debug log for first few files and files with multiple chunks
+                        if (index < 3 || (file._chunkCount && file._chunkCount > 1)) {
+                            console.log(`📊 Bhav file ${index + 1}: date=${normalizedDate}, fileName="${file.fileName}", totalCount=${file.totalCount}, rowCount=${file.rowCount}, indicesCount=${file.indicesCount}, chunkCount=${file._chunkCount || 1}, finalCount=${count}, id=${file.id}, type=${file.type}`);
+                        }
+                        
+                        // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not 'Unknown'
+                        // This ensures we only show green checkmark for actual bhav files with valid data
+                        if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '') {
+                            // SUM counts instead of taking max (for chunked uploads)
+                            // Backend should already aggregate, but sum here as backup
+                            dateData.bhav.count = (dateData.bhav.count || 0) + count;
+                            
+                            // Keep the most recent file's metadata (ID, fileName, uploadedAt)
+                            if (!dateData.bhav.id || new Date(file.uploadedAt || 0) > new Date(dateData.bhav.uploadedAt || 0)) {
                                 dateData.bhav.id = file.id;
-                                dateData.bhav.fileName = file.fileName || 'Unknown';
+                                dateData.bhav.fileName = file.fileName;
                                 dateData.bhav.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             }
+                            
+                            // Debug log when setting bhav data
+                            if (index < 3) {
+                                console.log(`✅ Set bhav data for ${normalizedDate}: count=${dateData.bhav.count}, fileName="${dateData.bhav.fileName}", id=${dateData.bhav.id}`);
+                            }
+                        } else {
+                            // Explicitly clear if invalid - ensure red X shows
+                            if (!dateData.bhav.id || dateData.bhav.count === 0) {
+                                dateData.bhav.count = 0;
+                                dateData.bhav.id = null;
+                                dateData.bhav.fileName = null;
+                                dateData.bhav.uploadedAt = null;
+                            }
+                            
+                            // Debug log when skipping invalid file
+                            if (index < 3) {
+                                console.log(`❌ Skipped bhav file for ${normalizedDate}: count=${count}, fileName="${file.fileName}", reason: ${count === 0 ? 'count is 0' : !file.fileName || file.fileName === 'Unknown' ? 'invalid fileName' : 'unknown'}`);
+                            }
                         }
-                        // Silently skip files with 0 count (processing failed) - no need to log each one
                         // Keep the most recent uploadedAt
-                        if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
+                        if (file.uploadedAt && new Date(file.uploadedAt) > new Date(dateData.uploadedAt || 0)) {
                             dateData.uploadedAt = file.uploadedAt;
                         }
+                    } else {
+                        // Debug log when date normalization fails
+                        if (index < 3) {
+                            console.log(`⚠️ Skipped bhav file with invalid date: fileName="${file.fileName}", date="${file.date}"`);
+                        }
                     }
+                });
+                console.log(`✅ Finished processing bhav data. Date map now has ${dateMap.size} dates`);
+            } else {
+                console.warn('⚠️ Bhav API response failed or has no data:', {
+                    success: bhavResult.success,
+                    dataLength: bhavResult.data?.length || 0,
+                    error: bhavResult.error
                 });
             }
 
@@ -5829,9 +6054,11 @@ class MarketMoodApp {
                         }
                         const dateData = dateMap.get(normalizedDate);
                         // For premarket, check multiple possible fields for count
-                        // Priority: dateDataPremarketCount > count > indicesCount > indices array length
+                        // Priority: rowCount > dateDataPremarketCount > count > indicesCount > indices array length
                         let count = 0;
-                        if (file.dateDataPremarketCount !== undefined && file.dateDataPremarketCount !== null) {
+                        if (file.rowCount !== undefined && file.rowCount !== null) {
+                            count = file.rowCount;
+                        } else if (file.dateDataPremarketCount !== undefined && file.dateDataPremarketCount !== null) {
                             count = file.dateDataPremarketCount;
                         } else if (file.count !== undefined && file.count !== null) {
                             count = file.count;
@@ -5843,13 +6070,18 @@ class MarketMoodApp {
                         
                         // Silently process premarket data - no verbose debug logs
                         
-                        // Always update if count is higher OR if no ID is set yet (file exists)
-                        if (count > dateData.premarket.count || !dateData.premarket.id) {
-                            dateData.premarket.count = count;
-                            dateData.premarket.id = file.id;
-                            dateData.premarket.fileName = file.fileName || 'Unknown';
-                            dateData.premarket.uploadedAt = file.uploadedAt || file.updatedAt || null;
-                            dateData.dateDataPremarketCount = count;
+                        // SUM counts instead of taking max (for chunked uploads)
+                        // Backend should already aggregate, but sum here as backup
+                        if (count > 0) {
+                            dateData.premarket.count = (dateData.premarket.count || 0) + count;
+                            
+                            // Keep the most recent file's metadata (ID, fileName, uploadedAt)
+                            if (!dateData.premarket.id || new Date(file.uploadedAt) > new Date(dateData.premarket.uploadedAt || 0)) {
+                                dateData.premarket.id = file.id;
+                                dateData.premarket.fileName = file.fileName || 'Unknown';
+                                dateData.premarket.uploadedAt = file.uploadedAt || file.updatedAt || null;
+                                dateData.dateDataPremarketCount = count;
+                            }
                         }
                         // Keep the most recent uploadedAt
                         if (new Date(file.uploadedAt) > new Date(dateData.uploadedAt)) {
@@ -5906,13 +6138,20 @@ class MarketMoodApp {
                             });
                         }
                         const dateData = dateMap.get(normalizedDate);
-                        const count = file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        // CRITICAL: Read count from aggregated backend response
+                        // Backend aggregation returns totalCount, rowCount, and indicesCount (all are the aggregated sum)
+                        // Try totalCount first (explicit aggregated field), then rowCount, then indicesCount, then fall back to array length
+                        const count = file.totalCount || file.rowCount || file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
                         // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file or 52W file
                         // This ensures we only show green checkmark for actual marketactivity files
                         if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile && !is52WFile) {
-                            if (count > dateData.marketactivity.count || !dateData.marketactivity.id) {
-                            dateData.marketactivity.count = count;
-                            dateData.marketactivity.id = file.id;
+                            // SUM counts instead of taking max (for chunked uploads)
+                            // Backend should already aggregate, but sum here as backup
+                            dateData.marketactivity.count = (dateData.marketactivity.count || 0) + count;
+                            
+                            // Keep the most recent file's metadata (ID, fileName, uploadedAt)
+                            if (!dateData.marketactivity.id || new Date(file.uploadedAt) > new Date(dateData.marketactivity.uploadedAt || 0)) {
+                                dateData.marketactivity.id = file.id;
                                 dateData.marketactivity.fileName = file.fileName;
                                 dateData.marketactivity.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             }
@@ -5933,8 +6172,11 @@ class MarketMoodApp {
             }
 
             // Process 52W data
+            console.log(`🔍 52W API result: success=${week52Result.success}, dataCount=${week52Result.data?.length || 0}`);
             if (week52Result.success && week52Result.data) {
-                week52Result.data.forEach(file => {
+                console.log(`📊 Processing ${week52Result.data.length} 52W files from API`);
+                week52Result.data.forEach((file, index) => {
+                    console.log(`📊 52W file ${index + 1}: fileName="${file.fileName}", type="${file.type}", date="${file.date}", totalCount=${file.totalCount}, rowCount=${file.rowCount}, indicesCount=${file.indicesCount}`);
                     // CRITICAL: Only accept files that are actually 52w type
                     // Check file type field first - must be '52w' (case-insensitive)
                     // Also accept if type is missing but filename suggests 52w (for backward compatibility)
@@ -5986,15 +6228,21 @@ class MarketMoodApp {
                             });
                         }
                         const dateData = dateMap.get(normalizedDate);
-                        // For 52W, count can come from rowCount, indicesCount, or indices array length
-                        const count = file.rowCount || file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
-                        console.log(`📊 52W file processing: fileName="${file.fileName}", type="${file.type}", count=${count}, rowCount=${file.rowCount}, indicesCount=${file.indicesCount}, indicesLength=${Array.isArray(file.indices) ? file.indices.length : 'N/A'}`);
+                        // CRITICAL: Read count from aggregated backend response
+                        // Backend aggregation returns totalCount, rowCount, and indicesCount (all are the aggregated sum)
+                        // Try totalCount first (explicit aggregated field), then rowCount, then indicesCount, then fall back to array length
+                        const count = file.totalCount || file.rowCount || file.indicesCount || (Array.isArray(file.indices) ? file.indices.length : 0);
+                        console.log(`📊 52W file processing: fileName="${file.fileName}", type="${file.type}", totalCount=${file.totalCount}, rowCount=${file.rowCount}, indicesCount=${file.indicesCount}, chunkCount=${file._chunkCount || 1}, finalCount=${count}, indicesLength=${Array.isArray(file.indices) ? file.indices.length : 'N/A'}`);
                         // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not an indices file or MA file
                         // This ensures we only show green checkmark for actual 52w files
                         if (count > 0 && file.fileName && file.fileName !== 'Unknown' && file.fileName.trim() !== '' && !isIndicesFile && !isMAFile) {
-                            if (count > dateData.week52.count || !dateData.week52.id) {
-                            dateData.week52.count = count;
-                            dateData.week52.id = file.id;
+                            // SUM counts instead of taking max (for chunked uploads)
+                            // Backend should already aggregate, but sum here as backup
+                            dateData.week52.count = (dateData.week52.count || 0) + count;
+                            
+                            // Keep the most recent file's metadata (ID, fileName, uploadedAt)
+                            if (!dateData.week52.id || new Date(file.uploadedAt) > new Date(dateData.week52.uploadedAt || 0)) {
+                                dateData.week52.id = file.id;
                                 dateData.week52.fileName = file.fileName;
                                 dateData.week52.uploadedAt = file.uploadedAt || file.updatedAt || null;
                             }
@@ -6016,31 +6264,60 @@ class MarketMoodApp {
 
             // Debug: Log what we have before final processing
             console.log('Date map after processing all types:', Array.from(dateMap.keys()));
-            console.log('Date map entries:', Array.from(dateMap.entries()).map(([date, data]) => ({
+            console.log('Date map entries (with details):', Array.from(dateMap.entries()).map(([date, data]) => ({
                 date,
-                indices: data.indices.count,
-                bhav: data.bhav.count,
-                premarket: data.premarket.count,
-                marketactivity: data.marketactivity.count,
-                week52: data.week52.count
+                indices: { count: data.indices.count, id: data.indices.id, fileName: data.indices.fileName },
+                bhav: { count: data.bhav.count, id: data.bhav.id, fileName: data.bhav.fileName },
+                premarket: { count: data.premarket.count, id: data.premarket.id, fileName: data.premarket.fileName },
+                marketactivity: { count: data.marketactivity.count, id: data.marketactivity.id, fileName: data.marketactivity.fileName },
+                week52: { count: data.week52.count, id: data.week52.id, fileName: data.week52.fileName }
             })));
             
             // Log summary for all dates
             console.log('📊 Data summary by date:');
             dateMap.forEach((dateData, dateKey) => {
-                console.log(`  ${dateKey}: indices=${dateData.indices.count}, bhav=${dateData.bhav.count}, premarket=${dateData.premarket.count}, ma=${dateData.marketactivity.count}, 52w=${dateData.week52.count}`);
+                console.log(`  ${dateKey}: indices=${dateData.indices.count} (id: ${dateData.indices.id || 'none'}, file: ${dateData.indices.fileName || 'none'}), bhav=${dateData.bhav.count} (id: ${dateData.bhav.id || 'none'}, file: ${dateData.bhav.fileName || 'none'}), premarket=${dateData.premarket.count} (id: ${dateData.premarket.id || 'none'}, file: ${dateData.premarket.fileName || 'none'}), ma=${dateData.marketactivity.count} (id: ${dateData.marketactivity.id || 'none'}, file: ${dateData.marketactivity.fileName || 'none'}), 52w=${dateData.week52.count} (id: ${dateData.week52.id || 'none'}, file: ${dateData.week52.fileName || 'none'})`);
             });
+
+            // Helper function to parse NSE date chunks (DDMMYYYY format)
+            // Example: "22122025" → "2025-12-22"
+            function parseNseFileDateChunk(raw) {
+                if (!raw || typeof raw !== 'string') return null;
+
+                // Expecting exactly 8 chars: DDMMYYYY (e.g., "22122025")
+                const digits = raw.replace(/\D/g, '');
+                if (digits.length !== 8) return null;
+
+                const dd = digits.slice(0, 2);
+                const mm = digits.slice(2, 4);
+                const yyyy = digits.slice(4, 8);
+
+                const day = Number(dd);
+                const month = Number(mm);
+                const year = Number(yyyy);
+
+                const isValid =
+                    year >= 2000 && year <= 2100 &&
+                    month >= 1 && month <= 12 &&
+                    day >= 1 && day <= 31;
+
+                if (!isValid) {
+                    console.warn('Skipping invalid NSE date chunk:', raw, '→ parsed as', `${yyyy}-${mm}-${dd}`);
+                    return null;
+                }
+
+                return `${yyyy}-${mm}-${dd}`; // 2025-12-22
+            }
 
             // Use a more robust normalization function
             const normalizeDateForKey = (dateStr) => {
                 if (!dateStr) return null;
+                
                 // Extract just the date part (YYYY-MM-DD) if it includes time
                 let dateOnly = dateStr.toString().split('T')[0].split(' ')[0].trim();
-                // Remove any trailing characters
-                dateOnly = dateOnly.replace(/[^\d-]/g, '');
-                // Validate and normalize format
+                
+                // If already in YYYY-MM-DD format, validate and return
                 if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    // Additional validation: check if date values are actually valid
                     const [year, month, day] = dateOnly.split('-').map(Number);
                     if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
                         return dateOnly;
@@ -6050,19 +6327,49 @@ class MarketMoodApp {
                         return null;
                     }
                 }
-                // Try to parse and reformat if needed
+                
+                // Handle 8-digit numeric strings: Use parseNseFileDateChunk helper (DDMMYYYY format)
+                // Remove any non-digit characters first
+                const digitsOnly = dateOnly.replace(/[^\d]/g, '');
+                
+                if (digitsOnly.length === 8 && /^\d{8}$/.test(digitsOnly)) {
+                    // Use the helper function to parse DDMMYYYY format
+                    const parsed = parseNseFileDateChunk(digitsOnly);
+                    if (parsed) {
+                        return parsed;
+                    }
+                    // If helper returns null, it already logged a warning, just return null
+                    return null;
+                }
+                
+                // Try DD-MM-YYYY or DD/MM/YYYY format
+                const ddmmyyyyMatch = dateOnly.match(/(\d{2})[-\/](\d{2})[-\/](\d{4})/);
+                if (ddmmyyyyMatch) {
+                    const [, day, month, year] = ddmmyyyyMatch.map(Number);
+                    if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    }
+                }
+                
+                // Try parsing as Date object (for formats like "23-Dec-2025")
                 try {
                     const dateObj = new Date(dateOnly);
                     if (!isNaN(dateObj.getTime())) {
                         const year = dateObj.getFullYear();
                         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
                         const day = String(dateObj.getDate()).padStart(2, '0');
-                        return `${year}-${month}-${day}`;
+                        // Validate the parsed date
+                        if (year >= 2000 && year <= 2100) {
+                            return `${year}-${month}-${day}`;
+                        }
                     }
                 } catch (e) {
                     // Ignore parse errors
                 }
-                return dateOnly;
+                
+                // If we can't parse it, log and return null
+                console.warn(`⚠️ Cannot normalize date string: ${dateStr} (processed as: ${dateOnly})`);
+                return null;
             };
             
             // Final deduplication - normalize all dates in the map and merge duplicates
@@ -6150,8 +6457,12 @@ class MarketMoodApp {
                 }
                 if (emptyEl) emptyEl.style.display = 'none';
                 if (uploadedDataInfo) {
-                    uploadedDataInfo.style.display = 'block';
-                    uploadedDataInfo.style.visibility = 'visible';
+                    uploadedDataInfo.style.setProperty('display', 'block', 'important');
+                    uploadedDataInfo.style.setProperty('visibility', 'visible', 'important');
+                    // Scroll section into view after table is populated
+                    setTimeout(() => {
+                        uploadedDataInfo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
                 }
                 console.log(`✅ Showing table with ${finalGroupedData.length} dates`);
 
@@ -6300,21 +6611,34 @@ class MarketMoodApp {
                                    !dateData.marketactivity?.fileName || dateData.marketactivity?.fileName === 'Unknown' ? 'Invalid file name' : 'Unknown'
                         });
                     }
-                    if (hasWeek52 && dateData.week52?.id) {
+                    // Determine 52W state: AVAILABLE, NOT AVAILABLE, or FILE INVALID
+                    const week52Count = dateData.week52?.count || 0;
+                    const hasWeek52Id = !!dateData.week52?.id;
+                    const week52FileName = dateData.week52?.fileName || 'none';
+                    
+                    if (hasWeek52 && hasWeek52Id && week52Count > 0) {
+                        // File exists and has valid data
                         console.log(`✅ 52W data AVAILABLE for ${normalizedDate}:`, {
                             id: dateData.week52.id,
                             fileName: dateData.week52.fileName,
                             uploadedAt: formatTimestamp(dateData.week52.uploadedAt),
                             count: dateData.week52.count
                         });
+                    } else if (hasWeek52Id && week52Count === 0) {
+                        // File exists but has 0 rows (invalid file)
+                        console.log(`⚠️ 52W file INVALID for ${normalizedDate}:`, {
+                            id: dateData.week52.id,
+                            fileName: week52FileName,
+                            count: 0,
+                            reason: 'File invalid (0 rows parsed)'
+                        });
                     } else {
+                        // No file uploaded
                         console.log(`❌ 52W data NOT AVAILABLE for ${normalizedDate}:`, {
-                            count: dateData.week52?.count || 0,
+                            count: week52Count,
                             id: dateData.week52?.id || 'none',
-                            fileName: dateData.week52?.fileName || 'none',
-                            reason: !dateData.week52?.id ? 'No file uploaded' : 
-                                   (dateData.week52?.count || 0) === 0 ? 'Count is 0' :
-                                   !dateData.week52?.fileName || dateData.week52?.fileName === 'Unknown' ? 'Invalid file name' : 'Unknown'
+                            fileName: week52FileName,
+                            reason: 'No file uploaded'
                         });
                     }
                     
@@ -6414,8 +6738,8 @@ class MarketMoodApp {
                     }
                 }
                 if (uploadedDataInfo) {
-                    uploadedDataInfo.style.display = 'block';
-                    uploadedDataInfo.style.visibility = 'visible';
+                    uploadedDataInfo.style.setProperty('display', 'block', 'important');
+                    uploadedDataInfo.style.setProperty('visibility', 'visible', 'important');
                 }
                 console.log('✅ Uploaded data info section displayed (empty state)');
             }
@@ -6428,6 +6752,11 @@ class MarketMoodApp {
                 emptyEl.style.display = 'block';
             }
             if (tableEl) tableEl.style.display = 'none';
+            // Ensure section is visible even on error
+            if (uploadedDataInfo) {
+                uploadedDataInfo.style.setProperty('display', 'block', 'important');
+                uploadedDataInfo.style.setProperty('visibility', 'visible', 'important');
+            }
         } finally {
             // Always clear the flag when done
             this._updatingUploadedDataInfo = false;
@@ -6727,6 +7056,16 @@ class MarketMoodApp {
         if (uploadModal) {
             uploadModal.classList.add('show');
             this.lockBodyScroll();
+            // Explicitly show the uploaded data info section when modal opens
+            const uploadedDataInfo = document.getElementById('uploadedDataInfo');
+            if (uploadedDataInfo) {
+                uploadedDataInfo.style.setProperty('display', 'block', 'important');
+                uploadedDataInfo.style.setProperty('visibility', 'visible', 'important');
+                // Scroll the section into view after a brief delay to ensure it's rendered
+                setTimeout(() => {
+                    uploadedDataInfo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            }
             this.updateUploadedDataInfo();
         }
     }

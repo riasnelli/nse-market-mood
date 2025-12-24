@@ -126,7 +126,19 @@ const handler = async (req, res) => {
       console.log(`✅ File type validated: ${fileName} -> ${uploadType}`);
 
       // Parse tradeDate from filename (preferred) or use provided date
-      const tradeDateFromFilename = parseDateFromFilename(fileName);
+      let tradeDateFromFilename = null;
+      try {
+        tradeDateFromFilename = parseDateFromFilename(fileName);
+      } catch (error) {
+        console.error(`❌ Error parsing date from filename "${fileName}":`, error.message);
+        // If filename parsing fails, show error to user
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid filename date format',
+          message: `Cannot extract date from filename "${fileName}". ${error.message}. Please ensure the filename contains a valid date in DDMMYYYY format (e.g., CM_52_wk_High_low_22122025.csv).`
+        });
+      }
+      
       let tradeDate = tradeDateFromFilename || date || new Date().toISOString().split('T')[0];
       
       // Validate and normalize date format (must be YYYY-MM-DD)
@@ -149,9 +161,23 @@ const handler = async (req, res) => {
         }
       }
       
-      // Final fallback to today if still invalid
+      // Final validation - if still invalid, return error (don't silently use today)
       if (!tradeDate || !tradeDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        tradeDate = new Date().toISOString().split('T')[0];
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid date format',
+          message: `Invalid date format: "${tradeDate}". Expected YYYY-MM-DD format. Please provide a valid date.`
+        });
+      }
+      
+      // Final validation of date values
+      const [year, month, day] = tradeDate.split('-').map(Number);
+      if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid date values',
+          message: `Invalid date values: ${tradeDate} (year=${year}, month=${month}, day=${day}). Year must be 2000-2100, month 1-12, day 1-31.`
+        });
       }
       
       console.log(`📅 Date validation: filename="${fileName}", parsed="${tradeDateFromFilename}", provided="${date}", final="${tradeDate}"`);
@@ -239,7 +265,9 @@ const handler = async (req, res) => {
 
       // For large files, don't store all rows in metadata document
       // Store only a sample or empty array - actual data goes to daily collection
-      const maxRowsInMetadata = 100; // Store max 100 rows in metadata for small files
+      // NOTE: maxRowsInMetadata only affects the indices array stored in metadata
+      // The rowCount field always stores the ACTUAL total count of all rows
+      const maxRowsInMetadata = 100; // Store max 100 rows in metadata for small files (for preview only)
       const indicesForMetadata = isLargeFileBySize ? [] : (indices || []).slice(0, maxRowsInMetadata);
 
       const dataToSave = {
@@ -247,8 +275,10 @@ const handler = async (req, res) => {
         date: tradeDate, // Use tradeDate (from filename or provided)
         tradeDate: tradeDate, // Explicit tradeDate field
         type: uploadType, // Canonical type from detection
-        indices: indicesForMetadata, // Only store sample for large files
-        indicesCount: rowCount, // Keep for backward compatibility
+        indices: indicesForMetadata, // Only store sample for large files (for preview only)
+        // CRITICAL: Both indicesCount and rowCount must reflect the ACTUAL total count
+        // NOT the sliced metadata array length (which is capped at 100)
+        indicesCount: finalRowCount, // Use finalRowCount (actual total, not metadata array length)
         rowCount: finalRowCount, // Use finalRowCount (includes _originalCount for large files)
         mood: mood || null,
         vix: vix || null,
@@ -350,6 +380,8 @@ const handler = async (req, res) => {
       if (existingFile) {
         // File already exists - update it instead of creating duplicate
         console.log(`⚠️ File already exists: ${fileName} (${tradeDate}). Updating existing record...`);
+        console.log(`   Old values: rowCount=${existingFile.rowCount}, indicesCount=${existingFile.indicesCount}`);
+        console.log(`   New values: rowCount=${dataToSave.rowCount}, indicesCount=${dataToSave.indicesCount}`);
         result = await collection.updateOne(
           { _id: existingFile._id },
           { 
@@ -361,7 +393,13 @@ const handler = async (req, res) => {
         );
         documentId = existingFile._id;
         isDuplicate = true;
-        console.log(`✅ Updated existing file record: ${documentId}`);
+        console.log(`✅ Updated existing file record: ${documentId} (matched: ${result.matchedCount}, modified: ${result.modifiedCount})`);
+        
+        // Verify the update actually changed the rowCount
+        const updatedDoc = await collection.findOne({ _id: existingFile._id });
+        if (updatedDoc) {
+          console.log(`   Verified update: rowCount=${updatedDoc.rowCount}, indicesCount=${updatedDoc.indicesCount}`);
+        }
       } else {
         // New file - insert it
         result = await collection.insertOne(dataToSave);
@@ -730,6 +768,243 @@ const handler = async (req, res) => {
         });
       } else {
         // Multiple documents or full=true - return in save-uploaded-data GET format
+        // When querying all files (no date/id), aggregate counts by date to handle chunked uploads
+        if (!date && !id) {
+          // Aggregate by date to sum counts from multiple chunks
+          console.log(`📊 Aggregating documents by date for type: ${uploadType}`);
+          
+          try {
+            // Build valid query for aggregation (only filter invalid dates, no date/id specific filters)
+            const aggregationMatch = {
+              date: {
+                $regex: /^\d{4}-\d{2}-\d{2}$/,
+                $exists: true,
+                $ne: null,
+                $type: 'string'
+              }
+            };
+            
+            // Use MongoDB aggregation to group by date and sum counts
+            const aggregatedData = await collection.aggregate([
+              // Filter out invalid dates (e.g., "2212-20-25")
+              { $match: aggregationMatch },
+              // Sort by uploadedAt descending to get most recent document first in each group
+              { $sort: { uploadedAt: -1 } },
+              {
+                $group: {
+                  _id: '$date',
+                  // CRITICAL: Sum rowCount from all chunks (this is the primary count field)
+                  totalRowCount: {
+                    $sum: {
+                      $ifNull: ['$rowCount', 0]
+                    }
+                  },
+                  // Also sum indicesCount (for backward compatibility with old documents)
+                  totalIndicesCount: {
+                    $sum: {
+                      $ifNull: ['$indicesCount', 0]
+                    }
+                  },
+                  // Keep the most recent document for metadata (first after sort)
+                  latestDoc: { $first: '$$ROOT' },
+                  // Keep the latest uploadedAt for display
+                  latestUploadedAt: { $max: '$uploadedAt' },
+                  // Count how many chunks
+                  chunkCount: { $sum: 1 }
+                }
+              },
+              {
+                $sort: { latestUploadedAt: -1 }
+              }
+            ]).toArray();
+
+            console.log(`📊 Aggregated ${aggregatedData.length} unique dates from collection ${collection.collectionName}`);
+            
+            // Debug: Log aggregation results for first few dates
+            aggregatedData.slice(0, 5).forEach(agg => {
+              console.log(`🔍 Aggregation result for ${agg._id}: totalRowCount=${agg.totalRowCount}, totalIndicesCount=${agg.totalIndicesCount}, chunkCount=${agg.chunkCount}`);
+              if (agg.latestDoc) {
+                console.log(`   Latest doc: rowCount=${agg.latestDoc.rowCount}, indicesCount=${agg.latestDoc.indicesCount}, fileName=${agg.latestDoc.fileName}, uploadedAt=${agg.latestDoc.uploadedAt}`);
+              }
+            });
+            
+            // Debug: Log all documents for dates with suspicious counts (e.g., exactly 100)
+            aggregatedData.forEach(agg => {
+              if (agg.totalRowCount === 100 || agg.totalIndicesCount === 100) {
+                console.warn(`⚠️ Suspicious count of 100 for date ${agg._id}: totalRowCount=${agg.totalRowCount}, totalIndicesCount=${agg.totalIndicesCount}, chunkCount=${agg.chunkCount}`);
+                if (agg.latestDoc) {
+                  console.warn(`   Latest doc details: rowCount=${agg.latestDoc.rowCount}, indicesCount=${agg.latestDoc.indicesCount}, fileName=${agg.latestDoc.fileName}, uploadedAt=${agg.latestDoc.uploadedAt}`);
+                }
+              }
+            });
+
+            const formattedData = await Promise.all(aggregatedData.map(async (agg) => {
+              const doc = agg.latestDoc;
+              // CRITICAL: Use the aggregated sum, prefer totalRowCount (sum of rowCount from all chunks)
+              // Fall back to totalIndicesCount for backward compatibility
+              // This ensures we get the correct sum across all chunks for the same date
+              let aggregatedCount = agg.totalRowCount > 0 
+                ? agg.totalRowCount 
+                : (agg.totalIndicesCount > 0 ? agg.totalIndicesCount : 0);
+              
+              // HACK: If count is suspicious (100 for indices, 0 for 52w when file exists), fetch actual count from daily collection
+              if (uploadType === 'indices' && aggregatedCount === 100) {
+                try {
+                  const { getDailyIndicesCollection } = require('./lib/mongodb');
+                  const dailyCollection = await getDailyIndicesCollection();
+                  const actualCount = await dailyCollection.countDocuments({ date: agg._id });
+                  if (actualCount > 0 && actualCount !== 100) {
+                    console.log(`⚠️ HACK: Correcting indices count from 100 to ${actualCount} for date ${agg._id}`);
+                    aggregatedCount = actualCount;
+                  }
+                } catch (err) {
+                  console.warn(`⚠️ Could not fetch daily_indices count for ${agg._id}:`, err.message);
+                }
+              } else if (uploadType === '52w' && aggregatedCount === 0 && doc.fileName && doc.fileName !== 'Unknown') {
+                // For 52W, if count is 0 but file exists, try counting from metadata array or check if it's a parsing issue
+                // Note: 52W doesn't use daily collection, data is only in metadata
+                // If file exists but count is 0, it means parsing failed - count stays 0
+                console.warn(`⚠️ 52W file exists but count is 0 for date ${agg._id}, fileName: ${doc.fileName}`);
+              }
+              
+              // Debug log for dates with multiple chunks to verify aggregation
+              if (agg.chunkCount > 1) {
+                console.log(`📊 Date ${agg._id}: ${agg.chunkCount} chunks, aggregated count=${aggregatedCount} (totalRowCount=${agg.totalRowCount}, totalIndicesCount=${agg.totalIndicesCount})`);
+              }
+              
+              // For display, use the latest document's fileName and other metadata
+              let stocks = 
+                Array.isArray(doc.indices) ? doc.indices :
+                Array.isArray(doc.records) ? doc.records :
+                Array.isArray(doc.normalized?.stocks) ? doc.normalized.stocks :
+                [];
+              
+              const metadataCount = stocks.length;
+              
+              // If we need full data, fetch from daily collection using the aggregated count
+              if (full === 'true' && aggregatedCount > metadataCount) {
+                try {
+                  const { getDailyIndicesCollection, getDailyBhavcopyCollection, getPreMarketDataCollection } = require('./lib/mongodb');
+                  let dailyCollection;
+                  
+                  if (uploadType === 'bhav') {
+                    dailyCollection = await getDailyBhavcopyCollection();
+                    const dailyDocs = await dailyCollection.find({ 
+                      date: agg._id
+                    }).toArray();
+                    if (dailyDocs.length > 0) {
+                      stocks = dailyDocs;
+                      console.log(`📊 Fetched ${dailyDocs.length} rows from daily_bhavcopy for date ${agg._id}`);
+                    }
+                  } else if (uploadType === 'premarket') {
+                    dailyCollection = await getPreMarketDataCollection();
+                    const dailyDocs = await dailyCollection.find({ 
+                      date: agg._id
+                    }).toArray();
+                    if (dailyDocs.length > 0) {
+                      stocks = dailyDocs;
+                      console.log(`📊 Fetched ${dailyDocs.length} rows from premarket_data for date ${agg._id}`);
+                    }
+                  } else if (uploadType === 'indices') {
+                    dailyCollection = await getDailyIndicesCollection();
+                    const dailyDocs = await dailyCollection.find({ 
+                      date: agg._id
+                    }).toArray();
+                    if (dailyDocs.length > 0) {
+                      stocks = dailyDocs;
+                      console.log(`📊 Fetched ${dailyDocs.length} rows from daily_indices for date ${agg._id}`);
+                    }
+                  }
+                } catch (error) {
+                  console.warn(`⚠️ Error fetching from daily collection for date ${agg._id}:`, error.message);
+                  // Continue with metadata rows if daily fetch fails
+                }
+              }
+              
+              return {
+                id: doc._id.toString(),
+                fileName: doc.fileName || 'Unknown',
+                date: agg._id,
+                type: doc.type || uploadType,
+                indicesCount: aggregatedCount, // Use aggregated sum (sum of all chunks)
+                rowCount: aggregatedCount, // Use aggregated sum (sum of all chunks)
+                count: aggregatedCount, // Also include 'count' field for backward compatibility
+                totalCount: aggregatedCount, // Explicit totalCount field for frontend
+                indices: full === 'true' ? stocks : undefined,
+                uploadedAt: agg.latestUploadedAt || doc.uploadedAt,
+                updatedAt: doc.updatedAt || agg.latestUploadedAt || doc.uploadedAt,
+                mood: doc.mood || null,
+                source: doc.source || 'uploaded',
+                _chunkCount: agg.chunkCount // Debug info
+              };
+            }));
+
+            const totalChunks = aggregatedData.reduce((sum, agg) => sum + (agg.chunkCount || 1), 0);
+            console.log(`✅ Returning ${formattedData.length} aggregated entries (summed ${totalChunks} total chunks)`);
+            
+            return res.status(200).json({
+              success: true,
+              data: formattedData,
+              count: formattedData.length
+            });
+          } catch (aggError) {
+            console.error('❌ Error during aggregation, falling back to individual documents:', aggError);
+            console.error('Aggregation error details:', {
+              message: aggError.message,
+              stack: aggError.stack,
+              name: aggError.name,
+              uploadType: uploadType
+            });
+            
+            // Check if it's a connection error - if so, return error response
+            if (aggError.name === 'MongoServerError' || aggError.name === 'MongoNetworkError' || aggError.name === 'MongoTimeoutError') {
+              console.error('❌ MongoDB connection error during aggregation');
+              return res.status(200).json({
+                success: false,
+                data: [],
+                count: 0,
+                error: 'Database connection error',
+                errorType: aggError.name || 'DatabaseError',
+                message: 'Failed to connect to MongoDB during aggregation. Please check your connection settings.'
+              });
+            }
+            
+            // For other aggregation errors, fall through to original logic
+            // Documents are already fetched, so we can use them
+          }
+        }
+        
+        // Fallback: Original logic for specific date/id queries or if aggregation fails
+        // Note: documents should already be populated from earlier query
+        if (!documents || documents.length === 0) {
+          // If documents weren't fetched yet (shouldn't happen, but safety check)
+          try {
+            documents = await collection
+              .find(query)
+              .sort({ uploadedAt: -1 })
+              .toArray();
+              
+            // Filter invalid dates
+            documents = documents.filter(doc => {
+              if (!doc.date) return false;
+              const dateStr = String(doc.date);
+              const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+              if (!dateMatch) return false;
+              const [, year, month, day] = dateMatch.map(Number);
+              return year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+            });
+          } catch (error) {
+            console.error('❌ Error fetching documents in fallback:', error);
+            return res.status(200).json({
+              success: false,
+              data: [],
+              count: 0,
+              error: error.message || 'Failed to fetch documents',
+              errorType: error.name || 'UnknownError'
+            });
+          }
+        }
+        
         const formattedData = await Promise.all(documents.map(async (doc) => {
           let stocks = 
             Array.isArray(doc.indices) ? doc.indices :
@@ -1132,25 +1407,62 @@ const handler = async (req, res) => {
       // Find documents, sort by most recent first
       let documents = [];
       try {
+        // Filter out invalid dates in the query (backup to aggregation filter)
+        const validQuery = { ...query };
+        if (!validQuery.date && !validQuery._id) {
+          // Only filter invalid dates if we're not querying by a specific date or ID
+          validQuery.date = {
+            $regex: /^\d{4}-\d{2}-\d{2}$/,
+            $exists: true,
+            $ne: null
+          };
+        }
+        
         documents = await collection
-          .find(query)
+          .find(validQuery)
           .sort({ uploadedAt: -1 })
           .toArray();
+          
+        // Additional client-side filter for invalid dates (backup)
+        documents = documents.filter(doc => {
+          if (!doc.date) return false;
+          const dateStr = String(doc.date);
+          const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (!dateMatch) return false;
+          const [, year, month, day] = dateMatch.map(Number);
+          // Validate date ranges
+          return year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+        });
       } catch (error) {
         console.error(`❌ Error querying collection ${uploadType}:`, error);
         console.error('Query:', JSON.stringify(query, null, 2));
         console.error('Error stack:', error.stack);
+        console.error('Error name:', error.name);
+        
+        // Check if it's a connection error
+        if (error.name === 'MongoServerError' || error.name === 'MongoNetworkError' || error.name === 'MongoTimeoutError') {
+          console.error('❌ MongoDB connection error - returning empty data');
+          return res.status(200).json({
+            success: false,
+            data: [],
+            count: 0,
+            error: 'Database connection error',
+            errorType: error.name || 'DatabaseError',
+            message: 'Failed to connect to MongoDB. Please check your connection settings.'
+          });
+        }
+        
         // Return 200 with error info instead of 500, so frontend can handle gracefully
         return res.status(200).json({
           success: false,
           data: [],
           count: 0,
-          error: error.message,
+          error: error.message || 'Unknown error occurred',
           errorType: error.name || 'UnknownError'
         });
       }
       
-      console.log(`Found ${documents.length} documents for type: ${uploadType}`);
+      console.log(`Found ${documents.length} valid documents for type: ${uploadType} (after filtering invalid dates)`);
 
       // Check if full data is requested (for loading into UI)
       if (full === 'true') {
