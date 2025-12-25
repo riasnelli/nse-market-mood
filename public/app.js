@@ -7899,7 +7899,7 @@ class MarketMoodApp {
                 date: new Date().toISOString().split('T')[0],
                 signalsInfo: null,
                 dataAvailability: null,
-                strategy: { strategy: this.selectedStrategy || 'momentum_gap' }
+                strategy: this.selectedStrategy || 'momentum_gap'
             });
             
             // Resolve signals context BEFORE loading signals (never call loadSignals with null)
@@ -9092,7 +9092,16 @@ class MarketMoodApp {
         if (date !== undefined) this._signalsStatusData.date = date;
         if (signalsInfo !== undefined) this._signalsStatusData.signalsInfo = signalsInfo;
         if (dataAvailability !== undefined) this._signalsStatusData.dataAvailability = dataAvailability;
-        if (strategy !== undefined) this._signalsStatusData.strategy = strategy;
+        // Normalize strategy to always be a string (extract from object if needed)
+        if (strategy !== undefined) {
+            if (typeof strategy === 'string') {
+                this._signalsStatusData.strategy = strategy;
+            } else if (strategy && typeof strategy === 'object' && strategy.strategy) {
+                this._signalsStatusData.strategy = strategy.strategy;
+            } else {
+                this._signalsStatusData.strategy = strategy;
+            }
+        }
         if (backendMessage !== undefined) this._signalsStatusData.backendMessage = backendMessage;
         if (mode !== undefined) this._signalsStatusData.mode = mode;
         if (refDate !== undefined) this._signalsStatusData.refDate = refDate;
@@ -9101,7 +9110,11 @@ class MarketMoodApp {
         // Prioritize new parameters over stored data
         const targetDate = date || this._signalsStatusData.date || new Date().toISOString().split('T')[0];
         const signals = signalsInfo || this._signalsStatusData.signalsInfo;
-        const strategyInfo = strategy !== undefined ? strategy : this._signalsStatusData.strategy;
+        // Normalize strategy - extract string from object if needed, prioritize new parameter
+        let strategyInfo = strategy !== undefined ? strategy : this._signalsStatusData.strategy;
+        if (strategyInfo && typeof strategyInfo === 'object' && strategyInfo.strategy) {
+            strategyInfo = strategyInfo.strategy;
+        }
         const message = backendMessage || signals?.message || this._signalsStatusData.backendMessage || '';
         const refDateValue = refDate !== undefined ? refDate : this._signalsStatusData.refDate;
 
