@@ -3146,6 +3146,11 @@ class MarketMoodApp {
                     if (this.currentView === 'signals') {
                         // Get current signal date from status data or resolve it
                         const currentDate = this._signalsStatusData?.date || null;
+                        // Immediately update status to show new strategy
+                        this.updateSignalsStatus({
+                            strategy: finalSelectedId
+                        });
+                        // Then reload signals with new strategy
                         this.loadSignals(currentDate, finalSelectedId);
                     }
                     return;
@@ -9093,11 +9098,12 @@ class MarketMoodApp {
         if (refDate !== undefined) this._signalsStatusData.refDate = refDate;
 
         // Use stored data with fallbacks
-        const targetDate = this._signalsStatusData.date || date || new Date().toISOString().split('T')[0];
-        const signals = this._signalsStatusData.signalsInfo || signalsInfo;
-        const strategyInfo = this._signalsStatusData.strategy || strategy;
-        const message = this._signalsStatusData.backendMessage || backendMessage || signals?.message || '';
-        const refDateValue = this._signalsStatusData.refDate || refDate;
+        // Prioritize new parameters over stored data
+        const targetDate = date || this._signalsStatusData.date || new Date().toISOString().split('T')[0];
+        const signals = signalsInfo || this._signalsStatusData.signalsInfo;
+        const strategyInfo = strategy !== undefined ? strategy : this._signalsStatusData.strategy;
+        const message = backendMessage || signals?.message || this._signalsStatusData.backendMessage || '';
+        const refDateValue = refDate !== undefined ? refDate : this._signalsStatusData.refDate;
 
         // Determine signals engine status
         let engineStatus = 'Temporarily unavailable — showing strategy only.';
