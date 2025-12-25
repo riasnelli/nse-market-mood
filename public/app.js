@@ -1309,6 +1309,16 @@ class MarketMoodApp {
                     this.lastSuccessfulStatus = data.marketStatus;
                     this.consecutiveFailures = 0; // Reset failure counter on success
                     console.log('Market status from API:', this.lastMarketStatus);
+                    
+                    // If market is closed and we have no indices, try to load last day's data
+                    if (!data.marketStatus.isOpen && !hasValidIndices) {
+                        console.log('🔄 Market is closed and no indices available. Loading last day data from database...');
+                        const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
+                        if (loadedFromDb) {
+                            console.log('✅ Loaded last day indices from database');
+                            return; // Exit early, data already displayed
+                        }
+                    }
                 } else {
                     // Invalid data (missing mood or marketStatus) - increment failure counter
                     console.warn(`API responded but no valid NSE mood data (${this.consecutiveFailures + 1}/${this.maxFailures} failures). Keeping last known status.`);
@@ -1342,19 +1352,37 @@ class MarketMoodApp {
                 this.consecutiveFailures = 0;
                 
                 if (!hasValidIndices) {
-                    console.warn('⚠️ Partial data available: indices temporarily unavailable, but showing mood/advanceDecline/marketStatus data');
+                    console.warn('⚠️ API returned valid data but no indices. Trying to load last day data from database...');
+                    
+                    // Try to load last available indices from database
+                    const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
+                    
+                    if (loadedFromDb) {
+                        // Successfully loaded from database, data is already displayed
+                        console.log('✅ Loaded indices from database as fallback');
+                        return; // Exit early, data already displayed
+                    } else {
+                        // No database data, show partial data (mood/advanceDecline only)
+                        console.warn('⚠️ Partial data available: indices temporarily unavailable, but showing mood/advanceDecline/marketStatus data');
+                    }
                 }
                 console.log('Updating UI with fresh data from API');
                 // Update data source display for API (pass data to show correct timestamp and market status)
                 this.updateDataSourceDisplay('api', data);
                 this.updateUI(data);
             } else {
-                // No valid data (missing mood or marketStatus) - show empty state
-                console.warn('No valid NSE mood data received from API');
-                // Update data source display for API (pass data even if invalid to show status)
-                this.updateDataSourceDisplay('api', data);
-                // Use mock data as fallback only for NSE API
-                this.useMockData();
+                // No valid data (missing mood or marketStatus) - try database fallback
+                console.warn('No valid NSE mood data received from API. Trying database fallback...');
+                
+                // Try to load last available data from database
+                const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
+                
+                if (!loadedFromDb) {
+                    // Update data source display for API (pass data even if invalid to show status)
+                    this.updateDataSourceDisplay('api', data);
+                    // Use mock data as fallback only if no database data
+                    this.useMockData();
+                }
             }
 
         } catch (error) {
@@ -1396,8 +1424,14 @@ class MarketMoodApp {
                 }
             }
             
-            // Use mock data as fallback only for NSE API
-            this.useMockData();
+            // Try to load last available data from database as fallback
+            console.log('🔄 API failed, trying to load last available data from database...');
+            const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
+            
+            if (!loadedFromDb) {
+                // No database data available, show empty state
+                this.useMockData();
+            }
             // Update timestamp on error
             this.updateLastUpdated(new Date());
         } finally {
@@ -1405,9 +1439,87 @@ class MarketMoodApp {
         }
     }
 
-    useMockData() {
-        console.log('No data available - showing empty state');
-        this.showNoDataState();
+    /**
+     * Try to load last available data from database as fallback
+     */
+    async loadLastAvailableDataFromDatabase() {
+        try {
+            console.log('🔄 Attempting to load last available data from database...');
+            
+            // First, get available dates
+            const datesResponse = await fetch('/api/data?action=dates');
+            const datesResult = await datesResponse.json();
+            
+            if (datesResult.success && datesResult.data && datesResult.data.length > 0) {
+                // Get the most recent date
+                const dates = datesResult.data.map(item => item.date).filter((date, index, self) => self.indexOf(date) === index).sort();
+                const lastDate = dates[dates.length - 1]; // Most recent date
+                
+                console.log(`📅 Found ${dates.length} available dates. Loading most recent: ${lastDate}`);
+                
+                // Load data for the most recent date
+                const dataResponse = await fetch(`/api/data?action=get&date=${lastDate}&full=true`);
+                const dataResult = await dataResponse.json();
+                
+                if (dataResult.success && dataResult.data && dataResult.data.length > 0) {
+                    const data = dataResult.data[0];
+                    
+                    if (data.indices && data.indices.length > 0) {
+                        // Format data to match expected structure
+                        const formattedData = {
+                            indices: data.indices,
+                            mood: data.mood,
+                            vix: data.vix,
+                            advanceDecline: data.advanceDecline,
+                            fileName: data.fileName,
+                            date: data.date,
+                            source: 'database',
+                            timestamp: data.uploadedAt,
+                            marketStatus: {
+                                isOpen: false,
+                                verified: true,
+                                reason: 'DATABASE_FALLBACK',
+                                timestamp: data.uploadedAt || new Date().toISOString()
+                            }
+                        };
+                        
+                        console.log(`✅ Loaded ${data.indices.length} indices from database for ${lastDate}`);
+                        
+                        // Update UI with database data
+                        this.updateDataSourceDisplay('database', formattedData);
+                        this.updateUI(formattedData);
+                        
+                        // Store as last successful status
+                        this.lastMarketStatus = formattedData.marketStatus;
+                        this.lastSuccessfulStatus = formattedData.marketStatus;
+                        
+                        // Also save to localStorage for consistency
+                        localStorage.setItem('uploadedIndicesData', JSON.stringify(formattedData));
+                        
+                        return true; // Successfully loaded
+                    }
+                }
+            }
+            
+            console.log('⚠️ No data available in database');
+            return false; // No data available
+        } catch (error) {
+            console.error('❌ Error loading last available data from database:', error);
+            return false; // Error occurred
+        }
+    }
+
+    async useMockData() {
+        console.log('No data available - trying to load from database first...');
+        
+        // Try to load last available data from database first
+        const loaded = await this.loadLastAvailableDataFromDatabase();
+        
+        if (!loaded) {
+            // If no database data, show empty state
+            console.log('No database data available - showing empty state');
+            this.showNoDataState();
+        }
     }
 
     showNoDataState() {
