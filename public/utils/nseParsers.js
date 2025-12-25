@@ -916,9 +916,9 @@ function parseNseDateFromFilename(fileName) {
     }
 
     // Pattern 1: DDMMYYYY (8 digits) - most common for NSE files
-    const ddmmyyyyMatch = fileName.match(/(\d{2})(\d{2})(\d{4})/);
-    if (ddmmyyyyMatch) {
-        const [, dd, mm, yyyy] = ddmmyyyyMatch;
+    const ddmmyyyyMatchFile = fileName.match(/(\d{2})(\d{2})(\d{4})/);
+    if (ddmmyyyyMatchFile) {
+        const [, dd, mm, yyyy] = ddmmyyyyMatchFile;
         const day = Number(dd);
         const month = Number(mm);
         const year = Number(yyyy);
@@ -972,9 +972,9 @@ function parseNseDateFromFilename(fileName) {
     }
 
     // Pattern 4: DD-MMM-YYYY
-    const ddmmyyyyMatch = fileName.match(/(\d{2})-([A-Z]{3})-(\d{4})/i);
-    if (ddmmyyyyMatch) {
-        const [, day, monthStr, year] = ddmmyyyyMatch;
+    const ddmmyyyyMatchHyphen = fileName.match(/(\d{2})-([A-Z]{3})-(\d{4})/i);
+    if (ddmmyyyyMatchHyphen) {
+        const [, day, monthStr, year] = ddmmyyyyMatchHyphen;
         const monthMap = {
             'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
             'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',

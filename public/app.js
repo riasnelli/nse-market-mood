@@ -5913,9 +5913,11 @@ class MarketMoodApp {
                             } else if (file.indicesCount && file.indicesCount !== 100) {
                                 finalCount = file.indicesCount;
                                 console.warn(`⚠️ Corrected count from 100 to ${finalCount} using indicesCount for ${normalizedDate} (file: ${file.fileName})`);
-                            // Note: Frontend can't directly query database, so we rely on backend fix
-                            // For immediate fix: commit and push code so Railway/Vercel deploys backend changes
-                            console.warn(`⚠️ Count is 100 for ${normalizedDate} - backend needs to be redeployed to fix this`);
+                            } else {
+                                // Note: Frontend can't directly query database, so we rely on backend fix
+                                // For immediate fix: commit and push code so Railway/Vercel deploys backend changes
+                                console.warn(`⚠️ Count is 100 for ${normalizedDate} - backend needs to be redeployed to fix this`);
+                            }
                         }
                         
                         // CRITICAL: Only set data if count > 0 AND file has valid fileName AND is not a bhavcopy file
