@@ -44,18 +44,22 @@ const apiRoutes = [
   { path: 'admin', file: 'admin.js' }
 ];
 
-// Add a test route first to verify server is working
+// CRITICAL: Add test routes FIRST, before anything else
+// These should work if server.js is running
+console.log('🔧 Registering test routes...');
 app.get('/api/test', (req, res) => {
+  console.log('✅ /api/test route hit!');
   res.json({ 
     success: true, 
     message: 'Server is running',
     timestamp: new Date().toISOString(),
-    nodeVersion: process.version
+    nodeVersion: process.version,
+    serverFile: 'server.js'
   });
 });
 
-// Debug route to test /api/data path matching
 app.get('/api/data-test', (req, res) => {
+  console.log('✅ /api/data-test route hit!');
   res.json({
     success: true,
     message: 'Data route test endpoint',
@@ -64,6 +68,8 @@ app.get('/api/data-test', (req, res) => {
     query: req.query
   });
 });
+
+console.log('✅ Test routes registered');
 
 // Mount API routes BEFORE static files and catch-all
 console.log('🔌 Loading API routes...');
