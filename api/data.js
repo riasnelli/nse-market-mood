@@ -8,7 +8,12 @@ const {
 const { ObjectId } = require('mongodb');
 const { authMiddleware } = require('./lib/auth');
 const { validateFileType, detectFileType, parseDateFromFilename, getCanonicalType } = require('./lib/fileType');
-const { generateSignalsForDate } = require('./lib/signals/generateSignals');
+const { 
+  generateSignalsForDate, 
+  getNextTradingDay, 
+  getCurrentMood, 
+  selectStrategyFromMood 
+} = require('./lib/signals/generateSignals');
 
 const handler = async (req, res) => {
   // Set Content-Type header early to ensure JSON responses
@@ -573,14 +578,38 @@ const handler = async (req, res) => {
       if ((uploadType === 'bhav' || uploadType === 'premarket') && dataToSave.date) {
         try {
           console.log(`🔄 Triggering signal generation check for date: ${dataToSave.date}`);
+          
+          // Get mood-based strategy
+          let strategy = 'momentum_gap';
+          try {
+            const mood = await getCurrentMood();
+            strategy = selectStrategyFromMood(mood);
+            console.log(`📊 Selected strategy based on mood: ${strategy} (mood score: ${mood?.score || 'N/A'})`);
+          } catch (moodError) {
+            console.warn('⚠️ Error getting mood for strategy selection, using default:', moodError.message);
+          }
+          
+          // Determine target date for signal generation
+          // If market is closed (today), generate for tomorrow
+          const today = new Date().toISOString().split('T')[0];
+          const uploadDate = dataToSave.date;
+          let targetDate = uploadDate;
+          
+          // If upload date is today and market is closed, generate for tomorrow
+          if (uploadDate === today) {
+            const nextTradingDay = getNextTradingDay(today);
+            console.log(`📅 Market is closed today, generating signals for next trading day: ${nextTradingDay}`);
+            targetDate = nextTradingDay;
+          }
+          
           // Check if both bhav and premarket are now available for this date
           // If yes, generate signals; if no, signals_store will have INSUFFICIENT_DATA status
           // Note: For bhav uploads, we need yesterday's bhav + today's premarket
           // For premarket uploads, we need today's premarket + yesterday's bhav
           // Keep it simple: generate for the upload date (strategy will handle date logic internally)
-          await generateSignalsForDate(dataToSave.date, 'momentum_gap');
+          await generateSignalsForDate(targetDate, strategy);
           signalGenerationTriggered = true;
-          console.log(`✅ Signal generation triggered for ${dataToSave.date}`);
+          console.log(`✅ Signal generation triggered for ${targetDate} with strategy: ${strategy}`);
         } catch (signalError) {
           console.error('⚠️ Error triggering signal generation (non-fatal):', signalError.message);
           // Don't fail the upload if signal generation fails

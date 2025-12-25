@@ -32,6 +32,95 @@ function getYesterdayDate(todayDate) {
 }
 
 /**
+ * Get next trading day (tomorrow, skip weekends)
+ */
+function getNextTradingDay(todayDate) {
+  const date = new Date(todayDate);
+  date.setDate(date.getDate() + 1);
+  // Skip weekends - if tomorrow is Saturday, go to Monday
+  while (date.getDay() === 0 || date.getDay() === 6) {
+    date.setDate(date.getDate() + 1);
+  }
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Get current mood from database (most recent)
+ */
+async function getCurrentMood() {
+  try {
+    const indicesCollection = await getDailyIndicesCollection();
+    // Get most recent mood data
+    const latestData = await indicesCollection
+      .find({ mood: { $exists: true } })
+      .sort({ date: -1, uploadedAt: -1 })
+      .limit(1)
+      .toArray();
+    
+    if (latestData.length > 0 && latestData[0].mood) {
+      return latestData[0].mood;
+    }
+    
+    // Fallback: try uploaded data collection
+    const uploadedCollection = await getUploadedDataCollection('indices');
+    const uploadedData = await uploadedCollection
+      .find({ mood: { $exists: true } })
+      .sort({ date: -1, uploadedAt: -1 })
+      .limit(1)
+      .toArray();
+    
+    if (uploadedData.length > 0 && uploadedData[0].mood) {
+      return uploadedData[0].mood;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting current mood:', error);
+    return null;
+  }
+}
+
+/**
+ * Select strategy based on mood
+ * @param {Object} mood - Mood object with score property
+ * @returns {string} Strategy name
+ */
+function selectStrategyFromMood(mood) {
+  if (!mood || typeof mood.score !== 'number') {
+    // Default to momentum_gap if no mood data
+    return 'momentum_gap';
+  }
+  
+  const score = mood.score;
+  
+  // Strategy selection based on mood score:
+  // 0-30: Bearish -> Use momentum_gap (gap-up plays in bearish market)
+  // 31-50: Slightly Bearish/Neutral -> Use momentum_gap (default)
+  // 51-70: Slightly Bullish -> Use momentum_gap (gap-up plays work well)
+  // 71-100: Bullish -> Use momentum_gap (strong momentum plays)
+  
+  // For now, we use momentum_gap for all moods, but this can be extended
+  // to support other strategies like:
+  // - 'reversal' for bearish markets
+  // - 'breakout' for bullish markets
+  // - 'momentum_gap' for all (current default)
+  
+  if (score <= 30) {
+    // Very bearish - could use reversal strategy, but momentum_gap still works
+    return 'momentum_gap';
+  } else if (score <= 50) {
+    // Neutral to slightly bearish
+    return 'momentum_gap';
+  } else if (score <= 70) {
+    // Slightly bullish
+    return 'momentum_gap';
+  } else {
+    // Very bullish
+    return 'momentum_gap';
+  }
+}
+
+/**
  * Simple Momentum Gap signal generator
  * Filters EQ series stocks, finds gap-up near high candidates
  * This is a copy of the function from signals.js to avoid circular dependencies
@@ -569,6 +658,11 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
 
 module.exports = {
   generateSignalsForDate,
-  checkDataAvailability
+  generateSimpleMomentumGapSignals,
+  checkDataAvailability,
+  getYesterdayDate,
+  getNextTradingDay,
+  getCurrentMood,
+  selectStrategyFromMood
 };
 

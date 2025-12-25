@@ -8,7 +8,12 @@ const {
   getSignalsStoreCollection
 } = require('./lib/mongodb');
 const { authMiddleware } = require('./lib/auth');
-const { generateSignalsForDate } = require('./lib/signals/generateSignals');
+const { 
+  generateSignalsForDate, 
+  getNextTradingDay, 
+  getCurrentMood, 
+  selectStrategyFromMood 
+} = require('./lib/signals/generateSignals');
 
 // Try to load uuid, but don't fail if it's not available
 let uuidv4;
@@ -639,9 +644,34 @@ const handler = async (req, res) => {
       }
       
       // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get signals for a date (READ-ONLY)
-      const date = req.query.date || new Date().toISOString().split('T')[0];
-      const strategy = req.query.strategy || 'momentum_gap';
+      let date = req.query.date || new Date().toISOString().split('T')[0];
+      let strategy = req.query.strategy;
       const includeDebug = req.query.debug === '1' || process.env.NODE_ENV !== 'production';
+      
+      // Check if market is closed (no date specified or date is today)
+      const today = new Date().toISOString().split('T')[0];
+      const isToday = date === today;
+      
+      // If no strategy specified, get mood-based strategy
+      if (!strategy) {
+        try {
+          const mood = await getCurrentMood();
+          strategy = selectStrategyFromMood(mood);
+          if (DEBUG) {
+            console.log(`[SIGNALS API] Selected strategy based on mood: ${strategy} (mood score: ${mood?.score || 'N/A'})`);
+          }
+        } catch (error) {
+          console.warn('[SIGNALS API] Error getting mood, using default strategy:', error.message);
+          strategy = 'momentum_gap';
+        }
+      }
+      
+      // If market is closed (today) and no specific date requested, generate for tomorrow
+      if (isToday && !req.query.date) {
+        const nextTradingDay = getNextTradingDay(today);
+        console.log(`[SIGNALS API] Market is closed today (${today}), generating signals for next trading day: ${nextTradingDay}`);
+        date = nextTradingDay;
+      }
       
       if (DEBUG) {
         console.log(`[SIGNALS API] GET request - date: ${date}, strategy: ${strategy}, debug: ${includeDebug}`);
@@ -703,8 +733,62 @@ const handler = async (req, res) => {
           return res.status(200).json(response);
         }
 
-        // No signals found in store - return NO_DATA status
+        // No signals found in store - try to auto-generate if market is closed (tomorrow's date)
         if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store for ${date} (${strategy})`);
+        
+        // Auto-generate signals for tomorrow if market is closed today
+        const today = new Date().toISOString().split('T')[0];
+        const isTomorrow = date > today;
+        
+        if (isTomorrow) {
+          console.log(`[SIGNALS API] Auto-generating signals for tomorrow (${date}) with strategy: ${strategy}`);
+          try {
+            const result = await generateSignalsForDate(date, strategy);
+            
+            if (result.status === 'READY' || result.status === 'NO_MATCH') {
+              // Signals generated successfully, return them
+              const transformedSignals = Array.isArray(result.signals) ? result.signals.map(signal => ({
+                symbol: signal.symbol,
+                score: signal.score,
+                entry_price: signal.entry_price,
+                target_price: signal.target_price,
+                stop_loss: signal.stop_loss,
+                side: signal.side || 'BUY',
+                confidence_score: signal.confidence_score,
+                feature_fields: signal.feature_fields,
+                reason: signal.reason
+              })) : [];
+              
+              return res.status(200).json({
+                date: result.date,
+                strategy: result.strategy,
+                status: result.status,
+                signal_count: result.signal_count || 0,
+                signals: transformedSignals,
+                hasSignals: result.status === 'READY' && transformedSignals.length > 0,
+                message: result.message || 'Signals generated automatically for tomorrow',
+                missingFiles: result.missingFiles || null
+              });
+            } else {
+              // Generation failed (INSUFFICIENT_DATA, ERROR, etc.)
+              return res.status(200).json({
+                date: result.date || date,
+                strategy: result.strategy || strategy,
+                status: result.status || 'INSUFFICIENT_DATA',
+                signal_count: 0,
+                signals: [],
+                hasSignals: false,
+                message: result.message || 'Unable to generate signals. Required CSV data may be missing.',
+                missingFiles: result.missingFiles || null
+              });
+            }
+          } catch (genError) {
+            console.error('[SIGNALS API] Error auto-generating signals:', genError);
+            // Fall through to return NO_DATA
+          }
+        }
+        
+        // Return NO_DATA status if signals couldn't be generated or if it's not tomorrow
         return res.status(200).json({
           date: date,
           strategy: strategy,
@@ -712,7 +796,9 @@ const handler = async (req, res) => {
           signal_count: 0,
           signals: [],
           hasSignals: false,
-          message: 'No signals available for this date yet. Signals will be generated automatically after CSV uploads.'
+          message: isTomorrow 
+            ? 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).'
+            : 'No signals available for this date yet. Signals will be generated automatically after CSV uploads.'
         });
       } catch (error) {
         console.error('[SIGNALS API] Error retrieving signals:', error);
