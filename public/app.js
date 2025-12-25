@@ -8236,9 +8236,10 @@ class MarketMoodApp {
         signalsContainer.style.display = 'none';
         signalsContainer.innerHTML = '';
 
+        // Use provided strategy or current selection (define outside try for catch block access)
+        const selectedStrategy = strategy || this.selectedStrategy || 'momentum_gap';
+
         try {
-            // Use provided strategy or current selection
-            const selectedStrategy = strategy || this.selectedStrategy || 'momentum_gap';
             
             const targetDate = targetSignalDate;
             console.log('📅 Target date for signals:', targetDate);
@@ -8253,8 +8254,8 @@ class MarketMoodApp {
                 mode: undefined
             };
 
-            // Update status with target date
-            this.updateSignalsStatus({ date: targetDate });
+            // Update status with target date and strategy
+            this.updateSignalsStatus({ date: targetDate, strategy: selectedStrategy });
 
             // READ-ONLY: Only GET signals, no POST generation
             let url = `/api/signals?date=${targetDate}&strategy=${selectedStrategy}`;
@@ -8311,7 +8312,8 @@ class MarketMoodApp {
                                     },
                                     backendMessage: data.message,
                                     mode: 'strategy-only',
-                                    refDate: usedDates.refDate
+                                    refDate: usedDates.refDate,
+                                    strategy: selectedStrategy
                                 });
                                 signalsLoading.style.display = 'none';
                                 return;
@@ -8330,7 +8332,8 @@ class MarketMoodApp {
                             },
                             backendMessage: data.message,
                             mode: (data.status === 'READY' && data.signals && data.signals.length > 0) ? 'signals' : 'strategy-only',
-                            refDate: usedDates.refDate
+                            refDate: usedDates.refDate,
+                            strategy: selectedStrategy
                         });
                     } catch (parseError) {
                         console.warn('⚠️ Failed to parse signals response as JSON:', parseError);
@@ -8555,14 +8558,15 @@ class MarketMoodApp {
             signalsContainer.style.display = 'none';
             signalsEmpty.style.display = 'none';
             
-            // Update status to show error
+            // Update status to show error (preserve strategy)
             this.updateSignalsStatus({
                 signalsInfo: {
                     hasSignals: false,
                     signals: [],
                     success: false,
                     message: 'Error loading signals'
-                }
+                },
+                strategy: selectedStrategy
             });
             
             let errorMessage = error.message || 'Failed to load signals. Please try again.';
