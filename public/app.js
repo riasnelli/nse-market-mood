@@ -7917,6 +7917,19 @@ class MarketMoodApp {
         return null;
     }
 
+    /**
+     * Get next trading day (skip weekends)
+     */
+    getNextTradingDay(todayDate) {
+        const date = new Date(todayDate);
+        date.setDate(date.getDate() + 1);
+        // Skip weekends - if tomorrow is Saturday, go to Monday
+        while (date.getDay() === 0 || date.getDay() === 6) {
+            date.setDate(date.getDate() + 1);
+        }
+        return date.toISOString().split('T')[0];
+    }
+
     async loadSignals(date = null) {
         console.log('📊 Loading signals, date:', date);
         
@@ -8003,10 +8016,31 @@ class MarketMoodApp {
                     }
                 }
                 
-                // Final fallback: Use today's date
+                // Final fallback: Use today's date or tomorrow if market is closed
                 if (!targetDate) {
-                    targetDate = new Date().toISOString().split('T')[0];
-                    console.log(`⚠️ No uploaded data found, using today's date: ${targetDate}`);
+                    const today = new Date().toISOString().split('T')[0];
+                    // Check if market is closed - if so, use tomorrow's date
+                    const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
+                    
+                    if (isMarketClosed) {
+                        // Get next trading day (skip weekends)
+                        targetDate = this.getNextTradingDay(today);
+                        console.log(`📅 Market is closed today (${today}), using next trading day: ${targetDate}`);
+                    } else {
+                        targetDate = today;
+                        console.log(`⚠️ No uploaded data found, using today's date: ${targetDate}`);
+                    }
+                } else {
+                    // If we have a target date, check if it's today and market is closed
+                    const today = new Date().toISOString().split('T')[0];
+                    if (targetDate === today) {
+                        const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
+                        if (isMarketClosed) {
+                            // Get next trading day
+                            targetDate = this.getNextTradingDay(today);
+                            console.log(`📅 Market is closed today, switching to next trading day: ${targetDate}`);
+                        }
+                    }
                 }
             }
 
