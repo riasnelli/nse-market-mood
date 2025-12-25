@@ -733,62 +733,70 @@ const handler = async (req, res) => {
           return res.status(200).json(response);
         }
 
-        // No signals found in store - try to auto-generate if market is closed (tomorrow's date)
+        // No signals found in store - try to auto-generate if data is available
         if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store for ${date} (${strategy})`);
         
-        // Auto-generate signals for tomorrow if market is closed today
-        const today = new Date().toISOString().split('T')[0];
-        const isTomorrow = date > today;
-        
-        if (isTomorrow) {
-          console.log(`[SIGNALS API] Auto-generating signals for tomorrow (${date}) with strategy: ${strategy}`);
-          try {
-            const result = await generateSignalsForDate(date, strategy);
+        // Always try to auto-generate signals if data is available
+        // This works for both today and tomorrow scenarios
+        console.log(`[SIGNALS API] Attempting to auto-generate signals for ${date} with strategy: ${strategy}`);
+        try {
+          const result = await generateSignalsForDate(date, strategy);
+          
+          if (result.status === 'READY' || result.status === 'NO_MATCH') {
+            // Signals generated successfully, return them
+            const transformedSignals = Array.isArray(result.signals) ? result.signals.map(signal => ({
+              symbol: signal.symbol,
+              score: signal.score,
+              entry_price: signal.entry_price,
+              target_price: signal.target_price,
+              stop_loss: signal.stop_loss,
+              side: signal.side || 'BUY',
+              confidence_score: signal.confidence_score,
+              feature_fields: signal.feature_fields,
+              reason: signal.reason
+            })) : [];
             
-            if (result.status === 'READY' || result.status === 'NO_MATCH') {
-              // Signals generated successfully, return them
-              const transformedSignals = Array.isArray(result.signals) ? result.signals.map(signal => ({
-                symbol: signal.symbol,
-                score: signal.score,
-                entry_price: signal.entry_price,
-                target_price: signal.target_price,
-                stop_loss: signal.stop_loss,
-                side: signal.side || 'BUY',
-                confidence_score: signal.confidence_score,
-                feature_fields: signal.feature_fields,
-                reason: signal.reason
-              })) : [];
-              
-              return res.status(200).json({
-                date: result.date,
-                strategy: result.strategy,
-                status: result.status,
-                signal_count: result.signal_count || 0,
-                signals: transformedSignals,
-                hasSignals: result.status === 'READY' && transformedSignals.length > 0,
-                message: result.message || 'Signals generated automatically for tomorrow',
-                missingFiles: result.missingFiles || null
-              });
-            } else {
-              // Generation failed (INSUFFICIENT_DATA, ERROR, etc.)
-              return res.status(200).json({
-                date: result.date || date,
-                strategy: result.strategy || strategy,
-                status: result.status || 'INSUFFICIENT_DATA',
-                signal_count: 0,
-                signals: [],
-                hasSignals: false,
-                message: result.message || 'Unable to generate signals. Required CSV data may be missing.',
-                missingFiles: result.missingFiles || null
-              });
-            }
-          } catch (genError) {
-            console.error('[SIGNALS API] Error auto-generating signals:', genError);
-            // Fall through to return NO_DATA
+            return res.status(200).json({
+              date: result.date,
+              strategy: result.strategy,
+              status: result.status,
+              signal_count: result.signal_count || 0,
+              signals: transformedSignals,
+              hasSignals: result.status === 'READY' && transformedSignals.length > 0,
+              message: result.message || 'Signals generated automatically',
+              missingFiles: result.missingFiles || null
+            });
+          } else if (result.status === 'INSUFFICIENT_DATA') {
+            // Data not available - return INSUFFICIENT_DATA status
+            return res.status(200).json({
+              date: result.date || date,
+              strategy: result.strategy || strategy,
+              status: 'INSUFFICIENT_DATA',
+              signal_count: 0,
+              signals: [],
+              hasSignals: false,
+              message: result.message || 'Required CSV data (bhavcopy and premarket) not available for this date.',
+              missingFiles: result.missingFiles || null
+            });
+          } else {
+            // Generation failed (ERROR, etc.)
+            return res.status(200).json({
+              date: result.date || date,
+              strategy: result.strategy || strategy,
+              status: result.status || 'ERROR',
+              signal_count: 0,
+              signals: [],
+              hasSignals: false,
+              message: result.message || 'Error generating signals. Please check logs.',
+              missingFiles: result.missingFiles || null
+            });
           }
+        } catch (genError) {
+          console.error('[SIGNALS API] Error auto-generating signals:', genError);
+          // Fall through to return NO_DATA
         }
         
-        // Return NO_DATA status if signals couldn't be generated or if it's not tomorrow
+        // Return NO_DATA status if signals couldn't be generated
         return res.status(200).json({
           date: date,
           strategy: strategy,
@@ -796,9 +804,7 @@ const handler = async (req, res) => {
           signal_count: 0,
           signals: [],
           hasSignals: false,
-          message: isTomorrow 
-            ? 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).'
-            : 'No signals available for this date yet. Signals will be generated automatically after CSV uploads.'
+          message: 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).'
         });
       } catch (error) {
         console.error('[SIGNALS API] Error retrieving signals:', error);
