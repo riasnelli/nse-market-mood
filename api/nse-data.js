@@ -113,7 +113,10 @@ async function checkMarketStatus(req) {
     const response = await Promise.race([fetchPromise, timeoutPromise]);
 
     if (!response.ok) {
-      return { isOpen: false, verified: false, reason: 'API_ERROR' };
+      // 403 Forbidden or other errors likely mean market is closed or API is blocking
+      const reason = response.status === 403 ? 'API_FORBIDDEN' : 'API_ERROR';
+      console.log(`Market status check failed: ${response.status} ${response.statusText} - likely market closed`);
+      return { isOpen: false, verified: true, reason: reason, timestamp: new Date().toISOString() };
     }
 
     const data = await response.json();
@@ -162,6 +165,10 @@ async function checkMarketStatus(req) {
 
   } catch (error) {
     console.error('Error checking market status:', error);
+    // If it's a 403 or network error, market is likely closed
+    if (error.message && (error.message.includes('403') || error.message.includes('Forbidden'))) {
+      return { isOpen: false, verified: true, reason: 'API_FORBIDDEN', timestamp: new Date().toISOString() };
+    }
     // Fallback to time-based check
     return checkMarketStatusByTime();
   }

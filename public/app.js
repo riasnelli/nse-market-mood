@@ -1310,13 +1310,15 @@ class MarketMoodApp {
                     this.consecutiveFailures = 0; // Reset failure counter on success
                     console.log('Market status from API:', this.lastMarketStatus);
                     
-                    // If market is closed and we have no indices, try to load last day's data
-                    if (!data.marketStatus.isOpen && !hasValidIndices) {
-                        console.log('🔄 Market is closed and no indices available. Loading last day data from database...');
+                    // If market is closed, always try to load last day's closing data
+                    if (!data.marketStatus.isOpen) {
+                        console.log('🔄 Market is closed. Loading last day closing data from database...');
                         const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
                         if (loadedFromDb) {
-                            console.log('✅ Loaded last day indices from database');
+                            console.log('✅ Loaded last day closing indices from database');
                             return; // Exit early, data already displayed
+                        } else {
+                            console.warn('⚠️ Market is closed but no database data available. Showing partial data.');
                         }
                     }
                 } else {
@@ -1351,7 +1353,18 @@ class MarketMoodApp {
                 // Reset failure count since we have valid mood data
                 this.consecutiveFailures = 0;
                 
-                if (!hasValidIndices) {
+                // Check if market is closed - if so, always try to load last day's data
+                if (!data.marketStatus.isOpen) {
+                    console.log('🔄 Market is closed. Loading last day closing data from database...');
+                    const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
+                    if (loadedFromDb) {
+                        console.log('✅ Loaded last day closing indices from database');
+                        return; // Exit early, data already displayed
+                    } else {
+                        console.warn('⚠️ Market is closed but no database data available. Showing partial data.');
+                    }
+                } else if (!hasValidIndices) {
+                    // Market is open but no indices - try database as fallback
                     console.warn('⚠️ API returned valid data but no indices. Trying to load last day data from database...');
                     
                     // Try to load last available indices from database
@@ -1424,12 +1437,23 @@ class MarketMoodApp {
                 }
             }
             
-            // Try to load last available data from database as fallback
-            console.log('🔄 API failed, trying to load last available data from database...');
+            // Check if market is closed based on last known status or time
+            const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
+            
+            if (isMarketClosed) {
+                console.log('🔄 Market is closed (from last known status). Loading last day closing data from database...');
+            } else {
+                console.log('🔄 API failed, trying to load last available data from database...');
+            }
+            
             const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
             
             if (!loadedFromDb) {
                 // No database data available, show empty state
+                // But first, update market status if we detected it's closed
+                if (isMarketClosed && this.lastMarketStatus) {
+                    this.updateDataSourceDisplay('api', { marketStatus: this.lastMarketStatus });
+                }
                 this.useMockData();
             }
             // Update timestamp on error
