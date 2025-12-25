@@ -138,14 +138,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve index.html for all non-API routes (SPA routing) - MUST be last
 // Only match GET requests that aren't API routes
-app.get('*', (req, res, next) => {
-  // Don't serve HTML for API routes
+app.get('*', (req, res) => {
+  // Don't serve HTML for API routes - this should never be reached if routes are mounted correctly
   if (req.path.startsWith('/api/')) {
+    console.error(`❌ API route not found - catch-all reached: ${req.method} ${req.path}`);
     return res.status(404).json({ 
       success: false,
       error: 'API route not found',
       path: req.path,
-      method: req.method
+      method: req.method,
+      message: 'This error indicates routes were not mounted correctly. Check server logs.'
     });
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -164,19 +166,22 @@ server.listen(PORT, '0.0.0.0', () => {
   // Log all mounted routes for debugging
   console.log('\n📋 Mounted Routes:');
   let routeCount = 0;
-  app._router.stack.forEach((middleware) => {
-    if (middleware.route) {
-      const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
-      console.log(`   ${methods} ${middleware.route.path}`);
-      routeCount++;
-    } else if (middleware.name === 'router') {
-      console.log(`   Router: ${middleware.regexp}`);
-    } else if (middleware.regexp) {
-      console.log(`   Middleware: ${middleware.name || 'unnamed'} - ${middleware.regexp}`);
-    }
-  });
+  if (app._router && app._router.stack) {
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
+        console.log(`   ${methods} ${middleware.route.path}`);
+        routeCount++;
+      } else if (middleware.name === 'router') {
+        console.log(`   Router: ${middleware.regexp}`);
+      } else if (middleware.regexp && middleware.name) {
+        console.log(`   Middleware: ${middleware.name} - ${middleware.regexp}`);
+      }
+    });
+  }
   console.log(`\n✅ Total routes mounted: ${routeCount}`);
-  console.log(`✅ Test route: GET /api/test`);
+  console.log(`✅ Test routes: GET /api/test, GET /api/data-test`);
+  console.log(`✅ API routes loaded: ${loadedRoutes} successful, ${failedRoutes} failed`);
 });
 
 // Graceful shutdown
