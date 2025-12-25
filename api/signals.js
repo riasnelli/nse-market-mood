@@ -10,10 +10,15 @@ const {
 const { authMiddleware } = require('./lib/auth');
 const { 
   generateSignalsForDate, 
-  getNextTradingDay, 
   getCurrentMood, 
   selectStrategyFromMood 
 } = require('./lib/signals/generateSignals');
+const {
+  nextTradingDay,
+  prevTradingDay,
+  resolveSignalDates,
+  isTradingDay
+} = require('./lib/tradingCalendar');
 
 // Try to load uuid, but don't fail if it's not available
 let uuidv4;
@@ -644,13 +649,13 @@ const handler = async (req, res) => {
       }
       
       // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get signals for a date (READ-ONLY)
-      let date = req.query.date || new Date().toISOString().split('T')[0];
+      let targetDate = req.query.date || new Date().toISOString().split('T')[0];
       let strategy = req.query.strategy;
+      const mode = req.query.mode || 'PLAYBOOK';
       const includeDebug = req.query.debug === '1' || process.env.NODE_ENV !== 'production';
       
-      // Check if market is closed (no date specified or date is today)
-      const today = new Date().toISOString().split('T')[0];
-      const isToday = date === today;
+      // Resolve trading dates from targetDate
+      const { signalDate, refDate } = resolveSignalDates(targetDate);
       
       // If no strategy specified, get mood-based strategy
       if (!strategy) {
@@ -666,34 +671,51 @@ const handler = async (req, res) => {
         }
       }
       
-      // If market is closed (today) and no specific date requested, generate for tomorrow
-      if (isToday && !req.query.date) {
-        const nextTradingDay = getNextTradingDay(today);
-        console.log(`[SIGNALS API] Market is closed today (${today}), generating signals for next trading day: ${nextTradingDay}`);
-        date = nextTradingDay;
+      // Check if market is closed on signalDate
+      if (!isTradingDay(signalDate)) {
+        const adjustedSignalDate = nextTradingDay(signalDate);
+        const adjustedRefDate = prevTradingDay(adjustedSignalDate);
+        console.log(`[SIGNALS API] Market closed on ${signalDate}, using ${adjustedSignalDate}`);
+        return res.status(200).json({
+          targetDate,
+          signalDate: adjustedSignalDate,
+          refDate: adjustedRefDate,
+          strategy,
+          mode,
+          status: 'MARKET_CLOSED',
+          signal_count: 0,
+          signals: [],
+          hasSignals: false,
+          message: `Market closed on ${signalDate}. Signals available for ${adjustedSignalDate}.`,
+          usedDates: { targetDate, signalDate: adjustedSignalDate, refDate: adjustedRefDate }
+        });
       }
       
       if (DEBUG) {
-        console.log(`[SIGNALS API] GET request - date: ${date}, strategy: ${strategy}, debug: ${includeDebug}`);
+        console.log(`[SIGNALS API] GET request - targetDate: ${targetDate}, signalDate: ${signalDate}, refDate: ${refDate}, strategy: ${strategy}, mode: ${mode}`);
       }
       
       if (!mongoUri) {
         if (DEBUG) console.log('[SIGNALS API] MongoDB not configured, returning NO_DATA status');
         return res.status(200).json({
-          date: date,
-          strategy: strategy,
+          targetDate,
+          signalDate,
+          refDate,
+          strategy,
+          mode,
           status: 'NO_DATA',
           signal_count: 0,
           signals: [],
           hasSignals: false,
-          message: 'MongoDB not configured. Signals cannot be generated.'
+          message: 'MongoDB not configured. Signals cannot be generated.',
+          usedDates: { targetDate, signalDate, refDate }
         });
       }
 
       try {
         // Read from signals_store collection (new unified store)
         const signalsStoreCollection = await getSignalsStoreCollection();
-        const storedDoc = await signalsStoreCollection.findOne({ date, strategy });
+        const storedDoc = await signalsStoreCollection.findOne({ date: signalDate, strategy, mode });
         
         if (storedDoc) {
           // Return stored document with status
@@ -714,15 +736,19 @@ const handler = async (req, res) => {
           }
 
           const response = {
-            date: storedDoc.date,
+            targetDate,
+            signalDate: storedDoc.date || signalDate,
+            refDate: storedDoc.refDate || refDate,
             strategy: storedDoc.strategy,
+            mode: storedDoc.mode || mode,
             status: storedDoc.status, // READY | NO_MATCH | INSUFFICIENT_DATA | ERROR
             signal_count: storedDoc.signal_count || 0,
             signals: transformedSignals,
             hasSignals: storedDoc.status === 'READY' && transformedSignals.length > 0,
             message: storedDoc.message || 'Signals retrieved',
             missingFiles: storedDoc.missingFiles || null,
-            run_id: storedDoc.run_id || null
+            run_id: storedDoc.run_id || null,
+            usedDates: { targetDate, signalDate: storedDoc.date || signalDate, refDate: storedDoc.refDate || refDate }
           };
           
           // Include debug info if requested
@@ -734,13 +760,12 @@ const handler = async (req, res) => {
         }
 
         // No signals found in store - try to auto-generate if data is available
-        if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store for ${date} (${strategy})`);
+        if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store for ${signalDate} (${strategy}, ${mode})`);
         
         // Always try to auto-generate signals if data is available
-        // This works for both today and tomorrow scenarios
-        console.log(`[SIGNALS API] Attempting to auto-generate signals for ${date} with strategy: ${strategy}`);
+        console.log(`[SIGNALS API] Attempting to auto-generate signals for ${signalDate} with strategy: ${strategy}, mode: ${mode}`);
         try {
-          const result = await generateSignalsForDate(date, strategy);
+          const result = await generateSignalsForDate(targetDate, strategy, mode);
           
           if (result.status === 'READY' || result.status === 'NO_MATCH') {
             // Signals generated successfully, return them
@@ -757,38 +782,50 @@ const handler = async (req, res) => {
             })) : [];
             
             return res.status(200).json({
-              date: result.date,
+              targetDate: result.targetDate || targetDate,
+              signalDate: result.signalDate || signalDate,
+              refDate: result.refDate || refDate,
               strategy: result.strategy,
+              mode: result.mode || mode,
               status: result.status,
               signal_count: result.signal_count || 0,
               signals: transformedSignals,
               hasSignals: result.status === 'READY' && transformedSignals.length > 0,
               message: result.message || 'Signals generated automatically',
-              missingFiles: result.missingFiles || null
+              missingFiles: result.missingFiles || null,
+              usedDates: result.usedDates || { targetDate, signalDate, refDate }
             });
           } else if (result.status === 'INSUFFICIENT_DATA') {
             // Data not available - return INSUFFICIENT_DATA status
             return res.status(200).json({
-              date: result.date || date,
+              targetDate: result.targetDate || targetDate,
+              signalDate: result.signalDate || signalDate,
+              refDate: result.refDate || refDate,
               strategy: result.strategy || strategy,
+              mode: result.mode || mode,
               status: 'INSUFFICIENT_DATA',
               signal_count: 0,
               signals: [],
               hasSignals: false,
-              message: result.message || 'Required CSV data (bhavcopy and premarket) not available for this date.',
-              missingFiles: result.missingFiles || null
+              message: result.message || 'Required CSV data not available for this date.',
+              missingFiles: result.missingFiles || null,
+              usedDates: result.usedDates || { targetDate, signalDate, refDate }
             });
           } else {
             // Generation failed (ERROR, etc.)
             return res.status(200).json({
-              date: result.date || date,
+              targetDate: result.targetDate || targetDate,
+              signalDate: result.signalDate || signalDate,
+              refDate: result.refDate || refDate,
               strategy: result.strategy || strategy,
+              mode: result.mode || mode,
               status: result.status || 'ERROR',
               signal_count: 0,
               signals: [],
               hasSignals: false,
               message: result.message || 'Error generating signals. Please check logs.',
-              missingFiles: result.missingFiles || null
+              missingFiles: result.missingFiles || null,
+              usedDates: result.usedDates || { targetDate, signalDate, refDate }
             });
           }
         } catch (genError) {

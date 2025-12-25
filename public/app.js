@@ -14,6 +14,8 @@ class MarketMoodApp {
         this.viewMode = 'card'; // 'card' or 'table' for all indices view
         this.indexTrends = {}; // Store 14-day trend data for indices
         this.chartsEnabled = this.loadChartsPreference(); // Load preference from localStorage
+        this._isFetchingNseData = false; // Track NSE data fetch state to prevent flicker
+        this._updateUploadedDataInfoPromise = null; // Cache promise to reuse if already in-flight
         
         // Initialize polling manager
         this.pollingManager = new PollingManager();
@@ -1140,8 +1142,17 @@ class MarketMoodApp {
     async loadData(retryCount = 0) {
         const maxRetries = 2; // Retry up to 2 times on failure
         
-        // Check if uploaded data is selected as active API
-        const activeApi = window.settingsManager?.settings?.activeApi;
+        // Prevent duplicate concurrent fetches
+        if (this._isFetchingNseData) {
+            console.log('NSE data fetch already in progress, skipping...');
+            return;
+        }
+        
+        this._isFetchingNseData = true;
+        
+        try {
+            // Check if uploaded data is selected as active API
+            const activeApi = window.settingsManager?.settings?.activeApi;
         if (activeApi === 'uploaded') {
             // First try localStorage
             let uploadedData = this.getUploadedData();
@@ -1388,24 +1399,33 @@ class MarketMoodApp {
                 console.warn('No valid NSE mood data received from API. Trying database fallback...');
                 
                 // Try to load last available data from database
-                const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
-                
-                if (!loadedFromDb) {
-                    // Update data source display for API (pass data even if invalid to show status)
-                    this.updateDataSourceDisplay('api', data);
-                    // Use mock data as fallback only if no database data
-                    this.useMockData();
-                }
+            const loadedFromDb = await this.loadLastAvailableDataFromDatabase();
+            
+            if (!loadedFromDb) {
+                // Update data source display for API (pass data even if invalid to show status)
+                this.updateDataSourceDisplay('api', data);
+                // Use mock data as fallback only if no database data
+                this.useMockData();
+            }
             }
 
         } catch (error) {
             console.error(`Error fetching data (attempt ${retryCount + 1}):`, error);
             this.consecutiveFailures++;
             
+            // Don't clear data on error if we have last good data
+            if (this.lastMarketData && this.lastMarketData.indices && this.lastMarketData.indices.length > 0) {
+                console.log('⚠️ Error loading data, keeping last good data visible');
+            } else {
+                // Only clear if we have no good data
+                this.updateDataSourceDisplay('api', false);
+            }
+            
             // Retry on transient errors
             if (retryCount < maxRetries && (error.message.includes('fetch') || error.message.includes('network'))) {
                 console.log(`Retrying in 2 seconds... (${retryCount + 1}/${maxRetries})`);
                 await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+                this._isFetchingNseData = false; // Reset flag before retry
                 return this.loadData(retryCount + 1);
             }
             
@@ -1459,6 +1479,7 @@ class MarketMoodApp {
             // Update timestamp on error
             this.updateLastUpdated(new Date());
         } finally {
+            this._isFetchingNseData = false;
             this.setLoading(false);
         }
     }
@@ -5730,13 +5751,21 @@ class MarketMoodApp {
     }
 
     async updateUploadedDataInfo() {
-        // Prevent concurrent calls
+        // Prevent concurrent calls - reuse existing promise if in-flight
+        if (this._updateUploadedDataInfoPromise) {
+            console.log('updateUploadedDataInfo already in progress, reusing promise...');
+            return this._updateUploadedDataInfoPromise;
+        }
+        
         if (this._updatingUploadedDataInfo) {
             console.log('updateUploadedDataInfo already in progress, skipping...');
             return;
         }
         
         this._updatingUploadedDataInfo = true;
+        
+        // Create and cache promise
+        this._updateUploadedDataInfoPromise = (async () => {
         
         const uploadedDataInfo = document.getElementById('uploadedDataInfo');
         const tableBody = document.getElementById('uploadedFilesTableBody');
@@ -5746,6 +5775,7 @@ class MarketMoodApp {
 
         if (!uploadedDataInfo || !tableBody) {
             this._updatingUploadedDataInfo = false;
+            this._updateUploadedDataInfoPromise = null;
             return;
         }
 
@@ -6893,7 +6923,19 @@ class MarketMoodApp {
             // Always clear the flag when done
             this._updatingUploadedDataInfo = false;
             console.log('✅ updateUploadedDataInfo completed, flag cleared');
+            this._updateUploadedDataInfoPromise = null;
         }
+        })();
+        
+        try {
+            await this._updateUploadedDataInfoPromise;
+        } catch (error) {
+            // Clear promise on error too
+            this._updateUploadedDataInfoPromise = null;
+            throw error;
+        }
+        
+        return this._updateUploadedDataInfoPromise;
     }
 
     setupRowSelectionHandlers() {
@@ -7846,23 +7888,22 @@ class MarketMoodApp {
                 strategy: { strategy: this.selectedStrategy || 'momentum_gap' }
             });
             
-            // Load signals data asynchronously to prevent iPhone freeze
-            requestAnimationFrame(() => {
-                // Use requestIdleCallback if available for better performance on iPhone
-                const loadData = () => {
-                    try {
-                        this.loadSignals();
-                    } catch (error) {
-                        console.error('Error loading signals data:', error);
-                    } finally {
-                        this._switchingView = false;
-                    }
-                };
-                
-                if (window.requestIdleCallback) {
-                    requestIdleCallback(loadData, { timeout: 100 });
-            } else {
-                    setTimeout(loadData, 50);
+            // Resolve signals context BEFORE loading signals (never call loadSignals with null)
+            requestAnimationFrame(async () => {
+                try {
+                    const ctx = await this.resolveSignalsContext({ strategy: this.selectedStrategy });
+                    console.log('📊 Resolved signals context:', ctx);
+                    
+                    // Now call loadSignals with resolved signalDate (never null)
+                    await this.loadSignals(ctx.signalDate, ctx.strategy);
+                } catch (error) {
+                    console.error('Error resolving signals context or loading signals:', error);
+                    // Fallback: use today's next trading day
+                    const today = new Date().toISOString().split('T')[0];
+                    const fallbackDate = this.getNextTradingDay(today);
+                    await this.loadSignals(fallbackDate, this.selectedStrategy || 'momentum_gap');
+                } finally {
+                    this._switchingView = false;
                 }
             });
             
@@ -7870,6 +7911,145 @@ class MarketMoodApp {
             console.error('Error in showSignalsView:', error);
             this._switchingView = false;
         }
+    }
+
+    /**
+     * Resolve signals context: determine signalDate, refDate, and data availability
+     * @param {Object} options - { preferredDate, strategy }
+     * @returns {Promise<Object>} - { signalDate, refDate, hasBhav, hasPremarket, missingFiles, strategy }
+     */
+    async resolveSignalsContext({ preferredDate = null, strategy = null } = {}) {
+        // 1) Await uploaded data summary readiness
+        if (!this._dateMap || this._dateMap.size === 0) {
+            if (typeof this.updateUploadedDataInfo === 'function') {
+                await this.updateUploadedDataInfo().catch(err => {
+                    console.warn('⚠️ Could not load uploaded data info:', err);
+                });
+            }
+        }
+        
+        // 2) Determine bestAvailableDate
+        let bestAvailableDate = null;
+        if (this._dateMap && this._dateMap.size > 0) {
+            const dateMapEntries = Array.from(this._dateMap.entries());
+            // Priority: Latest with both bhav+premarket, else latest with bhav
+            const sortedEntries = [...dateMapEntries].sort((a, b) => {
+                return new Date(b[0]) - new Date(a[0]);
+            });
+            
+            // Try to find date with both bhav+premarket
+            for (const [dateStr, dateData] of sortedEntries) {
+                if (dateData.bhav && dateData.bhav.count > 0 && 
+                    dateData.premarket && dateData.premarket.count > 0) {
+                    bestAvailableDate = dateStr;
+                    console.log(`📅 Best date (bhav+premarket): ${bestAvailableDate}`);
+                    break;
+                }
+            }
+            
+            // Fallback to latest with bhav
+            if (!bestAvailableDate) {
+                for (const [dateStr, dateData] of sortedEntries) {
+                    if (dateData.bhav && dateData.bhav.count > 0) {
+                        bestAvailableDate = dateStr;
+                        console.log(`📅 Best date (bhav only): ${bestAvailableDate}`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Fallback: Try API for latest date
+        if (!bestAvailableDate) {
+            try {
+                const latestDateResponse = await apiConfig.fetch('/api/signals?operation=latest');
+                if (latestDateResponse.ok) {
+                    const latestDateData = await latestDateResponse.json();
+                    if (latestDateData.latest_complete_date) {
+                        bestAvailableDate = latestDateData.latest_complete_date;
+                        console.log(`✅ Using latest date from API: ${bestAvailableDate}`);
+                    }
+                }
+            } catch (e) {
+                console.warn('⚠️ Could not fetch latest date from API:', e);
+            }
+        }
+        
+        // 3) Compute signalDate
+        let signalDate;
+        const today = new Date().toISOString().split('T')[0];
+        
+        if (preferredDate) {
+            signalDate = preferredDate;
+        } else if (bestAvailableDate) {
+            signalDate = this.getNextTradingDay(bestAvailableDate);
+            console.log(`📅 Latest data is for ${bestAvailableDate}, signals will be for next trading day: ${signalDate}`);
+        } else {
+            // No data found - use today or tomorrow based on market status
+            const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
+            signalDate = this.getNextTradingDay(today);
+            console.log(`⚠️ No uploaded data found, using next trading day from today: ${signalDate}`);
+        }
+        
+        // If signalDate == today AND marketStatus.isOpen == false: advance to next trading day
+        if (signalDate === today) {
+            const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
+            if (isMarketClosed) {
+                signalDate = this.getNextTradingDay(signalDate);
+                console.log(`📅 Calculated date (${today}) is today and market is closed, using next trading day: ${signalDate}`);
+            }
+        }
+        
+        // Ensure signalDate is valid
+        if (!signalDate || typeof signalDate !== 'string') {
+            signalDate = this.getNextTradingDay(today);
+            console.warn(`⚠️ Invalid signalDate, defaulting to next trading day from today: ${signalDate}`);
+        }
+        
+        // Compute refDate (previous trading day)
+        const refDate = this.getPrevTradingDay(signalDate);
+        
+        // Check data availability from dateMap
+        let hasBhav = false;
+        let hasPremarket = false;
+        const missingFiles = [];
+        
+        if (this._dateMap && this._dateMap.has(refDate)) {
+            const refDateData = this._dateMap.get(refDate);
+            hasBhav = refDateData.bhav && refDateData.bhav.count > 0;
+        }
+        
+        if (this._dateMap && this._dateMap.has(signalDate)) {
+            const signalDateData = this._dateMap.get(signalDate);
+            hasPremarket = signalDateData.premarket && signalDateData.premarket.count > 0;
+        }
+        
+        if (!hasBhav) {
+            missingFiles.push(`bhavcopy for ${refDate}`);
+        }
+        if (!hasPremarket) {
+            missingFiles.push(`premarket for ${signalDate}`);
+        }
+        
+        // Use provided strategy or auto-select
+        let selectedStrategy = strategy || this.selectedStrategy || 'momentum_gap';
+        if (!strategy) {
+            const strategyAnalysis = this.analyzeMarketConditionsAndRecommendStrategy();
+            if (strategyAnalysis && strategyAnalysis.strategyId) {
+                selectedStrategy = strategyAnalysis.strategyId;
+                this.selectedStrategy = selectedStrategy;
+                localStorage.setItem('selectedStrategy', selectedStrategy);
+            }
+        }
+        
+        return {
+            signalDate,
+            refDate,
+            hasBhav,
+            hasPremarket,
+            missingFiles,
+            strategy: selectedStrategy
+        };
     }
 
     /**
@@ -7918,20 +8098,99 @@ class MarketMoodApp {
     }
 
     /**
-     * Get next trading day (skip weekends)
+     * Get next trading day (skip weekends and holidays)
+     * Note: Uses simplified holiday list (2025-12-25 is Christmas)
      */
     getNextTradingDay(todayDate) {
         const date = new Date(todayDate);
         date.setDate(date.getDate() + 1);
-        // Skip weekends - if tomorrow is Saturday, go to Monday
-        while (date.getDay() === 0 || date.getDay() === 6) {
-            date.setDate(date.getDate() + 1);
+        
+        // NSE holidays for 2025 (minimal list)
+        const holidays2025 = new Set([
+            '2025-12-25'
+        ]);
+        
+        while (true) {
+            const day = date.getDay();
+            const dateStr = date.toISOString().split('T')[0];
+            
+            // Skip weekends
+            if (day === 0 || day === 6) {
+                date.setDate(date.getDate() + 1);
+                continue;
+            }
+            
+            // Skip holidays
+            if (holidays2025.has(dateStr)) {
+                date.setDate(date.getDate() + 1);
+                continue;
+            }
+            
+            return dateStr;
         }
-        return date.toISOString().split('T')[0];
+    }
+    
+    /**
+     * Get previous trading day (skip weekends and holidays)
+     */
+    getPrevTradingDay(todayDate) {
+        const date = new Date(todayDate);
+        date.setDate(date.getDate() - 1);
+        
+        const holidays2025 = new Set([
+            '2025-01-26', '2025-03-08', '2025-03-29', '2025-04-11', '2025-04-14',
+            '2025-04-17', '2025-05-01', '2025-06-17', '2025-08-15', '2025-08-19',
+            '2025-08-26', '2025-10-02', '2025-10-15', '2025-10-23', '2025-11-01',
+            '2025-11-14', '2025-12-25'
+        ]);
+        
+        while (true) {
+            const day = date.getDay();
+            const dateStr = date.toISOString().split('T')[0];
+            
+            if (day === 0 || day === 6) {
+                date.setDate(date.getDate() - 1);
+                continue;
+            }
+            
+            if (holidays2025.has(dateStr)) {
+                date.setDate(date.getDate() - 1);
+                continue;
+            }
+            
+            return dateStr;
+        }
+    }
+    
+    /**
+     * Check if date is a trading day
+     */
+    isTradingDay(dateStr) {
+        const date = new Date(dateStr);
+        const day = date.getDay();
+        
+        if (day === 0 || day === 6) return false;
+        
+        const holidays2025 = new Set([
+            '2025-01-26', '2025-03-08', '2025-03-29', '2025-04-11', '2025-04-14',
+            '2025-04-17', '2025-05-01', '2025-06-17', '2025-08-15', '2025-08-19',
+            '2025-08-26', '2025-10-02', '2025-10-15', '2025-10-23', '2025-11-01',
+            '2025-11-14', '2025-12-25'
+        ]);
+        
+        return !holidays2025.has(dateStr);
     }
 
-    async loadSignals(date = null) {
-        console.log('📊 Loading signals, date:', date);
+    async loadSignals(signalDate, strategy = null) {
+        // Ensure signalDate is never null/undefined
+        if (!signalDate || typeof signalDate !== 'string') {
+            console.error('❌ loadSignals called with invalid date:', signalDate);
+            const today = new Date().toISOString().split('T')[0];
+            signalDate = this.getNextTradingDay(today);
+            console.warn(`⚠️ Defaulting to next trading day from today: ${signalDate}`);
+        }
+        
+        console.log('📊 Loading signals, date:', signalDate, 'strategy:', strategy || this.selectedStrategy);
         
         // Wait a bit to ensure page view is visible
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -7949,7 +8208,7 @@ class MarketMoodApp {
                 const retrySection = document.getElementById('signalsSection');
                 const retryContainer = document.getElementById('signalsContainer');
                 if (retrySection && retryContainer) {
-                    this.loadSignals(date);
+                    this.loadSignals(signalDate, strategy);
                 }
             }, 200);
             return;
@@ -7963,90 +8222,10 @@ class MarketMoodApp {
         signalsContainer.innerHTML = '';
 
         try {
-            // First, analyze today's market conditions and recommend strategy
-            const strategyAnalysis = this.analyzeMarketConditionsAndRecommendStrategy();
-            console.log('📊 Strategy analysis:', strategyAnalysis ? 'Available' : 'Not available');
+            // Use provided strategy or current selection
+            const selectedStrategy = strategy || this.selectedStrategy || 'momentum_gap';
             
-            // Automatically select the recommended strategy based on market sentiment
-            if (strategyAnalysis && strategyAnalysis.strategyId) {
-                const previousStrategy = this.selectedStrategy;
-                this.selectedStrategy = strategyAnalysis.strategyId;
-                localStorage.setItem('selectedStrategy', strategyAnalysis.strategyId);
-                // Strategy selector button removed - no need to update button text
-                console.log(`✅ Auto-selected strategy: ${strategyAnalysis.strategy} (${strategyAnalysis.strategyId})${previousStrategy !== strategyAnalysis.strategyId ? ` (changed from ${previousStrategy})` : ''}`);
-            }
-            
-            // Determine the date to use - use best available date from uploaded data
-            let targetDate = date;
-            if (!targetDate) {
-                // Ensure dateMap is populated (if not already)
-                if (!this._dateMap || this._dateMap.size === 0) {
-                    // Try to load uploaded data info to populate dateMap
-                    // This is async, so we'll check again after a short delay
-                    if (typeof this.updateUploadedDataInfo === 'function') {
-                        this.updateUploadedDataInfo().catch(err => {
-                            console.warn('⚠️ Could not load uploaded data info:', err);
-                        });
-                    }
-                }
-                
-                // Try to get best date from dateMap (uploaded data summary)
-                let latestDataDate = null;
-                if (this._dateMap && this._dateMap.size > 0) {
-                    const dateMapEntries = Array.from(this._dateMap.entries());
-                    latestDataDate = this.getBestSignalsDate(dateMapEntries);
-                    if (latestDataDate) {
-                        console.log(`✅ Found latest data date from uploaded data: ${latestDataDate}`);
-                    }
-                }
-                
-                // Fallback: Try to get latest available date from API
-                if (!latestDataDate) {
-                    try {
-                        const latestDateResponse = await apiConfig.fetch('/api/signals?operation=latest');
-                        if (latestDateResponse.ok) {
-                            const latestDateData = await latestDateResponse.json();
-                            if (latestDateData.latest_complete_date) {
-                                latestDataDate = latestDateData.latest_complete_date;
-                                console.log(`✅ Using latest date from API: ${latestDataDate}`);
-                            }
-                    }
-                } catch (e) {
-                        console.warn('⚠️ Could not fetch latest date from API:', e);
-                    }
-                }
-                
-                // If we have a latest data date, signals should be for the next trading day after that
-                if (latestDataDate) {
-                    targetDate = this.getNextTradingDay(latestDataDate);
-                    console.log(`📅 Latest data is for ${latestDataDate}, signals will be for next trading day: ${targetDate}`);
-                    
-                    // Check if the calculated date is today and market is closed - if so, go one more day forward
-                    const today = new Date().toISOString().split('T')[0];
-                    if (targetDate === today) {
-                        const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
-                        if (isMarketClosed) {
-                            targetDate = this.getNextTradingDay(today);
-                            console.log(`📅 Calculated date (${today}) is today and market is closed, using next trading day: ${targetDate}`);
-                        }
-                    }
-                } else {
-                    // No data found - use today or tomorrow based on market status
-                    const today = new Date().toISOString().split('T')[0];
-                    // Check if market is closed - if so, use tomorrow's date
-                    const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
-                    
-                    if (isMarketClosed) {
-                        // Get next trading day (skip weekends)
-                        targetDate = this.getNextTradingDay(today);
-                        console.log(`📅 Market is closed today (${today}), using next trading day: ${targetDate}`);
-                    } else {
-                        targetDate = this.getNextTradingDay(today);
-                        console.log(`⚠️ No uploaded data found, using next trading day from today: ${targetDate}`);
-                    }
-                }
-            }
-
+            const targetDate = signalDate;
             console.log('📅 Target date for signals:', targetDate);
 
             // Clear any cached signals data to force refresh
@@ -8077,8 +8256,57 @@ class MarketMoodApp {
                 data = await response.json();
                         console.log('✅ Signals API response:', data);
                         
+                        // Handle MARKET_CLOSED status
+                        if (data.status === 'MARKET_CLOSED' && data.signalDate) {
+                            // Auto-shift to next trading day
+                            const newSignalDate = data.signalDate;
+                            console.log(`📅 Market closed, auto-shifted to ${newSignalDate}`);
+                            // Reload with new date
+                            await this.loadSignals(newSignalDate, selectedStrategy);
+                            return;
+                        }
+                        
+                        // Handle INSUFFICIENT_DATA with proper UI messages
+                        if (data.status === 'INSUFFICIENT_DATA') {
+                            const usedDates = data.usedDates || { targetDate, signalDate: data.signalDate || targetDate, refDate: data.refDate };
+                            const missingFiles = data.missingFiles || [];
+                            
+                            // Check if premarket is missing for signalDate
+                            const isPremarketMissing = missingFiles.some(f => f.includes('premarket') && f.includes(targetDate));
+                            
+                            if (isPremarketMissing && this.lastMarketStatus && this.lastMarketStatus.isOpen) {
+                                // Market is open, premarket missing - show message without changing date
+                                signalsEmpty.style.display = 'block';
+                                signalsEmpty.innerHTML = `
+                                    <div style="text-align: center; padding: 20px;">
+                                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                        <h3 style="color: #f59e0b; margin-bottom: 10px;">Premarket Not Uploaded</h3>
+                                        <p style="color: #666; font-size: 0.95rem; line-height: 1.5;">Premarket data not uploaded for ${targetDate}.</p>
+                                        <p style="color: #666; font-size: 0.85rem; margin-top: 15px;">Please upload premarket CSV to generate signals for today.</p>
+                                    </div>
+                                `;
+                                
+                                this.updateSignalsStatus({
+                                    date: usedDates.signalDate || targetDate,
+                                    signalsInfo: {
+                                        hasSignals: false,
+                                        signals: [],
+                                        success: false,
+                                        message: `Premarket not uploaded for ${targetDate}`
+                                    },
+                                    backendMessage: data.message,
+                                    mode: 'strategy-only',
+                                    refDate: usedDates.refDate
+                                });
+                                signalsLoading.style.display = 'none';
+                                return;
+                            }
+                        }
+                        
                         // Update status with signals info
+                        const usedDates = data.usedDates || { targetDate, signalDate: data.signalDate || targetDate, refDate: data.refDate };
                         this.updateSignalsStatus({
+                            date: usedDates.signalDate || targetDate,
                             signalsInfo: {
                                 hasSignals: data.status === 'READY' && (data.signals && data.signals.length > 0),
                                 signals: data.signals || [],
@@ -8086,7 +8314,8 @@ class MarketMoodApp {
                                 message: data.message
                             },
                             backendMessage: data.message,
-                            mode: (data.status === 'READY' && data.signals && data.signals.length > 0) ? 'signals' : 'strategy-only'
+                            mode: (data.status === 'READY' && data.signals && data.signals.length > 0) ? 'signals' : 'strategy-only',
+                            refDate: usedDates.refDate
                         });
                     } catch (parseError) {
                         console.warn('⚠️ Failed to parse signals response as JSON:', parseError);
@@ -8897,6 +9126,11 @@ class MarketMoodApp {
             engineStatusColor = '#f59e0b';
         }
 
+        // Display date with refDate info
+        const dateDisplay = refDateValue 
+            ? `${signalDate} (using bhavcopy from ${refDateValue})`
+            : signalDate;
+        
         // Get strategy name with mode indicator
         const strategyNames = {
             'momentum_gap': 'Momentum Gap',

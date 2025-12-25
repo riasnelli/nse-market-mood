@@ -597,9 +597,9 @@ const handler = async (req, res) => {
           
           // If upload date is today and market is closed, generate for tomorrow
           if (uploadDate === today) {
-            const nextTradingDay = getNextTradingDay(today);
-            console.log(`📅 Market is closed today, generating signals for next trading day: ${nextTradingDay}`);
-            targetDate = nextTradingDay;
+            const nextTradingDayDate = nextTradingDay(today);
+            console.log(`📅 Market is closed today, generating signals for next trading day: ${nextTradingDayDate}`);
+            targetDate = nextTradingDayDate;
           }
           
           // Check if both bhav and premarket are now available for this date

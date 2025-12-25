@@ -19,30 +19,13 @@ const {
   getSignalsStoreCollection
 } = require('../mongodb');
 
-/**
- * Get yesterday's date (skip weekends)
- */
-function getYesterdayDate(todayDate) {
-  const date = new Date(todayDate);
-  date.setDate(date.getDate() - 1);
-  while (date.getDay() === 0 || date.getDay() === 6) {
-    date.setDate(date.getDate() - 1);
-  }
-  return date.toISOString().split('T')[0];
-}
-
-/**
- * Get next trading day (tomorrow, skip weekends)
- */
-function getNextTradingDay(todayDate) {
-  const date = new Date(todayDate);
-  date.setDate(date.getDate() + 1);
-  // Skip weekends - if tomorrow is Saturday, go to Monday
-  while (date.getDay() === 0 || date.getDay() === 6) {
-    date.setDate(date.getDate() + 1);
-  }
-  return date.toISOString().split('T')[0];
-}
+const {
+  nextTradingDay,
+  prevTradingDay,
+  resolveSignalDates,
+  isTradingDay,
+  isCalendarFallbackUsed
+} = require('../tradingCalendar');
 
 /**
  * Get current mood from database (most recent)
@@ -125,11 +108,11 @@ function selectStrategyFromMood(mood) {
  * Filters EQ series stocks, finds gap-up near high candidates
  * This is a copy of the function from signals.js to avoid circular dependencies
  */
-async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap') {
+async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap', refDate = null) {
   // Implementation copied from signals.js - see that file for full details
   // This function generates signals and returns filterCounters for debugging
   try {
-    const yesterdayDate = getYesterdayDate(date);
+    const yesterdayDate = refDate || prevTradingDay(date);
     console.log(`📊 Generating signals for ${date} with strategy: ${strategy}:`);
     console.log(`   - Premarket data: ${date} (today's pre-open)`);
     console.log(`   - Bhavcopy data: ${yesterdayDate} (yesterday's EOD)`);
@@ -585,9 +568,9 @@ async function generateBreakoutSignals(date, strategy = 'breakout') {
  * Generate Mean Reversion signals
  * Finds oversold stocks that may revert to mean
  */
-async function generateMeanReversionSignals(date, strategy = 'mean_reversion') {
+async function generateMeanReversionSignals(date, strategy = 'mean_reversion', refDate = null) {
   try {
-    const yesterdayDate = getYesterdayDate(date);
+    const yesterdayDate = refDate || prevTradingDay(date);
     console.log(`📊 Generating mean reversion signals for ${date}:`);
     
     const bhavcopyCollection = await getDailyBhavcopyCollection();
@@ -751,9 +734,9 @@ async function generateMeanReversionSignals(date, strategy = 'mean_reversion') {
  * Generate Defensive signals
  * Conservative approach - wait for better entry points or consider defensive positions
  */
-async function generateDefensiveSignals(date, strategy = 'defensive') {
+async function generateDefensiveSignals(date, strategy = 'defensive', refDate = null) {
   // Defensive strategy: Very conservative filters, only high-quality setups
-  const baseResult = await generateSimpleMomentumGapSignals(date, strategy);
+  const baseResult = await generateSimpleMomentumGapSignals(date, strategy, refDate);
   
   if (!baseResult.success) {
     return baseResult;
@@ -785,9 +768,10 @@ async function generateDefensiveSignals(date, strategy = 'defensive') {
  * Generate Volatility Play signals
  * Focus on high-beta stocks with strong momentum
  */
-async function generateVolatilityPlaySignals(date, strategy = 'volatility_play') {
+async function generateVolatilityPlaySignals(date, strategy = 'volatility_play', refDate = null) {
   // Volatility play: Look for high volatility stocks with strong momentum
-  const baseResult = await generateSimpleMomentumGapSignals(date, strategy);
+  // If no premarket, use ATR/range% + liquidity instead of gap filters
+  const baseResult = await generateSimpleMomentumGapSignals(date, strategy, refDate);
   
   if (!baseResult.success) {
     return baseResult;
@@ -824,161 +808,239 @@ async function generateVolatilityPlaySignals(date, strategy = 'volatility_play')
 }
 
 /**
- * Get yesterday's date (skip weekends)
- */
-function getYesterdayDate(todayDate) {
-  const date = new Date(todayDate);
-  date.setDate(date.getDate() - 1);
-  while (date.getDay() === 0 || date.getDay() === 6) {
-    date.setDate(date.getDate() - 1);
-  }
-  return date.toISOString().split('T')[0];
-}
-
-/**
  * Check if required datasets are available for a date
  * 
- * @param {string} date - Date in YYYY-MM-DD format
- * @returns {Promise<Object>} - { hasBhav: boolean, hasPremarket: boolean, missingFiles: string[] }
+ * @param {string} targetDate - Target date in YYYY-MM-DD format
+ * @param {string} mode - Mode: 'PLAYBOOK' | 'PREMARKET' | 'LIVE' (default: 'PLAYBOOK')
+ * @returns {Promise<Object>} - Enhanced availability object
  */
-async function checkDataAvailability(date) {
-  const yesterdayDate = getYesterdayDate(date);
+async function checkDataAvailability(targetDate, mode = 'PLAYBOOK') {
+  const { signalDate, refDate } = resolveSignalDates(targetDate);
   const missingFiles = [];
+  const checkedCollections = [];
   
-  let hasBhav = false;
-  let hasPremarket = false;
+  const available = {
+    bhav: false,
+    premarket: false,
+    ma: false,
+    w52: false,
+    index: false
+  };
+  
+  const missing = {
+    bhav: false,
+    premarket: false,
+    ma: false,
+    w52: false,
+    index: false
+  };
 
+  // Check bhavcopy for refDate (previous trading day)
   try {
-    // Check bhavcopy (yesterday's date)
     const bhavcopyCollection = await getDailyBhavcopyCollection();
+    checkedCollections.push('daily_bhavcopy');
     const bhavcopyCount = await bhavcopyCollection.countDocuments({ 
-      date: yesterdayDate,
+      date: refDate,
       series: 'EQ'
     });
     
     if (bhavcopyCount === 0) {
-      // Check uploadedBhav as fallback
       const uploadedBhavCollection = await getUploadedDataCollection('bhav');
-      const uploadedBhavCount = await uploadedBhavCollection.countDocuments({ date: yesterdayDate });
-      hasBhav = uploadedBhavCount > 0;
+      checkedCollections.push('uploaded_data.bhav');
+      const uploadedBhavCount = await uploadedBhavCollection.countDocuments({ date: refDate });
+      available.bhav = uploadedBhavCount > 0;
     } else {
-      hasBhav = true;
+      available.bhav = true;
     }
     
-    if (!hasBhav) {
-      missingFiles.push(`bhavcopy for ${yesterdayDate}`);
+    if (!available.bhav) {
+      missing.bhav = true;
+      missingFiles.push(`bhavcopy for ${refDate}`);
     }
   } catch (error) {
     console.error('Error checking bhavcopy data:', error);
-    missingFiles.push(`bhavcopy for ${yesterdayDate}`);
+    missing.bhav = true;
+    missingFiles.push(`bhavcopy for ${refDate}`);
   }
 
+  // Check premarket for signalDate
   try {
-    // Check premarket (today's date)
     const premarketCollection = await getPreMarketDataCollection();
-    const premarketCount = await premarketCollection.countDocuments({ date });
+    checkedCollections.push('premarket_data');
+    const premarketCount = await premarketCollection.countDocuments({ date: signalDate });
     
     if (premarketCount === 0) {
-      // Check uploadedPreMarket as fallback
       const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
-      const uploadedPremarketCount = await uploadedPremarketCollection.countDocuments({ date });
-      hasPremarket = uploadedPremarketCount > 0;
+      checkedCollections.push('uploaded_data.premarket');
+      const uploadedPremarketCount = await uploadedPremarketCollection.countDocuments({ date: signalDate });
+      available.premarket = uploadedPremarketCount > 0;
     } else {
-      hasPremarket = true;
+      available.premarket = true;
     }
     
-    if (!hasPremarket) {
-      missingFiles.push(`premarket for ${date}`);
+    if (!available.premarket) {
+      missing.premarket = true;
+      if (mode === 'PREMARKET' || mode === 'LIVE') {
+        missingFiles.push(`premarket for ${signalDate}`);
+      }
     }
   } catch (error) {
     console.error('Error checking premarket data:', error);
-    missingFiles.push(`premarket for ${date}`);
+    missing.premarket = true;
+    if (mode === 'PREMARKET' || mode === 'LIVE') {
+      missingFiles.push(`premarket for ${signalDate}`);
+    }
   }
 
+  // Check other data types (optional)
+  try {
+    const maCollection = await getUploadedDataCollection('marketactivity');
+    const maCount = await maCollection.countDocuments({ date: refDate });
+    available.ma = maCount > 0;
+    if (!available.ma) missing.ma = true;
+  } catch (error) {
+    missing.ma = true;
+  }
+
+  try {
+    const w52Collection = await getUploadedDataCollection('52w');
+    const w52Count = await w52Collection.countDocuments({ date: refDate });
+    available.w52 = w52Count > 0;
+    if (!available.w52) missing.w52 = true;
+  } catch (error) {
+    missing.w52 = true;
+  }
+
+  try {
+    const indexCollection = await getDailyIndicesCollection();
+    const indexCount = await indexCollection.countDocuments({ date: refDate });
+    available.index = indexCount > 0;
+    if (!available.index) missing.index = true;
+  } catch (error) {
+    missing.index = true;
+  }
+
+  const diagnostics = {
+    calendarFallbackUsed: isCalendarFallbackUsed(signalDate),
+    checkedCollections: [...new Set(checkedCollections)]
+  };
+
+  // Legacy compatibility fields
+  const hasBhav = available.bhav;
+  const hasPremarket = available.premarket;
+
   return {
+    signalDate,
+    refDate,
+    available,
+    missing,
+    missingFiles,
+    diagnostics,
+    // Legacy fields for backward compatibility
     hasBhav,
-    hasPremarket,
-    missingFiles
+    hasPremarket
   };
 }
 
 /**
  * Generate signals for a date and save to signals_store
  * 
- * @param {string} date - Date in YYYY-MM-DD format
+ * @param {string} targetDate - Target date in YYYY-MM-DD format
  * @param {string} strategy - Strategy name (default: 'momentum_gap')
- * @returns {Promise<Object>} - { status, date, strategy, signal_count, signals, message, missingFiles? }
+ * @param {string} mode - Mode: 'PLAYBOOK' | 'PREMARKET' | 'LIVE' (default: 'PLAYBOOK')
+ * @returns {Promise<Object>} - { status, targetDate, signalDate, refDate, strategy, mode, signal_count, signals, message, missingFiles? }
  */
-async function generateSignalsForDate(date, strategy = 'momentum_gap') {
+async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mode = 'PLAYBOOK') {
   try {
-    console.log(`📊 [generateSignalsForDate] Starting generation for ${date} with strategy ${strategy}`);
+    console.log(`📊 [generateSignalsForDate] Starting generation for ${targetDate} with strategy ${strategy}, mode ${mode}`);
+    
+    // Resolve trading dates
+    const { signalDate, refDate } = resolveSignalDates(targetDate);
     
     // Check data availability
-    const dataCheck = await checkDataAvailability(date);
+    const dataCheck = await checkDataAvailability(targetDate, mode);
     
-    // Only require bhavcopy - premarket is optional (signals can be generated without it)
-    if (!dataCheck.hasBhav) {
+    // PLAYBOOK mode requires bhavcopy
+    if (!dataCheck.available.bhav) {
       // Missing required data - save INSUFFICIENT_DATA status
       const signalsStoreCollection = await getSignalsStoreCollection();
       
       const insufficientDataDoc = {
-        date,
+        date: signalDate,
+        refDate: refDate,
         strategy,
+        mode,
         status: 'INSUFFICIENT_DATA',
         signal_count: 0,
         signals: [],
         missingFiles: dataCheck.missingFiles,
-        message: `Missing required files: ${dataCheck.missingFiles.join(', ')}`,
+        message: `Cannot generate playbook: missing bhavcopy for ${refDate}.`,
         createdAt: new Date(),
         updatedAt: new Date()
       };
       
       // Upsert (update if exists, insert if not)
       await signalsStoreCollection.updateOne(
-        { date, strategy },
+        { date: signalDate, strategy, mode },
         { $set: insufficientDataDoc },
         { upsert: true }
       );
       
-      console.log(`⚠️ [generateSignalsForDate] INSUFFICIENT_DATA for ${date}: ${dataCheck.missingFiles.join(', ')}`);
+      console.log(`⚠️ [generateSignalsForDate] INSUFFICIENT_DATA for ${signalDate}: refDate=${refDate}, missingFiles=${dataCheck.missingFiles.join(', ')}`);
       
       return {
         status: 'INSUFFICIENT_DATA',
-        date,
+        targetDate,
+        signalDate,
+        refDate,
         strategy,
+        mode,
         signal_count: 0,
         signals: [],
         missingFiles: dataCheck.missingFiles,
-        message: `Missing required files: ${dataCheck.missingFiles.join(', ')}`
+        message: `Cannot generate playbook: missing bhavcopy for ${refDate}.`
       };
     }
     
-    // Note: Premarket is optional - signals can be generated with just bhavcopy data
-    // If premarket is missing, signals will be based on yesterday's data only
+    // Check if premarket is required for mode
+    if ((mode === 'PREMARKET' || mode === 'LIVE') && !dataCheck.available.premarket) {
+      return {
+        status: 'INSUFFICIENT_DATA',
+        targetDate,
+        signalDate,
+        refDate,
+        strategy,
+        mode,
+        signal_count: 0,
+        signals: [],
+        missingFiles: dataCheck.missingFiles,
+        message: `Premarket missing for ${signalDate} (${signalDate}). Playbook is available.`
+      };
+    }
     
     // Data is available - generate signals using strategy-specific logic
-    console.log(`✅ [generateSignalsForDate] Data available, generating signals with strategy: ${strategy}...`);
+    console.log(`✅ [generateSignalsForDate] Data available, generating signals with strategy: ${strategy}, mode: ${mode}...`);
     
     let result;
     switch (strategy) {
       case 'momentum_gap':
-        result = await generateSimpleMomentumGapSignals(date, strategy);
+        result = await generateSimpleMomentumGapSignals(signalDate, strategy, refDate);
         break;
       case 'breakout':
-        result = await generateBreakoutSignals(date, strategy);
+        result = await generateBreakoutSignals(signalDate, strategy, refDate);
         break;
       case 'mean_reversion':
-        result = await generateMeanReversionSignals(date, strategy);
+        result = await generateMeanReversionSignals(signalDate, strategy, refDate);
         break;
       case 'defensive':
-        result = await generateDefensiveSignals(date, strategy);
+        result = await generateDefensiveSignals(signalDate, strategy, refDate);
         break;
       case 'volatility_play':
-        result = await generateVolatilityPlaySignals(date, strategy);
+        result = await generateVolatilityPlaySignals(signalDate, strategy, refDate);
         break;
       default:
         console.warn(`⚠️ Unknown strategy: ${strategy}, falling back to momentum_gap`);
-        result = await generateSimpleMomentumGapSignals(date, 'momentum_gap');
+        result = await generateSimpleMomentumGapSignals(signalDate, 'momentum_gap', refDate);
     }
     
     // Determine status based on result
@@ -1010,8 +1072,10 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
     };
     
     const storeDoc = {
-      date,
+      date: signalDate,
+      refDate: refDate,
       strategy,
+      mode,
       status,
       signal_count: signalsArray.length,
       signals: signalsArray,
@@ -1019,14 +1083,14 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
       message: result.message || (status === 'READY' ? `Generated ${signalsArray.length} signals` : 'No signals generated'),
       filterCounters: result.filterCounters || null,
       topReason: result.topReason || null,
-      debug: debugInfo, // Store debug info for optional retrieval
+      debug: debugInfo,
       createdAt: new Date(),
       updatedAt: new Date()
     };
     
     // Upsert (update if exists, insert if not)
     await signalsStoreCollection.updateOne(
-      { date, strategy },
+      { date: signalDate, strategy, mode },
       { $set: storeDoc },
       { upsert: true }
     );
@@ -1035,14 +1099,18 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
     
     return {
       status,
-      date,
+      targetDate,
+      signalDate,
+      refDate,
       strategy,
+      mode,
       signal_count: signalsArray.length,
       signals: signalsArray,
       run_id: result.run_id || null,
       message: storeDoc.message,
       filterCounters: result.filterCounters,
-      topReason: result.topReason
+      topReason: result.topReason,
+      usedDates: { targetDate, signalDate, refDate }
     };
     
   } catch (error) {
@@ -1087,8 +1155,6 @@ module.exports = {
   generateSignalsForDate,
   generateSimpleMomentumGapSignals,
   checkDataAvailability,
-  getYesterdayDate,
-  getNextTradingDay,
   getCurrentMood,
   selectStrategyFromMood
 };
