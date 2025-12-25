@@ -7991,24 +7991,24 @@ class MarketMoodApp {
                 }
                 
                 // Try to get best date from dateMap (uploaded data summary)
+                let latestDataDate = null;
                 if (this._dateMap && this._dateMap.size > 0) {
                     const dateMapEntries = Array.from(this._dateMap.entries());
-                    const bestDate = this.getBestSignalsDate(dateMapEntries);
-                    if (bestDate) {
-                        targetDate = bestDate;
-                        console.log(`✅ Using best available date from uploaded data: ${targetDate}`);
+                    latestDataDate = this.getBestSignalsDate(dateMapEntries);
+                    if (latestDataDate) {
+                        console.log(`✅ Found latest data date from uploaded data: ${latestDataDate}`);
                     }
                 }
                 
                 // Fallback: Try to get latest available date from API
-                if (!targetDate) {
+                if (!latestDataDate) {
                     try {
                         const latestDateResponse = await apiConfig.fetch('/api/signals?operation=latest');
                         if (latestDateResponse.ok) {
                             const latestDateData = await latestDateResponse.json();
                             if (latestDateData.latest_complete_date) {
-                                targetDate = latestDateData.latest_complete_date;
-                                console.log(`✅ Using latest date from API: ${targetDate}`);
+                                latestDataDate = latestDateData.latest_complete_date;
+                                console.log(`✅ Using latest date from API: ${latestDataDate}`);
                             }
                     }
                 } catch (e) {
@@ -8016,8 +8016,22 @@ class MarketMoodApp {
                     }
                 }
                 
-                // Final fallback: Use today's date or tomorrow if market is closed
-                if (!targetDate) {
+                // If we have a latest data date, signals should be for the next trading day after that
+                if (latestDataDate) {
+                    targetDate = this.getNextTradingDay(latestDataDate);
+                    console.log(`📅 Latest data is for ${latestDataDate}, signals will be for next trading day: ${targetDate}`);
+                    
+                    // Check if the calculated date is today and market is closed - if so, go one more day forward
+                    const today = new Date().toISOString().split('T')[0];
+                    if (targetDate === today) {
+                        const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
+                        if (isMarketClosed) {
+                            targetDate = this.getNextTradingDay(today);
+                            console.log(`📅 Calculated date (${today}) is today and market is closed, using next trading day: ${targetDate}`);
+                        }
+                    }
+                } else {
+                    // No data found - use today or tomorrow based on market status
                     const today = new Date().toISOString().split('T')[0];
                     // Check if market is closed - if so, use tomorrow's date
                     const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
@@ -8027,24 +8041,23 @@ class MarketMoodApp {
                         targetDate = this.getNextTradingDay(today);
                         console.log(`📅 Market is closed today (${today}), using next trading day: ${targetDate}`);
                     } else {
-                        targetDate = today;
-                        console.log(`⚠️ No uploaded data found, using today's date: ${targetDate}`);
-                    }
-                } else {
-                    // If we have a target date, check if it's today and market is closed
-                    const today = new Date().toISOString().split('T')[0];
-                    if (targetDate === today) {
-                        const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
-                        if (isMarketClosed) {
-                            // Get next trading day
-                            targetDate = this.getNextTradingDay(today);
-                            console.log(`📅 Market is closed today, switching to next trading day: ${targetDate}`);
-                        }
+                        targetDate = this.getNextTradingDay(today);
+                        console.log(`⚠️ No uploaded data found, using next trading day from today: ${targetDate}`);
                     }
                 }
             }
 
             console.log('📅 Target date for signals:', targetDate);
+
+            // Clear any cached signals data to force refresh
+            this._signalsStatusData = {
+                date: targetDate,
+                signalsInfo: undefined,
+                dataAvailability: undefined,
+                strategy: undefined,
+                backendMessage: undefined,
+                mode: undefined
+            };
 
             // Update status with target date
             this.updateSignalsStatus({ date: targetDate });
