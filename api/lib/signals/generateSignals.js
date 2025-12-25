@@ -207,8 +207,9 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       premarketData = [];
     }
     
-    if (premarketData.length === 0) {
-      console.warn(`⚠️ No premarket data found for ${date}`);
+    const hasPremarket = premarketData.length > 0;
+    if (!hasPremarket) {
+      console.log(`⚠️ No premarket data found for ${date}. Generating signals based on yesterday's bhavcopy data only.`);
     }
 
     // Create lookup maps
@@ -221,12 +222,14 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
     });
 
     const premarketMap = new Map();
-    premarketData.forEach(item => {
-      const symbol = item.symbol || item.SYMBOL || item.Symbol;
-      if (symbol) {
-        premarketMap.set(symbol.toUpperCase(), item);
-      }
-    });
+    if (hasPremarket) {
+      premarketData.forEach(item => {
+        const symbol = item.symbol || item.SYMBOL || item.Symbol;
+        if (symbol) {
+          premarketMap.set(symbol.toUpperCase(), item);
+        }
+      });
+    }
 
     // Generate signals with filter counters
     const signals = [];
@@ -243,11 +246,126 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       gapTooSmall: 0,
       volumeTooLow: 0,
       scoreTooLow: 0,
-      passed: 0
+      passed: 0,
+      noPremarketData: !hasPremarket ? bhavcopyData.length : 0
     };
 
-    // Process stocks with premarket data
-    for (const premarket of premarketData) {
+    // If no premarket data, generate signals based on bhavcopy only
+    if (!hasPremarket) {
+      // Process all bhavcopy stocks (no premarket filter)
+      for (const bhavcopy of bhavcopyData) {
+        const symbol = (bhavcopy.symbol || bhavcopy.SYMBOL || bhavcopy.Symbol || '').toUpperCase();
+        if (!symbol) {
+          filterCounters.noSymbol++;
+          continue;
+        }
+        if (processedSymbols.has(symbol)) {
+          filterCounters.duplicateSymbol++;
+          continue;
+        }
+        
+        if (bhavcopy.series && bhavcopy.series !== 'EQ') {
+          filterCounters.notEqSeries++;
+          continue;
+        }
+
+        const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE || 
+                              bhavcopy.PREV_CLOSE || bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
+        if (yesterdayClose <= 0) {
+          filterCounters.invalidYesterdayClose++;
+          continue;
+        }
+
+        const volume = bhavcopy.volume || bhavcopy.VOLUME || 
+                      bhavcopy.tottrdqty || bhavcopy.TOTTRDQTY || 
+                      bhavcopy.traded_quantity || bhavcopy.TRADED_QUANTITY || 0;
+        const minVolume = 100000;
+        if (volume < minVolume) {
+          filterCounters.volumeTooLow++;
+          continue;
+        }
+
+        // Without premarket, use yesterday's close as entry estimate
+        // Look for stocks with strong momentum indicators from yesterday
+        const yesterdayHigh = bhavcopy.high || yesterdayClose;
+        const yesterdayLow = bhavcopy.low || yesterdayClose;
+        const change = bhavcopy.change || bhavcopy.CHANGE || 0;
+        const pChange = bhavcopy.pChange || bhavcopy.PCHANGE || bhavcopy.pctChange || 0;
+        
+        // Calculate momentum score based on yesterday's performance
+        let momentumScore = 0;
+        if (pChange > 0) {
+          // Positive momentum
+          if (pChange >= 2) momentumScore = 40;
+          else if (pChange >= 1) momentumScore = 30;
+          else if (pChange >= 0.5) momentumScore = 20;
+          else momentumScore = 10;
+        }
+
+        const nearHighScore = (yesterdayHigh > 0 && Math.abs((yesterdayClose - yesterdayHigh) / yesterdayHigh) <= 0.02) ? 20 : 0;
+
+        let volumeScore = 0;
+        if (volume >= 1000000) volumeScore = 20;
+        else if (volume >= 500000) volumeScore = 15;
+        else if (volume >= 200000) volumeScore = 10;
+        else volumeScore = 5;
+
+        let deliveryScore = 0;
+        const deliveryPercent = bhavcopy.delivery_percent || 0;
+        if (deliveryPercent > 50) deliveryScore = 20;
+        else if (deliveryPercent > 30) deliveryScore = 15;
+        else if (deliveryPercent > 20) deliveryScore = 10;
+
+        const totalScore = momentumScore + nearHighScore + volumeScore + deliveryScore;
+
+        if (totalScore < 50) {
+          filterCounters.scoreTooLow++;
+          continue;
+        }
+        
+        filterCounters.passed++;
+
+        // Use yesterday's close as entry estimate (will be updated when premarket available)
+        const entryPrice = yesterdayClose;
+        const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
+        const stopLoss = entryPrice - (atr * 1.5);
+        const targetPrice = entryPrice + (atr * 2.5);
+
+        const reasons = [];
+        if (pChange > 0) reasons.push(`Momentum ${pChange.toFixed(2)}%`);
+        if (nearHighScore > 0) reasons.push('Near high');
+        if (volume >= 500000) reasons.push('High volume');
+        if (deliveryPercent > 30) reasons.push('Good delivery');
+        reasons.push('Based on yesterday data (premarket pending)');
+
+        const reason = reasons.join(', ') || 'Momentum play';
+
+        signals.push({
+          symbol: symbol,
+          direction: 'BUY',
+          entry: parseFloat(entryPrice.toFixed(2)),
+          target: parseFloat(targetPrice.toFixed(2)),
+          sl: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+          score: Math.round(totalScore),
+          reason: reason,
+          entry_price: parseFloat(entryPrice.toFixed(2)),
+          target_price: parseFloat(targetPrice.toFixed(2)),
+          stop_loss: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+          side: 'BUY',
+          confidence_score: parseFloat((totalScore / 100).toFixed(2)),
+          gap_percent: 0, // No gap data without premarket
+          near_high: nearHighScore > 0,
+          volume: volume,
+          delivery_percent: deliveryPercent,
+          pChange: parseFloat(pChange.toFixed(2)),
+          has_premarket: false
+        });
+
+        processedSymbols.add(symbol);
+      }
+    } else {
+      // Process stocks with premarket data (original logic)
+      for (const premarket of premarketData) {
       const symbol = (premarket.symbol || premarket.SYMBOL || premarket.Symbol || '').toUpperCase();
       if (!symbol) {
         filterCounters.noSymbol++;
@@ -371,10 +489,12 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         gap_percent: parseFloat(gapPercent.toFixed(2)),
         near_high: nearHigh,
         volume: volume,
-        delivery_percent: deliveryPercent
+        delivery_percent: deliveryPercent,
+        has_premarket: true
       });
 
       processedSymbols.add(symbol);
+    }
     }
 
     // Sort by score descending and take top 10
@@ -390,7 +510,8 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         { key: 'volumeTooLow', label: 'Volume too low' },
         { key: 'scoreTooLow', label: 'Score too low' },
         { key: 'invalidPremarketPrice', label: 'Invalid premarket price' },
-        { key: 'invalidYesterdayClose', label: 'Invalid yesterday close' }
+        { key: 'invalidYesterdayClose', label: 'Invalid yesterday close' },
+        { key: 'noPremarketData', label: 'No premarket data' }
       ];
       const sortedReasons = reasons.sort((a, b) => filterCounters[b.key] - filterCounters[a.key]);
       topReason = sortedReasons[0] ? `${sortedReasons[0].label} (${filterCounters[sortedReasons[0].key]})` : 'Unknown';
@@ -402,10 +523,13 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       signals: topSignals,
       signal_count: topSignals.length,
       message: topSignals.length > 0 
-        ? `Generated ${topSignals.length} signals for ${date}`
+        ? hasPremarket 
+          ? `Generated ${topSignals.length} signals for ${date}`
+          : `Generated ${topSignals.length} preliminary signals for ${date} based on yesterday's data (premarket pending)`
         : `No signals generated for ${date} (no stocks met criteria)`,
       filterCounters: filterCounters,
-      topReason: topReason
+      topReason: topReason,
+      has_premarket: hasPremarket
     };
 
   } catch (error) {
@@ -509,52 +633,96 @@ async function generateMeanReversionSignals(date, strategy = 'mean_reversion') {
       if (symbol) bhavcopyMap.set(symbol, item);
     });
     
+    const hasPremarket = premarketData.length > 0;
     const premarketMap = new Map();
-    premarketData.forEach(item => {
-      const symbol = (item.symbol || item.SYMBOL || item.Symbol || '').toUpperCase();
-      if (symbol) premarketMap.set(symbol, item);
-    });
+    if (hasPremarket) {
+      premarketData.forEach(item => {
+        const symbol = (item.symbol || item.SYMBOL || item.Symbol || '').toUpperCase();
+        if (symbol) premarketMap.set(symbol, item);
+      });
+    }
     
     const signals = [];
     
-    // Mean reversion: Look for oversold stocks (negative gap, near low)
-    for (const [symbol, premarket] of premarketMap.entries()) {
-      const bhavcopy = bhavcopyMap.get(symbol);
-      if (!bhavcopy) continue;
-      
-      const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE || bhavcopy.PREV_CLOSE || 0;
-      const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE || premarket.price || 0;
-      
-      if (yesterdayClose <= 0 || premarketPrice <= 0) continue;
-      
-      const gapPercent = ((premarketPrice - yesterdayClose) / yesterdayClose) * 100;
-      const volume = bhavcopy.volume || bhavcopy.VOLUME || bhavcopy.tottrdqty || 0;
-      
-      // Mean reversion: Look for negative gaps (oversold) near low
-      if (gapPercent > -5 && gapPercent < 0) { // Down 0-5%
-        const yesterdayLow = bhavcopy.low || yesterdayClose;
-        const nearLow = yesterdayLow > 0 && Math.abs((premarketPrice - yesterdayLow) / yesterdayLow) <= 0.02;
+    if (hasPremarket) {
+      // Mean reversion: Look for oversold stocks (negative gap, near low) with premarket data
+      for (const [symbol, premarket] of premarketMap.entries()) {
+        const bhavcopy = bhavcopyMap.get(symbol);
+        if (!bhavcopy) continue;
         
-        if (nearLow && volume >= 100000) {
-          const entryPrice = premarketPrice;
-          const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
-          const stopLoss = entryPrice - (atr * 1.5);
-          const targetPrice = yesterdayClose; // Target is mean reversion to yesterday's close
+        const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE || bhavcopy.PREV_CLOSE || 0;
+        const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE || premarket.price || 0;
+        
+        if (yesterdayClose <= 0 || premarketPrice <= 0) continue;
+        
+        const gapPercent = ((premarketPrice - yesterdayClose) / yesterdayClose) * 100;
+        const volume = bhavcopy.volume || bhavcopy.VOLUME || bhavcopy.tottrdqty || 0;
+        
+        // Mean reversion: Look for negative gaps (oversold) near low
+        if (gapPercent > -5 && gapPercent < 0) { // Down 0-5%
+          const yesterdayLow = bhavcopy.low || yesterdayClose;
+          const nearLow = yesterdayLow > 0 && Math.abs((premarketPrice - yesterdayLow) / yesterdayLow) <= 0.02;
           
-          const score = 50 + Math.abs(gapPercent) * 5; // More oversold = higher score
+          if (nearLow && volume >= 100000) {
+            const entryPrice = premarketPrice;
+            const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
+            const stopLoss = entryPrice - (atr * 1.5);
+            const targetPrice = yesterdayClose; // Target is mean reversion to yesterday's close
+            
+            const score = 50 + Math.abs(gapPercent) * 5; // More oversold = higher score
+            
+            signals.push({
+              symbol,
+              entry_price: parseFloat(entryPrice.toFixed(2)),
+              target_price: parseFloat(targetPrice.toFixed(2)),
+              stop_loss: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+              side: 'BUY',
+              score: Math.round(score),
+              reason: `Oversold ${gapPercent.toFixed(2)}%, mean reversion play`,
+              confidence_score: parseFloat((score / 100).toFixed(2)),
+              gap_percent: parseFloat(gapPercent.toFixed(2)),
+              volume,
+              has_premarket: true
+            });
+          }
+        }
+      }
+    } else {
+      // Without premarket: Look for oversold stocks from yesterday's data (negative change, near low)
+      for (const [symbol, bhavcopy] of bhavcopyMap.entries()) {
+        const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE || bhavcopy.PREV_CLOSE || 0;
+        const pChange = bhavcopy.pChange || bhavcopy.PCHANGE || bhavcopy.pctChange || 0;
+        const volume = bhavcopy.volume || bhavcopy.VOLUME || bhavcopy.tottrdqty || 0;
+        
+        if (yesterdayClose <= 0 || volume < 100000) continue;
+        
+        // Mean reversion: Look for stocks that were down yesterday (oversold)
+        if (pChange < 0 && pChange > -5) { // Down 0-5% yesterday
+          const yesterdayLow = bhavcopy.low || yesterdayClose;
+          const nearLow = yesterdayLow > 0 && Math.abs((yesterdayClose - yesterdayLow) / yesterdayLow) <= 0.02;
           
-          signals.push({
-            symbol,
-            entry_price: parseFloat(entryPrice.toFixed(2)),
-            target_price: parseFloat(targetPrice.toFixed(2)),
-            stop_loss: parseFloat(Math.max(0, stopLoss).toFixed(2)),
-            side: 'BUY',
-            score: Math.round(score),
-            reason: `Oversold ${gapPercent.toFixed(2)}%, mean reversion play`,
-            confidence_score: parseFloat((score / 100).toFixed(2)),
-            gap_percent: parseFloat(gapPercent.toFixed(2)),
-            volume
-          });
+          if (nearLow) {
+            const entryPrice = yesterdayClose;
+            const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
+            const stopLoss = entryPrice - (atr * 1.5);
+            const targetPrice = yesterdayClose * 1.02; // Target 2% above entry (mean reversion)
+            
+            const score = 50 + Math.abs(pChange) * 5; // More oversold = higher score
+            
+            signals.push({
+              symbol,
+              entry_price: parseFloat(entryPrice.toFixed(2)),
+              target_price: parseFloat(targetPrice.toFixed(2)),
+              stop_loss: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+              side: 'BUY',
+              score: Math.round(score),
+              reason: `Oversold ${pChange.toFixed(2)}% yesterday, mean reversion play (premarket pending)`,
+              confidence_score: parseFloat((score / 100).toFixed(2)),
+              gap_percent: 0,
+              volume,
+              has_premarket: false
+            });
+          }
         }
       }
     }
@@ -568,8 +736,11 @@ async function generateMeanReversionSignals(date, strategy = 'mean_reversion') {
       signals: topSignals,
       signal_count: topSignals.length,
       message: topSignals.length > 0 
-        ? `Generated ${topSignals.length} mean reversion signals for ${date}`
-        : `No mean reversion signals generated for ${date} (no oversold stocks found)`
+        ? hasPremarket
+          ? `Generated ${topSignals.length} mean reversion signals for ${date}`
+          : `Generated ${topSignals.length} preliminary mean reversion signals for ${date} based on yesterday's data (premarket pending)`
+        : `No mean reversion signals generated for ${date} (no oversold stocks found)`,
+      has_premarket: hasPremarket
     };
   } catch (error) {
     return { success: false, date, signals: [], signal_count: 0, message: `Error: ${error.message}` };
@@ -745,7 +916,8 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
     // Check data availability
     const dataCheck = await checkDataAvailability(date);
     
-    if (!dataCheck.hasBhav || !dataCheck.hasPremarket) {
+    // Only require bhavcopy - premarket is optional (signals can be generated without it)
+    if (!dataCheck.hasBhav) {
       // Missing required data - save INSUFFICIENT_DATA status
       const signalsStoreCollection = await getSignalsStoreCollection();
       
@@ -780,6 +952,9 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
         message: `Missing required files: ${dataCheck.missingFiles.join(', ')}`
       };
     }
+    
+    // Note: Premarket is optional - signals can be generated with just bhavcopy data
+    // If premarket is missing, signals will be based on yesterday's data only
     
     // Data is available - generate signals using strategy-specific logic
     console.log(`✅ [generateSignalsForDate] Data available, generating signals with strategy: ${strategy}...`);
