@@ -64,30 +64,42 @@ apiRoutes.forEach(({ path, file }) => {
       handler = handlerModule.default;
     } else {
       handler = handlerModule;
-      }
+    }
     
     if (typeof handler !== 'function') {
       console.error(`❌ Handler for ${path} is not a function. Type: ${typeof handler}`);
       console.error(`   Module keys:`, Object.keys(handlerModule || {}));
+      console.error(`   Module value:`, handlerModule);
       failedRoutes++;
       return;
     }
     
     // Mount route - use app.all to handle all HTTP methods
-    // Also handle query parameters (e.g., /api/data?action=save)
+    // Express automatically handles query parameters (e.g., /api/data?action=save)
     const routePath = `/api/${path}`;
     app.all(routePath, async (req, res) => {
       try {
+        console.log(`🔍 [${new Date().toISOString()}] Handling ${req.method} ${req.path}${req.url !== req.path ? ` (full: ${req.url})` : ''} on route ${routePath}`);
         await handler(req, res);
+        if (!res.headersSent) {
+          console.warn(`⚠️ Handler for ${routePath} did not send a response`);
+          res.status(500).json({ 
+            success: false,
+            error: 'Handler did not send a response'
+          });
+        }
       } catch (error) {
         console.error(`❌ Error in ${routePath}:`, error);
+        console.error(`   Error stack:`, error.stack);
         if (!res.headersSent) {
           res.status(500).json({ 
             success: false,
             error: error.message,
             stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
           });
-      }
+        } else {
+          console.error(`⚠️ Response already sent for ${routePath}`);
+        }
       }
     });
     
