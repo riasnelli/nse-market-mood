@@ -13,6 +13,14 @@ const PORT = process.env.PORT || 3001;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Request logging middleware - log all API requests
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    console.log(`📥 [${new Date().toISOString()}] ${req.method} ${req.path}${req.url !== req.path ? ` (${req.url})` : ''}`);
+  }
+  next();
+});
+
 // CORS middleware - MUST be before routes
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -43,6 +51,17 @@ app.get('/api/test', (req, res) => {
     message: 'Server is running',
     timestamp: new Date().toISOString(),
     nodeVersion: process.version
+  });
+});
+
+// Debug route to test /api/data path matching
+app.get('/api/data-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Data route test endpoint',
+    path: req.path,
+    url: req.url,
+    query: req.query
   });
 });
 
