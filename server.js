@@ -224,18 +224,7 @@ apiRoutes.forEach(({ path, file }) => {
       wrappedHandler(req, res, next);
     };
     
-    // Use router.use() with exact path match - this catches ALL methods
-    // This is more reliable than individual method registrations
-    apiRouter.use(routePath, (req, res, next) => {
-      // Only match if path is exactly the route path (no sub-paths)
-      if (req.path === routePath || req.path === routePath + '/') {
-        loggedHandler(req, res, next);
-      } else {
-        next(); // Continue to next middleware/route
-      }
-    });
-    
-    // Also register explicit methods as backup
+    // Register for all HTTP methods explicitly - this is the most reliable approach
     apiRouter.get(routePath, loggedHandler);
     apiRouter.post(routePath, loggedHandler);
     apiRouter.put(routePath, loggedHandler);

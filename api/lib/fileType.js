@@ -195,9 +195,9 @@ function parseDateFromFilename(fileName) {
   }
 
   // Pattern 4: DD-MMM-YYYY in filename (e.g., MW-Pre-Open-Market-19-Dec-2025.csv)
-  const ddmmyyyyMatch = fileName.match(/(\d{2})-([A-Z]{3})-(\d{4})/i);
-  if (ddmmyyyyMatch) {
-    const [, day, monthStr, year] = ddmmyyyyMatch;
+  const ddMmmYyyyMatch = fileName.match(/(\d{2})-([A-Z]{3})-(\d{4})/i);
+  if (ddMmmYyyyMatch) {
+    const [, day, monthStr, year] = ddMmmYyyyMatch;
     const monthMap = {
       'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
       'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
