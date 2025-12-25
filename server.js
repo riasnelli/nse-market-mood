@@ -159,6 +159,13 @@ try {
 // Use Express Router for better route management
 const apiRouter = express.Router();
 
+// Add middleware to log all requests hitting the router
+// CRITICAL: This must be BEFORE routes are registered so it doesn't interfere
+apiRouter.use((req, res, next) => {
+  console.log(`📥 Router received: ${req.method} ${req.path} (original: ${req.originalUrl}, query: ${JSON.stringify(req.query)})`);
+  next();
+});
+
 apiRoutes.forEach(({ path, file }) => {
   try {
     console.log(`📦 Loading ${file}...`);
@@ -211,10 +218,47 @@ apiRoutes.forEach(({ path, file }) => {
     // Mount route on router - use path without /api prefix since router will be mounted at /api
     const routePath = `/${path}`;
     
-    // Register for all HTTP methods using router.all()
-    apiRouter.all(routePath, wrappedHandler);
+    // Add logging wrapper to track if route handler is called
+    const loggedHandler = (req, res, next) => {
+      console.log(`🎯 Route handler called for ${req.method} ${req.path} (route: /api${routePath})`);
+      wrappedHandler(req, res, next);
+    };
     
-    console.log(`✅ Mounted API route: /api${routePath} - registered for all HTTP methods`);
+    // Use router.use() with exact path match - this catches ALL methods
+    // This is more reliable than individual method registrations
+    apiRouter.use(routePath, (req, res, next) => {
+      // Only match if path is exactly the route path (no sub-paths)
+      if (req.path === routePath || req.path === routePath + '/') {
+        loggedHandler(req, res, next);
+      } else {
+        next(); // Continue to next middleware/route
+      }
+    });
+    
+    // Also register explicit methods as backup
+    apiRouter.get(routePath, loggedHandler);
+    apiRouter.post(routePath, loggedHandler);
+    apiRouter.put(routePath, loggedHandler);
+    apiRouter.delete(routePath, loggedHandler);
+    apiRouter.patch(routePath, loggedHandler);
+    apiRouter.options(routePath, loggedHandler);
+    
+    // Immediately verify the route was added to the stack
+    const routeAdded = apiRouter.stack.some(layer => 
+      (layer.route && layer.route.path === routePath) || 
+      (layer.regexp && layer.regexp.test(routePath))
+    );
+    if (routeAdded) {
+      console.log(`✅ Mounted API route: /api${routePath} - verified in router stack`);
+    } else {
+      console.error(`❌ FAILED to mount route /api${routePath} - not found in router stack!`);
+      console.error(`   Router stack length: ${apiRouter.stack.length}`);
+      console.error(`   Router stack:`, apiRouter.stack.map(l => {
+        if (l.route) return `ROUTE:${l.route.path}`;
+        if (l.regexp) return `MIDDLEWARE:${l.regexp.source}`;
+        return `UNKNOWN:${l.name || 'anonymous'}`;
+      }));
+    }
     loadedRoutes++;
   } catch (error) {
     console.error(`❌ Could not load API route ${path}:`, error.message);
@@ -233,24 +277,21 @@ console.log(`   Router has ${routerStackLength} routes registered`);
 if (routerStackLength === 0) {
   console.error('❌ WARNING: Router has no routes! Routes were not registered correctly.');
 } else {
-  // Log the routes that were registered
-  console.log('   Registered routes:');
+  // Log ALL layers (routes and middleware)
+  console.log('   Router stack layers:');
   apiRouter.stack.forEach((layer, index) => {
     if (layer.route) {
       const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
-      console.log(`     ${index + 1}. ${methods} /api${layer.route.path}`);
+      console.log(`     ${index + 1}. ROUTE: ${methods} /api${layer.route.path}`);
+    } else if (layer.name === 'router') {
+      console.log(`     ${index + 1}. ROUTER: ${layer.regexp?.source || 'unknown'}`);
+    } else {
+      console.log(`     ${index + 1}. MIDDLEWARE: ${layer.name || 'anonymous'} (path: ${layer.regexp?.source || 'unknown'})`);
     }
   });
 }
 
-// Add middleware to log all requests hitting the router
-// IMPORTANT: This must be BEFORE routes are registered, but AFTER router creation
-// Move this to run before route registration, or it will intercept all requests
-apiRouter.use((req, res, next) => {
-  console.log(`📥 Router received: ${req.method} ${req.path} (original: ${req.originalUrl}, query: ${JSON.stringify(req.query)})`);
-  next();
-});
-
+// Mount the router at /api (middleware already added above, before routes)
 app.use('/api', apiRouter);
 console.log('✅ API router mounted at /api');
 
@@ -265,36 +306,59 @@ app.get('/api/router-test', (req, res) => {
 
 // CRITICAL FALLBACK: Add a direct route for /api/data as a last resort
 // This ensures /api/data works even if router mounting fails
-// This should only be hit if the router doesn't match
+// Register this AFTER the router so router takes precedence, but before static files
 let dataHandlerLoaded = false;
+let fallbackDataHandler = null;
+
 try {
+  console.log('🔧 Loading fallback /api/data route handler...');
   const dataModule = require('./api/data');
   let dataHandler = null;
   
   if (typeof dataModule === 'function') {
     dataHandler = dataModule;
+    console.log('   ✅ Handler found as direct export');
   } else if (dataModule.default && typeof dataModule.default === 'function') {
     dataHandler = dataModule.default;
+    console.log('   ✅ Handler found as default export');
   } else if (dataModule.handler && typeof dataModule.handler === 'function') {
     dataHandler = dataModule.handler;
+    console.log('   ✅ Handler found as .handler property');
   }
   
   if (dataHandler && typeof dataHandler === 'function') {
-    const wrappedDataHandler = wrapServerlessHandler(dataHandler);
-    // Register as fallback AFTER router (so router takes precedence if it works)
-    app.all('/api/data', (req, res, next) => {
-      // Only use fallback if router didn't handle it
-      console.log(`🔄 Fallback /api/data route hit for ${req.method} ${req.path}${req.url !== req.path ? ` (${req.url})` : ''}`);
-      wrappedDataHandler(req, res, next);
-    });
+    fallbackDataHandler = wrapServerlessHandler(dataHandler);
     dataHandlerLoaded = true;
-    console.log('✅ Fallback /api/data route registered');
+    console.log('   ✅ Fallback handler wrapped and ready');
   } else {
-    console.error('❌ Could not load data handler for fallback route');
+    console.error('   ❌ Could not find data handler for fallback route');
+    console.error('   Module type:', typeof dataModule);
+    console.error('   Module keys:', Object.keys(dataModule || {}));
   }
 } catch (error) {
   console.error('❌ Error loading fallback /api/data route:', error.message);
   console.error('   Stack:', error.stack);
+}
+
+// Register fallback route AFTER router (so router takes precedence)
+// But make sure it's registered before static files
+if (fallbackDataHandler) {
+  app.all('/api/data', (req, res, next) => {
+    console.log(`🔄 Fallback /api/data route hit for ${req.method} ${req.path}${req.url !== req.path ? ` (${req.url})` : ''}`);
+    console.log(`   Response already sent: ${res.headersSent}, writableEnded: ${res.writableEnded}`);
+    
+    // Check if response was already sent (router handled it)
+    if (res.headersSent || res.writableEnded) {
+      console.log(`   ⚠️ Response already sent, skipping fallback handler`);
+      return; // Router already handled it
+    }
+    
+    console.log(`   ✅ Calling fallback handler...`);
+    fallbackDataHandler(req, res, next);
+  });
+  console.log('✅ Fallback /api/data route registered (will be used if router fails)');
+} else {
+  console.error('❌ Fallback /api/data route NOT registered - handler loading failed');
 }
 
 // Add a direct test route for /api/data to help diagnose routing issues
