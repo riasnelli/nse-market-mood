@@ -206,12 +206,12 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap',
 
     const premarketMap = new Map();
     if (hasPremarket) {
-      premarketData.forEach(item => {
-        const symbol = item.symbol || item.SYMBOL || item.Symbol;
-        if (symbol) {
-          premarketMap.set(symbol.toUpperCase(), item);
-        }
-      });
+    premarketData.forEach(item => {
+      const symbol = item.symbol || item.SYMBOL || item.Symbol;
+      if (symbol) {
+        premarketMap.set(symbol.toUpperCase(), item);
+      }
+    });
     }
 
     // Generate signals with filter counters
@@ -348,7 +348,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap',
       }
     } else {
       // Process stocks with premarket data (original logic)
-      for (const premarket of premarketData) {
+    for (const premarket of premarketData) {
       const symbol = (premarket.symbol || premarket.SYMBOL || premarket.Symbol || '').toUpperCase();
       if (!symbol) {
         filterCounters.noSymbol++;
@@ -507,7 +507,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap',
       signal_count: topSignals.length,
       message: topSignals.length > 0 
         ? hasPremarket 
-          ? `Generated ${topSignals.length} signals for ${date}`
+        ? `Generated ${topSignals.length} signals for ${date}`
           : `Generated ${topSignals.length} preliminary signals for ${date} based on yesterday's data (premarket pending)`
         : `No signals generated for ${date} (no stocks met criteria)`,
       filterCounters: filterCounters,
@@ -808,6 +808,395 @@ async function generateVolatilityPlaySignals(date, strategy = 'volatility_play',
 }
 
 /**
+ * Generate Watchlist Score signals (EOD-only, no premarket required)
+ * Option A: Uses Bhavcopy, MA, 52W, Daily Snapshot/Indices
+ * Goal: Identify stocks likely to move tomorrow, not exact direction
+ * 
+ * Filters:
+ * - Series: EQ
+ * - Liquidity: AvgVol20D >= 300k (or yesterday volume >= 300k)
+ * - Price: ₹20–₹2000
+ * - Volatility: TrueRange% >= 2% or High-Low% >= 2%
+ * - Strength: Near 52W High (within 8%) OR Breakout-ish (close near day high > 0.7)
+ * - Score threshold: 45+
+ * 
+ * Output: 50–200 watchlist candidates
+ */
+async function generateWatchlistScoreSignals(date, strategy = 'watchlist_score', refDate = null) {
+  try {
+    const yesterdayDate = refDate || prevTradingDay(date);
+    console.log(`📊 Generating watchlist score signals for ${date} (EOD-only, no premarket required):`);
+    console.log(`   - Bhavcopy data: ${yesterdayDate} (yesterday's EOD)`);
+    console.log(`   - MA data: ${yesterdayDate} (yesterday's market activity)`);
+    console.log(`   - 52W data: ${yesterdayDate} (52-week high/low)`);
+    
+    const bhavcopyCollection = await getDailyBhavcopyCollection();
+    const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+    const maCollection = await getUploadedDataCollection('marketactivity');
+    const w52Collection = await getUploadedDataCollection('52w');
+    
+    // Get bhavcopy data
+    let bhavcopyData = [];
+    try {
+      bhavcopyData = await bhavcopyCollection
+        .find({ date: yesterdayDate, series: 'EQ' })
+        .toArray();
+      
+      if (bhavcopyData.length === 0) {
+        const uploadedBhavDocs = await uploadedBhavCollection
+          .find({ date: yesterdayDate })
+          .toArray();
+        
+        for (const doc of uploadedBhavDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            const eqStocks = doc.indices.filter(item => !item.series || item.series === 'EQ');
+            bhavcopyData = bhavcopyData.concat(eqStocks);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching bhavcopy:', error);
+      return {
+        success: false,
+        date,
+        signals: [],
+        signal_count: 0,
+        message: `Error fetching bhavcopy data for ${yesterdayDate}`
+      };
+    }
+    
+    if (bhavcopyData.length === 0) {
+      return {
+        success: false,
+        date,
+        signals: [],
+        signal_count: 0,
+        message: `No bhavcopy data available for ${yesterdayDate}`
+      };
+    }
+    
+    // Get 52W data
+    let w52Data = new Map();
+    try {
+      const w52Docs = await w52Collection.find({ date: yesterdayDate }).toArray();
+      for (const doc of w52Docs) {
+        if (doc.indices && Array.isArray(doc.indices)) {
+          for (const item of doc.indices) {
+            if (item.symbol) {
+              w52Data.set(item.symbol, {
+                high52w: item.high52w || item['52W_HIGH'] || item.high_52w,
+                low52w: item.low52w || item['52W_LOW'] || item.low_52w
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Warning: Could not fetch 52W data:', error.message);
+    }
+    
+    // Get MA data for volume ranking
+    let maData = new Map();
+    try {
+      const maDocs = await maCollection.find({ date: yesterdayDate }).toArray();
+      for (const doc of maDocs) {
+        if (doc.indices && Array.isArray(doc.indices)) {
+          for (const item of doc.indices) {
+            if (item.symbol) {
+              maData.set(item.symbol, {
+                turnover: item.turnover || item.TURNOVER || 0,
+                volume: item.volume || item.VOLUME || 0,
+                trades: item.trades || item.TRADES || 0
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Warning: Could not fetch MA data:', error.message);
+    }
+    
+    // Calculate watchlist scores
+    const watchlistCandidates = [];
+    
+    for (const stock of bhavcopyData) {
+      const symbol = stock.symbol || stock.SYMBOL;
+      if (!symbol) continue;
+      
+      const close = parseFloat(stock.close || stock.CLOSE || stock.lastPrice || 0);
+      const open = parseFloat(stock.open || stock.OPEN || 0);
+      const high = parseFloat(stock.high || stock.HIGH || close);
+      const low = parseFloat(stock.LOW || stock.low || close);
+      const volume = parseFloat(stock.volume || stock.VOLUME || stock.totalTradedVolume || 0);
+      const delivery = parseFloat(stock.delivery || stock.DELIVERY || stock.deliveryQty || 0);
+      
+      // Basic filters
+      if (close < 20 || close > 2000) continue; // Price range
+      if (volume < 300000) continue; // Liquidity: >= 300k
+      
+      // Calculate TrueRange% and High-Low%
+      const trueRange = high - low;
+      const trueRangePercent = (trueRange / close) * 100;
+      const highLowPercent = ((high - low) / close) * 100;
+      
+      // Volatility filter: TrueRange% >= 2% or High-Low% >= 2%
+      if (trueRangePercent < 2 && highLowPercent < 2) continue;
+      
+      // Get 52W data
+      const w52 = w52Data.get(symbol);
+      let near52WHigh = false;
+      let near52WHighPercent = 0;
+      
+      if (w52 && w52.high52w && w52.high52w > 0) {
+        near52WHighPercent = ((close / w52.high52w) - 1) * 100;
+        near52WHigh = near52WHighPercent >= -8 && near52WHighPercent <= 0; // Within 8% of 52W high
+      }
+      
+      // Breakout-ish: close near day high
+      const breakoutRatio = high > low ? (close - low) / (high - low) : 0;
+      const isBreakout = breakoutRatio > 0.7;
+      
+      // Strength filter: Near 52W High OR Breakout-ish
+      if (!near52WHigh && !isBreakout) continue;
+      
+      // Calculate score (0-100)
+      let score = 0;
+      
+      // Volatility component (0-25 points)
+      score += Math.min(25, (trueRangePercent / 4) * 10);
+      
+      // Strength component (0-30 points)
+      if (near52WHigh) {
+        score += 30; // Full points for near 52W high
+      } else if (isBreakout) {
+        score += 20; // Partial points for breakout
+      }
+      
+      // Volume component (0-20 points)
+      const volumeScore = Math.min(20, (volume / 1000000) * 2); // 1M volume = 20 points
+      score += volumeScore;
+      
+      // Delivery component (0-15 points) - if available
+      if (delivery > 0 && volume > 0) {
+        const deliveryRatio = delivery / volume;
+        score += Math.min(15, deliveryRatio * 30);
+      }
+      
+      // Liquidity ranking (0-10 points) - from MA data if available
+      const ma = maData.get(symbol);
+      if (ma && ma.turnover > 0) {
+        // Higher turnover = higher score (normalized)
+        score += Math.min(10, (ma.turnover / 100000000) * 0.5); // 200M turnover = 10 points
+      }
+      
+      // Score threshold: 45+
+      if (score >= 45) {
+        watchlistCandidates.push({
+          symbol,
+          entry_price: close,
+          stop_loss: parseFloat((close * 0.97).toFixed(2)), // 3% stop
+          target_price: parseFloat((close * 1.05).toFixed(2)), // 5% target
+          score: Math.round(score),
+          gap_percent: 0, // No gap for EOD
+          volume,
+          reason: near52WHigh 
+            ? `Near 52W High (${near52WHighPercent.toFixed(1)}%), Score: ${Math.round(score)}`
+            : `Breakout pattern (${(breakoutRatio * 100).toFixed(0)}% of range), Score: ${Math.round(score)}`,
+          strategy: 'watchlist_score',
+          strength: near52WHigh ? '52W_HIGH' : 'BREAKOUT',
+          volatility_percent: trueRangePercent.toFixed(2)
+        });
+      }
+    }
+    
+    // Sort by score descending
+    watchlistCandidates.sort((a, b) => b.score - a.score);
+    
+    // Limit to 200 candidates
+    const finalSignals = watchlistCandidates.slice(0, 200);
+    
+    return {
+      success: true,
+      date,
+      signals: finalSignals,
+      signal_count: finalSignals.length,
+      message: finalSignals.length > 0
+        ? `Generated ${finalSignals.length} watchlist score candidates for ${date} (EOD-only)`
+        : `No watchlist candidates for ${date} (no stocks met criteria)`
+    };
+    
+  } catch (error) {
+    console.error('Error generating watchlist score signals:', error);
+    return {
+      success: false,
+      date,
+      signals: [],
+      signal_count: 0,
+      message: `Error generating watchlist score signals: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Generate EOD Breakout/Momentum signals (EOD-only, no premarket required)
+ * Option B: More signal-like approach for after market hours
+ * 
+ * Breakout candidates:
+ * - Close in top 30% of day range
+ * - Volume higher than usual (or at least in top X percentile today)
+ * - Near 20D/50D high (if history available)
+ * 
+ * Mean reversion candidates:
+ * - Big red candle + high volume + support zone proximity (needs history)
+ */
+async function generateEODBreakoutSignals(date, strategy = 'eod_breakout', refDate = null) {
+  try {
+    const yesterdayDate = refDate || prevTradingDay(date);
+    console.log(`📊 Generating EOD breakout signals for ${date} (EOD-only, no premarket required):`);
+    console.log(`   - Bhavcopy data: ${yesterdayDate} (yesterday's EOD)`);
+    console.log(`   - MA data: ${yesterdayDate} (yesterday's market activity)`);
+    
+    const bhavcopyCollection = await getDailyBhavcopyCollection();
+    const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+    const maCollection = await getUploadedDataCollection('marketactivity');
+    
+    // Get bhavcopy data
+    let bhavcopyData = [];
+    try {
+      bhavcopyData = await bhavcopyCollection
+        .find({ date: yesterdayDate, series: 'EQ' })
+        .toArray();
+      
+      if (bhavcopyData.length === 0) {
+        const uploadedBhavDocs = await uploadedBhavCollection
+          .find({ date: yesterdayDate })
+          .toArray();
+        
+        for (const doc of uploadedBhavDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            const eqStocks = doc.indices.filter(item => !item.series || item.series === 'EQ');
+            bhavcopyData = bhavcopyData.concat(eqStocks);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching bhavcopy:', error);
+      return {
+        success: false,
+        date,
+        signals: [],
+        signal_count: 0,
+        message: `Error fetching bhavcopy data for ${yesterdayDate}`
+      };
+    }
+    
+    if (bhavcopyData.length === 0) {
+      return {
+        success: false,
+        date,
+        signals: [],
+        signal_count: 0,
+        message: `No bhavcopy data available for ${yesterdayDate}`
+      };
+    }
+    
+    // Get MA data for volume comparison
+    let maData = new Map();
+    let allVolumes = [];
+    try {
+      const maDocs = await maCollection.find({ date: yesterdayDate }).toArray();
+      for (const doc of maDocs) {
+        if (doc.indices && Array.isArray(doc.indices)) {
+          for (const item of doc.indices) {
+            if (item.symbol) {
+              const vol = item.volume || item.VOLUME || item.turnover || item.TURNOVER || 0;
+              maData.set(item.symbol, vol);
+              if (vol > 0) allVolumes.push(vol);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Warning: Could not fetch MA data:', error.message);
+    }
+    
+    // Calculate volume percentile threshold (top 30%)
+    allVolumes.sort((a, b) => b - a);
+    const volumeThreshold = allVolumes.length > 0 
+      ? allVolumes[Math.floor(allVolumes.length * 0.3)]
+      : 500000; // Default threshold
+    
+    const breakoutSignals = [];
+    
+    for (const stock of bhavcopyData) {
+      const symbol = stock.symbol || stock.SYMBOL;
+      if (!symbol) continue;
+      
+      const close = parseFloat(stock.close || stock.CLOSE || stock.lastPrice || 0);
+      const open = parseFloat(stock.open || stock.OPEN || 0);
+      const high = parseFloat(stock.high || stock.HIGH || close);
+      const low = parseFloat(stock.LOW || stock.low || close);
+      const volume = parseFloat(stock.volume || stock.VOLUME || stock.totalTradedVolume || 0);
+      
+      // Basic filters
+      if (close < 20 || close > 2000) continue;
+      if (volume < 300000) continue;
+      
+      // Breakout: Close in top 30% of day range
+      const dayRange = high - low;
+      if (dayRange <= 0) continue;
+      
+      const closePosition = (close - low) / dayRange;
+      if (closePosition < 0.7) continue; // Must be in top 30% of range
+      
+      // Volume check: Higher than threshold or at least in top percentile
+      const maVolume = maData.get(symbol) || volume;
+      if (maVolume < volumeThreshold && volume < volumeThreshold) continue;
+      
+      // Calculate breakout strength
+      const breakoutStrength = closePosition * 100; // 70-100%
+      
+      breakoutSignals.push({
+        symbol,
+        entry_price: close,
+        stop_loss: parseFloat((low * 0.98).toFixed(2)), // Stop below day low
+        target_price: parseFloat((close * 1.06).toFixed(2)), // 6% target
+        score: Math.round(breakoutStrength),
+        gap_percent: 0,
+        volume,
+        reason: `EOD Breakout: Close in top ${(100 - breakoutStrength).toFixed(0)}% of range, Volume: ${(volume / 1000000).toFixed(2)}M`,
+        strategy: 'eod_breakout',
+        strength: 'BREAKOUT',
+        close_position_percent: breakoutStrength.toFixed(1)
+      });
+    }
+    
+    // Sort by score descending
+    breakoutSignals.sort((a, b) => b.score - a.score);
+    
+    return {
+      success: true,
+      date,
+      signals: breakoutSignals,
+      signal_count: breakoutSignals.length,
+      message: breakoutSignals.length > 0
+        ? `Generated ${breakoutSignals.length} EOD breakout signals for ${date} (EOD-only)`
+        : `No EOD breakout signals for ${date} (no stocks met criteria)`
+    };
+    
+  } catch (error) {
+    console.error('Error generating EOD breakout signals:', error);
+    return {
+      success: false,
+      date,
+      signals: [],
+      signal_count: 0,
+      message: `Error generating EOD breakout signals: ${error.message}`
+    };
+  }
+}
+
+/**
  * Check if required datasets are available for a date
  * 
  * @param {string} targetDate - Target date in YYYY-MM-DD format
@@ -1003,7 +1392,11 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mod
     }
     
     // Check if premarket is required for mode
-    if ((mode === 'PREMARKET' || mode === 'LIVE') && !dataCheck.available.premarket) {
+    // EOD-only strategies (watchlist_score, eod_breakout) don't need premarket
+    const eodOnlyStrategies = ['watchlist_score', 'eod_breakout'];
+    const requiresPremarket = !eodOnlyStrategies.includes(strategy) && (mode === 'PREMARKET' || mode === 'LIVE');
+    
+    if (requiresPremarket && !dataCheck.available.premarket) {
       return {
         status: 'INSUFFICIENT_DATA',
         targetDate,
@@ -1037,6 +1430,14 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mod
         break;
       case 'volatility_play':
         result = await generateVolatilityPlaySignals(signalDate, strategy, refDate);
+        break;
+      case 'watchlist_score':
+        // EOD-only strategy - no premarket required
+        result = await generateWatchlistScoreSignals(signalDate, strategy, refDate);
+        break;
+      case 'eod_breakout':
+        // EOD-only strategy - no premarket required
+        result = await generateEODBreakoutSignals(signalDate, strategy, refDate);
         break;
       default:
         console.warn(`⚠️ Unknown strategy: ${strategy}, falling back to momentum_gap`);

@@ -3024,6 +3024,18 @@ class MarketMoodApp {
                 name: 'Volatility Play',
                 description: 'Focus on high-beta stocks with strong momentum. Best for high volatility environments.',
                 icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>'
+            },
+            {
+                id: 'watchlist_score',
+                name: 'Watchlist Score (EOD)',
+                description: 'EOD-only: Identify stocks likely to move tomorrow using bhavcopy, MA, and 52W data. No premarket required.',
+                icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>'
+            },
+            {
+                id: 'eod_breakout',
+                name: 'EOD Breakout (EOD)',
+                description: 'EOD-only: Find breakout candidates with close in top 30% of range and high volume. No premarket required.',
+                icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>'
             }
         ];
         
@@ -9170,7 +9182,9 @@ class MarketMoodApp {
             'breakout': 'Breakout',
             'mean_reversion': 'Mean Reversion',
             'defensive': 'Defensive / Wait',
-            'volatility_play': 'Volatility Play'
+            'volatility_play': 'Volatility Play',
+            'watchlist_score': 'Watchlist Score (EOD)',
+            'eod_breakout': 'EOD Breakout (EOD)'
         };
         
         let strategyText = 'Strategy: Not available';
