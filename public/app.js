@@ -1197,8 +1197,8 @@ class MarketMoodApp {
             }
         }
         
-        // Update data source display for API
-        this.updateDataSourceDisplay('api');
+        // Update data source display for API (will be updated again when data arrives)
+        this.updateDataSourceDisplay('api', null);
         
         try {
             this.setLoading(true);
@@ -1345,23 +1345,17 @@ class MarketMoodApp {
                     console.warn('⚠️ Partial data available: indices temporarily unavailable, but showing mood/advanceDecline/marketStatus data');
                 }
                 console.log('Updating UI with fresh data from API');
-                // Update data source display for API
-                this.updateDataSourceDisplay('api');
+                // Update data source display for API (pass data to show correct timestamp and market status)
+                this.updateDataSourceDisplay('api', data);
                 this.updateUI(data);
-                
-                // Update last updated time
-                this.updateLastUpdatedTime();
             } else {
                 // No valid data (missing mood or marketStatus) - show empty state
                 console.warn('No valid NSE mood data received from API');
-                // Update data source display for API
-                this.updateDataSourceDisplay('api');
+                // Update data source display for API (pass data even if invalid to show status)
+                this.updateDataSourceDisplay('api', data);
                 // Use mock data as fallback only for NSE API
                 this.useMockData();
             }
-            
-            // Update timestamp
-            this.updateLastUpdated(new Date());
 
         } catch (error) {
             console.error(`Error fetching data (attempt ${retryCount + 1}):`, error);
@@ -9149,29 +9143,99 @@ class MarketMoodApp {
         }
         
         const dataSource = document.getElementById('dataSource');
-        const updateInfo = document.getElementById('updateInfo');
+        const lastUpdatedTime = document.getElementById('lastUpdatedTime');
+        const marketStatusEl = document.getElementById('marketStatus');
 
-        console.log('updateDataSourceDisplay called:', { source, data: !!data });
+        console.log('updateDataSourceDisplay called:', { source, data: !!data, hasTimestamp: !!data?.timestamp, hasDate: !!data?.date });
 
         if (source === 'uploaded' || source === 'database') {
-            // Show uploaded data info
+            // Show uploaded/database data info
             if (dataSource) {
                 dataSource.textContent = 'Uploaded Data';
             }
-            if (updateInfo) {
-                const fileName = data?.fileName || 'CSV File';
-                const date = data?.date || 'Unknown date';
-                updateInfo.textContent = `${fileName} • ${date}`;
+            
+            // Format and display the date/time of the data
+            if (lastUpdatedTime) {
+                let timeStr = 'Unknown time';
+                if (data?.timestamp) {
+                    // Use timestamp from data (uploadedAt)
+                    const dataDate = new Date(data.timestamp);
+                    timeStr = dataDate.toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                    const dateStr = dataDate.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                    lastUpdatedTime.textContent = `Last updated: ${dateStr} ${timeStr}`;
+                } else if (data?.date) {
+                    // Use date from data
+                    const dataDate = new Date(data.date + 'T15:30:00'); // Assume market close time
+                    const dateStr = dataDate.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                    lastUpdatedTime.textContent = `Data date: ${dateStr}`;
+                } else {
+                    lastUpdatedTime.textContent = 'Last updated: Unknown';
+                }
             }
+            
+            // Show Market Closed for uploaded/database data
+            if (marketStatusEl) {
+                marketStatusEl.textContent = 'Market Closed';
+                marketStatusEl.style.color = '#9ca3af'; // Gray color
+            }
+            
             console.log('✓ Updated to Uploaded Data display');
         } else if (source === 'api') {
-            // Show NSE India info
+            // Show NSE India info with actual timestamp from API
             if (dataSource) {
                 dataSource.textContent = 'NSE India';
             }
-            if (updateInfo) {
-                updateInfo.textContent = 'Updates every 30 sec. during market hrs.';
+            
+            // Format and display the timestamp from API response
+            if (lastUpdatedTime) {
+                let timeStr = '--:--:--';
+                if (data?.timestamp) {
+                    // Use timestamp from API response
+                    const dataDate = new Date(data.timestamp);
+                    timeStr = dataDate.toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                } else if (data?.marketStatus?.timestamp) {
+                    // Fallback to marketStatus timestamp
+                    const dataDate = new Date(data.marketStatus.timestamp);
+                    timeStr = dataDate.toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                }
+                lastUpdatedTime.textContent = `Last updated: ${timeStr}`;
             }
+            
+            // Show actual market status from API
+            if (marketStatusEl && data?.marketStatus) {
+                const isOpen = data.marketStatus.isOpen;
+                marketStatusEl.textContent = isOpen ? 'Market Open' : 'Market Closed';
+                marketStatusEl.style.color = isOpen ? '#10b981' : '#9ca3af'; // Green if open, gray if closed
+            } else if (marketStatusEl && this.lastMarketStatus) {
+                // Fallback to last known status
+                const isOpen = this.lastMarketStatus.isOpen;
+                marketStatusEl.textContent = isOpen ? 'Market Open' : 'Market Closed';
+                marketStatusEl.style.color = isOpen ? '#10b981' : '#9ca3af';
+            }
+            
             console.log('✓ Updated to NSE India display');
         }
     }
