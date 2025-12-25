@@ -422,6 +422,237 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
 }
 
 /**
+ * Generate Breakout signals
+ * Looks for stocks breaking out of consolidation patterns with high volume
+ */
+async function generateBreakoutSignals(date, strategy = 'breakout') {
+  // Reuse momentum gap logic but with different filters
+  // Breakout: Higher volume requirement, look for stocks near resistance breaking up
+  const baseResult = await generateSimpleMomentumGapSignals(date, strategy);
+  
+  if (!baseResult.success) {
+    return baseResult;
+  }
+  
+  // Apply breakout-specific filters
+  const breakoutSignals = baseResult.signals
+    .filter(signal => {
+      // Breakout requires higher volume (2x minimum)
+      const volume = signal.volume || 0;
+      return volume >= 200000; // Higher volume threshold for breakouts
+    })
+    .map(signal => ({
+      ...signal,
+      reason: signal.reason ? signal.reason.replace('Gap-up', 'Breakout') : 'Breakout pattern',
+      strategy: 'breakout'
+    }));
+  
+  return {
+    ...baseResult,
+    signals: breakoutSignals,
+    signal_count: breakoutSignals.length,
+    message: breakoutSignals.length > 0 
+      ? `Generated ${breakoutSignals.length} breakout signals for ${date}`
+      : `No breakout signals generated for ${date} (no stocks met criteria)`
+  };
+}
+
+/**
+ * Generate Mean Reversion signals
+ * Finds oversold stocks that may revert to mean
+ */
+async function generateMeanReversionSignals(date, strategy = 'mean_reversion') {
+  try {
+    const yesterdayDate = getYesterdayDate(date);
+    console.log(`📊 Generating mean reversion signals for ${date}:`);
+    
+    const bhavcopyCollection = await getDailyBhavcopyCollection();
+    const premarketCollection = await getPreMarketDataCollection();
+    
+    // Get data (same as momentum gap)
+    let bhavcopyData = [];
+    try {
+      bhavcopyData = await bhavcopyCollection.find({ date: yesterdayDate, series: 'EQ' }).toArray();
+      if (bhavcopyData.length === 0) {
+        const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+        const uploadedBhavDocs = await uploadedBhavCollection.find({ date: yesterdayDate }).toArray();
+        for (const doc of uploadedBhavDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            const eqStocks = doc.indices.filter(item => !item.series || item.series === 'EQ');
+            bhavcopyData = bhavcopyData.concat(eqStocks);
+          }
+        }
+      }
+    } catch (error) {
+      return { success: false, date, signals: [], signal_count: 0, message: `Error querying bhavcopy data: ${error.message}` };
+    }
+    
+    let premarketData = [];
+    try {
+      premarketData = await premarketCollection.find({ date }).toArray();
+      if (premarketData.length === 0) {
+        const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
+        const uploadedPremarketDocs = await uploadedPremarketCollection.find({ date }).toArray();
+        for (const doc of uploadedPremarketDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            premarketData = premarketData.concat(doc.indices);
+          }
+        }
+      }
+    } catch (error) {
+      premarketData = [];
+    }
+    
+    const bhavcopyMap = new Map();
+    bhavcopyData.forEach(item => {
+      const symbol = (item.symbol || item.SYMBOL || item.Symbol || '').toUpperCase();
+      if (symbol) bhavcopyMap.set(symbol, item);
+    });
+    
+    const premarketMap = new Map();
+    premarketData.forEach(item => {
+      const symbol = (item.symbol || item.SYMBOL || item.Symbol || '').toUpperCase();
+      if (symbol) premarketMap.set(symbol, item);
+    });
+    
+    const signals = [];
+    
+    // Mean reversion: Look for oversold stocks (negative gap, near low)
+    for (const [symbol, premarket] of premarketMap.entries()) {
+      const bhavcopy = bhavcopyMap.get(symbol);
+      if (!bhavcopy) continue;
+      
+      const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE || bhavcopy.PREV_CLOSE || 0;
+      const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE || premarket.price || 0;
+      
+      if (yesterdayClose <= 0 || premarketPrice <= 0) continue;
+      
+      const gapPercent = ((premarketPrice - yesterdayClose) / yesterdayClose) * 100;
+      const volume = bhavcopy.volume || bhavcopy.VOLUME || bhavcopy.tottrdqty || 0;
+      
+      // Mean reversion: Look for negative gaps (oversold) near low
+      if (gapPercent > -5 && gapPercent < 0) { // Down 0-5%
+        const yesterdayLow = bhavcopy.low || yesterdayClose;
+        const nearLow = yesterdayLow > 0 && Math.abs((premarketPrice - yesterdayLow) / yesterdayLow) <= 0.02;
+        
+        if (nearLow && volume >= 100000) {
+          const entryPrice = premarketPrice;
+          const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
+          const stopLoss = entryPrice - (atr * 1.5);
+          const targetPrice = yesterdayClose; // Target is mean reversion to yesterday's close
+          
+          const score = 50 + Math.abs(gapPercent) * 5; // More oversold = higher score
+          
+          signals.push({
+            symbol,
+            entry_price: parseFloat(entryPrice.toFixed(2)),
+            target_price: parseFloat(targetPrice.toFixed(2)),
+            stop_loss: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+            side: 'BUY',
+            score: Math.round(score),
+            reason: `Oversold ${gapPercent.toFixed(2)}%, mean reversion play`,
+            confidence_score: parseFloat((score / 100).toFixed(2)),
+            gap_percent: parseFloat(gapPercent.toFixed(2)),
+            volume
+          });
+        }
+      }
+    }
+    
+    signals.sort((a, b) => b.score - a.score);
+    const topSignals = signals.slice(0, 10);
+    
+    return {
+      success: true,
+      date,
+      signals: topSignals,
+      signal_count: topSignals.length,
+      message: topSignals.length > 0 
+        ? `Generated ${topSignals.length} mean reversion signals for ${date}`
+        : `No mean reversion signals generated for ${date} (no oversold stocks found)`
+    };
+  } catch (error) {
+    return { success: false, date, signals: [], signal_count: 0, message: `Error: ${error.message}` };
+  }
+}
+
+/**
+ * Generate Defensive signals
+ * Conservative approach - wait for better entry points or consider defensive positions
+ */
+async function generateDefensiveSignals(date, strategy = 'defensive') {
+  // Defensive strategy: Very conservative filters, only high-quality setups
+  const baseResult = await generateSimpleMomentumGapSignals(date, strategy);
+  
+  if (!baseResult.success) {
+    return baseResult;
+  }
+  
+  // Apply defensive filters: Higher score threshold, better quality
+  const defensiveSignals = baseResult.signals
+    .filter(signal => {
+      // Defensive: Only high-quality signals with score >= 70
+      return signal.score >= 70;
+    })
+    .map(signal => ({
+      ...signal,
+      reason: signal.reason ? `Defensive: ${signal.reason}` : 'Defensive position',
+      strategy: 'defensive'
+    }));
+  
+  return {
+    ...baseResult,
+    signals: defensiveSignals,
+    signal_count: defensiveSignals.length,
+    message: defensiveSignals.length > 0 
+      ? `Generated ${defensiveSignals.length} defensive signals for ${date}`
+      : `No defensive signals generated for ${date} (market conditions not suitable for conservative positions)`
+  };
+}
+
+/**
+ * Generate Volatility Play signals
+ * Focus on high-beta stocks with strong momentum
+ */
+async function generateVolatilityPlaySignals(date, strategy = 'volatility_play') {
+  // Volatility play: Look for high volatility stocks with strong momentum
+  const baseResult = await generateSimpleMomentumGapSignals(date, strategy);
+  
+  if (!baseResult.success) {
+    return baseResult;
+  }
+  
+  // Apply volatility filters: Higher gap requirement, strong momentum
+  const volatilitySignals = baseResult.signals
+    .filter(signal => {
+      // Volatility play: Higher gap requirement (>= 1%)
+      const gapPercent = signal.gap_percent || 0;
+      return gapPercent >= 1.0;
+    })
+    .map(signal => {
+      // Adjust targets for volatility play (wider stops, higher targets)
+      const entryPrice = signal.entry_price;
+      const atr = entryPrice * 0.03; // Higher ATR for volatility
+      return {
+        ...signal,
+        stop_loss: parseFloat(Math.max(0, entryPrice - (atr * 2)).toFixed(2)),
+        target_price: parseFloat((entryPrice + (atr * 3)).toFixed(2)),
+        reason: signal.reason ? `Volatility: ${signal.reason}` : 'High volatility momentum play',
+        strategy: 'volatility_play'
+      };
+    });
+  
+  return {
+    ...baseResult,
+    signals: volatilitySignals,
+    signal_count: volatilitySignals.length,
+    message: volatilitySignals.length > 0 
+      ? `Generated ${volatilitySignals.length} volatility play signals for ${date}`
+      : `No volatility play signals generated for ${date} (insufficient volatility)`
+  };
+}
+
+/**
  * Get yesterday's date (skip weekends)
  */
 function getYesterdayDate(todayDate) {
@@ -550,9 +781,30 @@ async function generateSignalsForDate(date, strategy = 'momentum_gap') {
       };
     }
     
-    // Data is available - generate signals using existing logic
-    console.log(`✅ [generateSignalsForDate] Data available, generating signals...`);
-    const result = await generateSimpleMomentumGapSignals(date, strategy);
+    // Data is available - generate signals using strategy-specific logic
+    console.log(`✅ [generateSignalsForDate] Data available, generating signals with strategy: ${strategy}...`);
+    
+    let result;
+    switch (strategy) {
+      case 'momentum_gap':
+        result = await generateSimpleMomentumGapSignals(date, strategy);
+        break;
+      case 'breakout':
+        result = await generateBreakoutSignals(date, strategy);
+        break;
+      case 'mean_reversion':
+        result = await generateMeanReversionSignals(date, strategy);
+        break;
+      case 'defensive':
+        result = await generateDefensiveSignals(date, strategy);
+        break;
+      case 'volatility_play':
+        result = await generateVolatilityPlaySignals(date, strategy);
+        break;
+      default:
+        console.warn(`⚠️ Unknown strategy: ${strategy}, falling back to momentum_gap`);
+        result = await generateSimpleMomentumGapSignals(date, 'momentum_gap');
+    }
     
     // Determine status based on result
     let status;
