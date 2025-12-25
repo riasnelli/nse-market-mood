@@ -5,7 +5,10 @@ class MarketMoodApp {
             date: null,
             signalsInfo: null,
             dataAvailability: null,
-            strategy: null
+            strategy: null,
+            backendMessage: null,
+            mode: null,
+            refDate: null
         };
         this.lastMarketStatus = null; // Store last known market status
         this.lastSuccessfulStatus = null; // Store last successful market status
@@ -1154,56 +1157,56 @@ class MarketMoodApp {
         const activeApi = window.settingsManager?.settings?.activeApi;
         if (activeApi === 'uploaded') {
             try {
-                // First try localStorage
-                let uploadedData = this.getUploadedData();
-                
-                // If not in localStorage, try to load from database using the selected date
-                if ((!uploadedData || !uploadedData.indices || uploadedData.indices.length === 0)) {
-                    const selectedDate = window.settingsManager?.settings?.uploadedDataDate;
-                    if (selectedDate) {
-                        try {
-                            console.log('Loading uploaded data from database for date:', selectedDate);
-                            // Add cache-busting to ensure fresh data
-                            const cacheBuster = `&_=${Date.now()}`;
-                            const response = await fetch(`/api/data?action=get&date=${encodeURIComponent(selectedDate)}${cacheBuster}`, {
-                                cache: 'no-store',
-                                headers: {
-                                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                                    'Pragma': 'no-cache'
-                                }
-                            });
-                            if (response.ok) {
-                                const data = await response.json();
-                                if (data && data.indices && data.indices.length > 0) {
-                                    // Format data to match expected structure
-                                    uploadedData = {
-                                        indices: data.indices,
-                                        date: data.date,
-                                        fileName: data.fileName,
-                                        mood: data.mood || this.calculateMoodFromIndices(data.indices),
-                                        vix: data.vix || null,
-                                        advanceDecline: data.advanceDecline || { advances: 0, declines: 0 },
-                                        source: 'database'
-                                    };
-                                    // Save to localStorage for future use
-                                    localStorage.setItem('uploadedIndicesData', JSON.stringify(uploadedData));
-                                }
+            // First try localStorage
+            let uploadedData = this.getUploadedData();
+            
+            // If not in localStorage, try to load from database using the selected date
+            if ((!uploadedData || !uploadedData.indices || uploadedData.indices.length === 0)) {
+                const selectedDate = window.settingsManager?.settings?.uploadedDataDate;
+                if (selectedDate) {
+                    try {
+                        console.log('Loading uploaded data from database for date:', selectedDate);
+                        // Add cache-busting to ensure fresh data
+                        const cacheBuster = `&_=${Date.now()}`;
+                        const response = await fetch(`/api/data?action=get&date=${encodeURIComponent(selectedDate)}${cacheBuster}`, {
+                            cache: 'no-store',
+                            headers: {
+                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                'Pragma': 'no-cache'
                             }
-                        } catch (error) {
-                            console.warn('Could not load from database:', error);
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data && data.indices && data.indices.length > 0) {
+                                // Format data to match expected structure
+                                uploadedData = {
+                                    indices: data.indices,
+                                    date: data.date,
+                                    fileName: data.fileName,
+                                    mood: data.mood || this.calculateMoodFromIndices(data.indices),
+                                    vix: data.vix || null,
+                                    advanceDecline: data.advanceDecline || { advances: 0, declines: 0 },
+                                    source: 'database'
+                                };
+                                // Save to localStorage for future use
+                                localStorage.setItem('uploadedIndicesData', JSON.stringify(uploadedData));
+                            }
                         }
+                    } catch (error) {
+                        console.warn('Could not load from database:', error);
                     }
                 }
-                
-                if (uploadedData && uploadedData.indices && uploadedData.indices.length > 0) {
-                    console.log('Using uploaded CSV data (selected as active source)');
-                    this.updateDataSourceDisplay('uploaded', uploadedData);
-                    this.updateUI(uploadedData);
-                    this.setLoading(false);
-                    this.lastSuccessfulStatus = uploadedData;
-                    return;
-                } else {
-                    console.warn('Uploaded data selected but no data found. Falling back to API.');
+            }
+            
+            if (uploadedData && uploadedData.indices && uploadedData.indices.length > 0) {
+                console.log('Using uploaded CSV data (selected as active source)');
+                this.updateDataSourceDisplay('uploaded', uploadedData);
+                this.updateUI(uploadedData);
+                this.setLoading(false);
+                this.lastSuccessfulStatus = uploadedData;
+                return;
+            } else {
+                console.warn('Uploaded data selected but no data found. Falling back to API.');
                     // Fall through to API data
                 }
             } catch (error) {
@@ -1391,7 +1394,7 @@ class MarketMoodApp {
                         return; // Exit early, data already displayed
                     } else {
                         // No database data, show partial data (mood/advanceDecline only)
-                        console.warn('⚠️ Partial data available: indices temporarily unavailable, but showing mood/advanceDecline/marketStatus data');
+                    console.warn('⚠️ Partial data available: indices temporarily unavailable, but showing mood/advanceDecline/marketStatus data');
                     }
                 }
                 console.log('Updating UI with fresh data from API');
@@ -1409,7 +1412,7 @@ class MarketMoodApp {
                     // Update data source display for API (pass data even if invalid to show status)
                     this.updateDataSourceDisplay('api', data);
                     // Use mock data as fallback only if no database data
-                    this.useMockData();
+                this.useMockData();
                 }
             }
 
@@ -1478,7 +1481,7 @@ class MarketMoodApp {
                 if (isMarketClosed && this.lastMarketStatus) {
                     this.updateDataSourceDisplay('api', { marketStatus: this.lastMarketStatus });
                 }
-                this.useMockData();
+            this.useMockData();
             }
             // Update timestamp on error
             this.updateLastUpdated(new Date());
@@ -1567,7 +1570,7 @@ class MarketMoodApp {
         if (!loaded) {
             // If no database data, show empty state
             console.log('No database data available - showing empty state');
-            this.showNoDataState();
+        this.showNoDataState();
         }
     }
 
@@ -7902,14 +7905,14 @@ class MarketMoodApp {
                     
                     // Now call loadSignals with resolved signalDate (never null)
                     await this.loadSignals(ctx.signalDate, ctx.strategy);
-                } catch (error) {
+                    } catch (error) {
                     console.error('Error resolving signals context or loading signals:', error);
                     // Fallback: use today's next trading day
                     const today = new Date().toISOString().split('T')[0];
                     const fallbackDate = this.getNextTradingDay(today);
                     await this.loadSignals(fallbackDate, this.selectedStrategy || 'momentum_gap');
-                } finally {
-                    this._switchingView = false;
+                    } finally {
+                        this._switchingView = false;
                 }
             });
             
@@ -8355,10 +8358,10 @@ class MarketMoodApp {
             signalsLoading.style.display = 'none';
 
             // Update status with strategy (use selectedStrategy, not strategyAnalysis)
-            this.updateSignalsStatus({
+                        this.updateSignalsStatus({
                 strategy: selectedStrategy,
-                mode: hasSignals ? 'signals' : 'strategy-only'
-            });
+                            mode: hasSignals ? 'signals' : 'strategy-only'
+                        });
 
             // Handle response based on status
             if (status === 'READY' && hasSignals) {
@@ -9072,7 +9075,7 @@ class MarketMoodApp {
         }
     }
 
-    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode }) {
+    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode, refDate }) {
         const statusPanel = document.getElementById('signalsStatusPanel');
         if (!statusPanel) {
             console.warn('Signals status panel not found');
@@ -9086,12 +9089,14 @@ class MarketMoodApp {
         if (strategy !== undefined) this._signalsStatusData.strategy = strategy;
         if (backendMessage !== undefined) this._signalsStatusData.backendMessage = backendMessage;
         if (mode !== undefined) this._signalsStatusData.mode = mode;
+        if (refDate !== undefined) this._signalsStatusData.refDate = refDate;
 
         // Use stored data with fallbacks
         const targetDate = this._signalsStatusData.date || date || new Date().toISOString().split('T')[0];
         const signals = this._signalsStatusData.signalsInfo || signalsInfo;
         const strategyInfo = this._signalsStatusData.strategy || strategy;
         const message = this._signalsStatusData.backendMessage || backendMessage || signals?.message || '';
+        const refDateValue = this._signalsStatusData.refDate || refDate;
 
         // Determine signals engine status
         let engineStatus = 'Temporarily unavailable — showing strategy only.';
@@ -9132,9 +9137,9 @@ class MarketMoodApp {
 
         // Display date with refDate info
         const dateDisplay = refDateValue 
-            ? `${signalDate} (using bhavcopy from ${refDateValue})`
-            : signalDate;
-        
+            ? `${targetDate} (using bhavcopy from ${refDateValue})`
+            : targetDate;
+
         // Get strategy name with mode indicator
         const strategyNames = {
             'momentum_gap': 'Momentum Gap',
