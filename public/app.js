@@ -8192,14 +8192,15 @@ class MarketMoodApp {
 
     async loadSignals(signalDate, strategy = null) {
         // Ensure signalDate is never null/undefined
-        if (!signalDate || typeof signalDate !== 'string') {
+        let targetSignalDate = signalDate;
+        if (!targetSignalDate || typeof targetSignalDate !== 'string') {
             console.error('❌ loadSignals called with invalid date:', signalDate);
             const today = new Date().toISOString().split('T')[0];
-            signalDate = this.getNextTradingDay(today);
-            console.warn(`⚠️ Defaulting to next trading day from today: ${signalDate}`);
+            targetSignalDate = this.getNextTradingDay(today);
+            console.warn(`⚠️ Defaulting to next trading day from today: ${targetSignalDate}`);
         }
         
-        console.log('📊 Loading signals, date:', signalDate, 'strategy:', strategy || this.selectedStrategy);
+        console.log('📊 Loading signals, date:', targetSignalDate, 'strategy:', strategy || this.selectedStrategy);
         
         // Wait a bit to ensure page view is visible
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -8217,7 +8218,7 @@ class MarketMoodApp {
                 const retrySection = document.getElementById('signalsSection');
                 const retryContainer = document.getElementById('signalsContainer');
                 if (retrySection && retryContainer) {
-                    this.loadSignals(signalDate, strategy);
+                    this.loadSignals(targetSignalDate, strategy);
                 }
             }, 200);
             return;
@@ -8234,7 +8235,7 @@ class MarketMoodApp {
             // Use provided strategy or current selection
             const selectedStrategy = strategy || this.selectedStrategy || 'momentum_gap';
             
-            const targetDate = signalDate;
+            const targetDate = targetSignalDate;
             console.log('📅 Target date for signals:', targetDate);
 
             // Clear any cached signals data to force refresh
@@ -8535,8 +8536,8 @@ class MarketMoodApp {
             // Display signals
             console.log('📈 Rendering', signalsArray.length, 'signals');
             const runId = data?.run_id || data?.runId || null;
-            const signalDate = data?.date || targetDate;
-            this.renderSignals(signalsArray, runId, signalDate, signalsContainer);
+            const finalSignalDate = data?.date || targetDate;
+            this.renderSignals(signalsArray, runId, finalSignalDate, signalsContainer);
             
             // Strategy recommendation card removed - strategy shown in selector button only
             
