@@ -224,9 +224,14 @@ async function getSignalsMode({ selectedDate, now = null }) {
 }
 
 /**
- * Get mode display name
+ * Get mode display name (single badge, no duplicates)
  */
 function getModeDisplayName(mode) {
+  // Handle legacy 'PLAYBOOK' mode
+  if (mode === 'PLAYBOOK') {
+    return 'EOD'; // Default legacy mode to EOD
+  }
+  
   const names = {
     [MODE_EOD]: 'EOD',
     [MODE_PREM]: 'PREMARKET',
@@ -237,16 +242,39 @@ function getModeDisplayName(mode) {
 }
 
 /**
- * Get mode description
+ * Get mode description (for UI display)
  */
 function getModeDescription(mode) {
+  // Handle legacy 'PLAYBOOK' mode
+  if (mode === 'PLAYBOOK') {
+    return 'Watchlist';
+  }
+  
   const descriptions = {
-    [MODE_EOD]: 'Watchlist (EOD-only, no premarket)',
-    [MODE_PREM]: 'Confirmed (Premarket validated)',
-    [MODE_LIVE]: 'Live Adjusted (Market open)',
-    [MODE_NONE]: 'No Data (Upload required)'
+    [MODE_EOD]: 'Watchlist',
+    [MODE_PREM]: 'Confirmed',
+    [MODE_LIVE]: 'Adaptive',
+    [MODE_NONE]: 'No Data'
   };
   return descriptions[mode] || mode;
+}
+
+/**
+ * Get full mode label (for UI)
+ */
+function getModeLabel(mode) {
+  // Handle legacy 'PLAYBOOK' mode
+  if (mode === 'PLAYBOOK') {
+    return 'EOD (Watchlist)';
+  }
+  
+  const labels = {
+    [MODE_EOD]: 'EOD (Watchlist)',
+    [MODE_PREM]: 'PREMARKET (Confirmed)',
+    [MODE_LIVE]: 'LIVE (Adaptive)',
+    [MODE_NONE]: 'NONE (No Data)'
+  };
+  return labels[mode] || mode;
 }
 
 module.exports = {
@@ -257,6 +285,7 @@ module.exports = {
   getSignalsMode,
   getModeDisplayName,
   getModeDescription,
+  getModeLabel,
   getMarketSession,
   getTodayIST,
   hasEODData,

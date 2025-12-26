@@ -19,7 +19,7 @@ const {
   resolveSignalDates,
   isTradingDay
 } = require('./lib/tradingCalendar');
-const { getModeDisplayName, getModeDescription } = require('./lib/signals/mode');
+const { getModeDisplayName, getModeDescription, getModeLabel } = require('./lib/signals/mode');
 
 // Try to load uuid, but don't fail if it's not available
 let uuidv4;
@@ -649,14 +649,30 @@ const handler = async (req, res) => {
         // This maintains backward compatibility
       }
       
-      // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get signals for a date (READ-ONLY)
+      // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap&modeOverride=AUTO&marketStatus=... - Get signals for a date
       let targetDate = req.query.date || new Date().toISOString().split('T')[0];
       let strategy = req.query.strategy;
-      const mode = req.query.mode || 'PLAYBOOK';
+      const modeOverride = req.query.modeOverride || 'AUTO'; // User override from localStorage
       const includeDebug = req.query.debug === '1' || process.env.NODE_ENV !== 'production';
       
-      // Resolve trading dates from targetDate
-      const { signalDate, refDate } = resolveSignalDates(targetDate);
+      // Get market status from query (passed from client) or default to closed
+      let marketStatus = { isOpen: false, timestamp: new Date().toISOString() };
+      if (req.query.marketStatus) {
+        try {
+          marketStatus = JSON.parse(req.query.marketStatus);
+        } catch (e) {
+          // If parsing fails, try to extract isOpen from string
+          if (req.query.marketStatus === 'true' || req.query.marketStatus === '1') {
+            marketStatus = { isOpen: true, timestamp: new Date().toISOString() };
+          }
+        }
+      }
+      
+      // User override from query params
+      const userOverride = {
+        mode: modeOverride !== 'AUTO' ? modeOverride : undefined,
+        strategy: strategy
+      };
       
       // If no strategy specified, get mood-based strategy
       if (!strategy) {
@@ -672,28 +688,45 @@ const handler = async (req, res) => {
         }
       }
       
-      // Check if market is closed on signalDate
-      if (!isTradingDay(signalDate)) {
-        const adjustedSignalDate = nextTradingDay(signalDate);
-        const adjustedRefDate = prevTradingDay(adjustedSignalDate);
-        console.log(`[SIGNALS API] Market closed on ${signalDate}, using ${adjustedSignalDate}`);
+      // Resolve signals context (this determines signalDate, refEodDate, premarketDate, mode)
+      const today = getTodayIST();
+      const context = await resolveSignalsContext({
+        today,
+        marketStatus,
+        userOverride
+      });
+      
+      const signalDate = context.signalDate;
+      const refEodDate = context.refEodDate;
+      const premarketDate = context.premarketDate;
+      const detectedMode = context.mode;
+      
+      if (DEBUG) {
+        console.log(`[SIGNALS API] Resolved context - signalDate: ${signalDate}, refEodDate: ${refEodDate}, premarketDate: ${premarketDate}, mode: ${detectedMode}`);
+      }
+      
+      if (!signalDate || !refEodDate) {
         return res.status(200).json({
           targetDate,
-          signalDate: adjustedSignalDate,
-          refDate: adjustedRefDate,
+          signalDate: null,
+          refDate: null,
           strategy,
-          mode,
-          status: 'MARKET_CLOSED',
+          mode: detectedMode,
+          status: 'INSUFFICIENT_DATA',
           signal_count: 0,
           signals: [],
           hasSignals: false,
-          message: `Market closed on ${signalDate}. Signals available for ${adjustedSignalDate}.`,
-          usedDates: { targetDate, signalDate: adjustedSignalDate, refDate: adjustedRefDate }
+          message: context.reason,
+          missingFiles: context.missingFiles,
+          dataUsed: {
+            refEodDate: null,
+            premarketDate: null,
+            mode: detectedMode,
+            signalDate: null,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp
+          }
         });
-      }
-      
-      if (DEBUG) {
-        console.log(`[SIGNALS API] GET request - targetDate: ${targetDate}, signalDate: ${signalDate}, refDate: ${refDate}, strategy: ${strategy}, mode: ${mode}`);
       }
       
       if (!mongoUri) {
@@ -701,22 +734,52 @@ const handler = async (req, res) => {
         return res.status(200).json({
           targetDate,
           signalDate,
-          refDate,
+          refDate: refEodDate,
           strategy,
-          mode,
+          mode: detectedMode,
           status: 'NO_DATA',
           signal_count: 0,
           signals: [],
           hasSignals: false,
           message: 'MongoDB not configured. Signals cannot be generated.',
-          usedDates: { targetDate, signalDate, refDate }
+          dataUsed: {
+            refEodDate,
+            premarketDate,
+            mode: detectedMode,
+            signalDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp
+          }
         });
       }
 
       try {
         // Read from signals_store collection (new unified store)
         const signalsStoreCollection = await getSignalsStoreCollection();
-        const storedDoc = await signalsStoreCollection.findOne({ date: signalDate, strategy, mode });
+        // First try to find with new mode, then fallback to any mode for this date+strategy
+        let storedDoc = await signalsStoreCollection.findOne({ 
+          date: signalDate,
+          strategy: strategy || 'momentum_gap',
+          mode: detectedMode
+        });
+        
+        // If not found with new mode, try to find any document for this date+strategy (might be legacy)
+        if (!storedDoc) {
+          storedDoc = await signalsStoreCollection.findOne({ 
+            date: signalDate,
+            strategy: strategy || 'momentum_gap'
+          });
+        }
+        
+        // Check if stored doc has legacy mode - if so, skip it and regenerate
+        if (storedDoc) {
+          const storedMode = storedDoc.mode;
+          if (storedMode === 'PLAYBOOK' || !storedMode || (!storedMode.startsWith('MODE_') && storedMode !== 'EOD' && storedMode !== 'PREMARKET' && storedMode !== 'LIVE')) {
+            // Legacy mode or invalid mode - skip stored doc and regenerate
+            if (DEBUG) console.log(`[SIGNALS API] Stored document has legacy/invalid mode "${storedMode}", skipping and regenerating...`);
+            storedDoc = null; // Force regeneration
+          }
+        }
         
         if (storedDoc) {
           // Return stored document with status
@@ -733,21 +796,63 @@ const handler = async (req, res) => {
           })) : [];
 
           if (DEBUG) {
-            console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}`);
+            console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}, mode=${storedDoc.mode}`);
           }
 
-          // Get mode display info
-          const modeDisplay = storedDoc.mode ? getModeDisplayName(storedDoc.mode) : mode;
-          const modeDescription = storedDoc.mode ? getModeDescription(storedDoc.mode) : '';
+          // Get mode display info (single badge, no duplicates)
+          const storedMode = storedDoc.mode;
+          const modeDisplay = storedMode ? getModeDisplayName(storedMode) : 'EOD';
+          const modeLabel = storedMode ? getModeLabel(storedMode) : 'EOD (Watchlist)';
+          
+          // Get dataUsed from storedDoc or construct from available fields
+          const dataUsed = storedDoc.dataUsed || {
+            refEodDate: storedDoc.refDate || refEodDate,
+            premarketDate: storedDoc.modeInfo?.usedDates?.preMDate || premarketDate,
+            mode: storedMode || detectedMode,
+            signalDate: storedDoc.date || signalDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp
+          };
+          // Return stored document with status
+          const transformedSignals = Array.isArray(storedDoc.signals) ? storedDoc.signals.map(signal => ({
+            symbol: signal.symbol,
+            score: signal.score,
+            entry_price: signal.entry_price,
+            target_price: signal.target_price,
+            stop_loss: signal.stop_loss,
+            side: signal.side || 'BUY',
+            confidence_score: signal.confidence_score,
+            feature_fields: signal.feature_fields,
+            reason: signal.reason
+          })) : [];
+
+          if (DEBUG) {
+            console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}, mode=${storedDoc.mode}`);
+          }
+
+          // Get mode display info (single badge, no duplicates)
+          const storedMode = storedDoc.mode;
+          const modeDisplay = storedMode ? getModeDisplayName(storedMode) : 'EOD';
+          const modeLabel = storedMode ? getModeLabel(storedMode) : 'EOD (Watchlist)';
+          
+          // Get dataUsed from storedDoc or construct from available fields
+          const dataUsed = storedDoc.dataUsed || {
+            refEodDate: storedDoc.refDate || refEodDate,
+            premarketDate: storedDoc.modeInfo?.usedDates?.preMDate || premarketDate,
+            mode: storedMode || detectedMode,
+            signalDate: storedDoc.date || signalDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp
+          };
           
           const response = {
             targetDate,
             signalDate: storedDoc.date || signalDate,
-            refDate: storedDoc.refDate || refDate,
+            refDate: storedDoc.refDate || refEodDate,
             strategy: storedDoc.strategy,
-            mode: storedDoc.mode || mode,
+            mode: storedMode,
             modeDisplay,
-            modeDescription,
+            modeLabel,
             status: storedDoc.status, // READY | NO_MATCH | INSUFFICIENT_DATA | ERROR
             signal_count: storedDoc.signal_count || 0,
             signals: transformedSignals,
@@ -755,15 +860,16 @@ const handler = async (req, res) => {
             message: storedDoc.message || 'Signals retrieved',
             missingFiles: storedDoc.missingFiles || null,
             diagnostics: storedDoc.diagnostics || null,
-            topRejectionReasons: storedDoc.topRejectionReasons || null,
-            modeInfo: storedDoc.modeInfo || null,
+            rejectStats: storedDoc.rejectStats || null,
+            filtersUsed: storedDoc.filtersUsed || null,
+            dataUsed: dataUsed,
             run_id: storedDoc.run_id || null,
             usedDates: { 
               targetDate, 
               signalDate: storedDoc.date || signalDate, 
-              refDate: storedDoc.refDate || refDate,
-              eodDate: storedDoc.modeInfo?.usedDates?.eodDate || null,
-              preMDate: storedDoc.modeInfo?.usedDates?.preMDate || null
+              refDate: storedDoc.refDate || refEodDate,
+              eodDate: dataUsed.refEodDate,
+              preMDate: dataUsed.premarketDate
             }
           };
           
@@ -776,12 +882,19 @@ const handler = async (req, res) => {
         }
 
         // No signals found in store - try to auto-generate if data is available
-        if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store for ${signalDate} (${strategy}, ${mode})`);
+        if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store, attempting auto-generation...`);
         
         // Always try to auto-generate signals if data is available
-        console.log(`[SIGNALS API] Attempting to auto-generate signals for ${signalDate} with strategy: ${strategy}, mode: ${mode}`);
+        if (DEBUG) console.log(`[SIGNALS API] Attempting to auto-generate signals with strategy: ${strategy}, marketStatus: ${marketStatus.isOpen}`);
         try {
-          const result = await generateSignalsForDate(targetDate, strategy, mode);
+          const result = await generateSignalsForDate(targetDate, strategy, 'PLAYBOOK', {
+            marketStatus,
+            userOverride
+          });
+          
+          // Update signalDate and refDate from result (resolver may have adjusted them)
+          const resolvedSignalDate = result.signalDate || signalDate;
+          const resolvedRefDate = result.refDate || refEodDate;
           
           if (result.status === 'READY' || result.status === 'NO_MATCH') {
             // Signals generated successfully, return them
@@ -802,20 +915,26 @@ const handler = async (req, res) => {
               signalDate: result.signalDate || signalDate,
               refDate: result.refDate || refDate,
               strategy: result.strategy,
-              mode: result.mode || mode,
-              modeDisplay: result.modeDisplay || (result.mode ? getModeDisplayName(result.mode) : mode),
-              modeDescription: result.modeDescription || (result.mode ? getModeDescription(result.mode) : ''),
+              mode: result.mode,
+              modeDisplay: result.modeDisplay || (result.mode ? getModeDisplayName(result.mode) : 'EOD'),
+              modeLabel: result.modeLabel || (result.mode ? getModeLabel(result.mode) : 'EOD (Watchlist)'),
               status: result.status,
               signal_count: result.signal_count || 0,
               signals: transformedSignals,
               hasSignals: result.status === 'READY' && transformedSignals.length > 0,
               diagnostics: result.diagnostics || null,
-              topRejectionReasons: result.topRejectionReasons || null,
-              modeInfo: result.modeInfo || null,
-              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refDate },
+              rejectStats: result.rejectStats || null,
+              filtersUsed: result.filtersUsed || null,
+              dataUsed: result.dataUsed || null,
               message: result.message || 'Signals generated automatically',
               missingFiles: result.missingFiles || null,
-              usedDates: result.usedDates || { targetDate, signalDate, refDate }
+              usedDates: result.usedDates || { 
+                targetDate, 
+                signalDate: result.signalDate || signalDate, 
+                refDate: result.refDate || refDate,
+                eodDate: result.dataUsed?.refEodDate || null,
+                preMDate: result.dataUsed?.premarketDate || null
+              }
             });
           } else if (result.status === 'INSUFFICIENT_DATA') {
             // Data not available - return INSUFFICIENT_DATA status

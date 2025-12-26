@@ -27,8 +27,9 @@ const {
   isCalendarFallbackUsed
 } = require('../tradingCalendar');
 
-const { getSignalsMode, getModeDisplayName, getModeDescription, MODE_EOD, MODE_PREM, MODE_LIVE, MODE_NONE } = require('./mode');
+const { getSignalsMode, getModeDisplayName, getModeDescription, getModeLabel, MODE_EOD, MODE_PREM, MODE_LIVE, MODE_NONE, getTodayIST } = require('./mode');
 const { getStrategy, supportsMode } = require('./registry');
+const { resolveSignalsContext } = require('./resolver');
 
 /**
  * Get current mood from database (most recent)
@@ -1340,24 +1341,64 @@ async function checkDataAvailability(targetDate, mode = 'PLAYBOOK') {
  * @param {string} targetDate - Target date in YYYY-MM-DD format
  * @param {string} strategy - Strategy name (default: 'momentum_gap')
  * @param {string} legacyMode - Legacy mode parameter (ignored, mode is auto-detected)
- * @returns {Promise<Object>} - { status, targetDate, signalDate, refDate, strategy, mode, signal_count, signals, message, missingFiles?, diagnostics?, modeInfo? }
+ * @param {Object} options - { marketStatus, userOverride }
+ * @returns {Promise<Object>} - { status, targetDate, signalDate, refDate, strategy, mode, signal_count, signals, message, missingFiles?, diagnostics?, modeInfo?, dataUsed? }
  */
-async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', legacyMode = 'PLAYBOOK') {
+async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', legacyMode = 'PLAYBOOK', options = {}) {
   try {
-    console.log(`📊 [generateSignalsForDate] Starting generation for ${targetDate} with strategy ${strategy}`);
+    const DEBUG = process.env.DEBUG === '1' || false;
+    if (DEBUG) console.log(`📊 [generateSignalsForDate] Starting generation for ${targetDate} with strategy ${strategy}`);
     
-    // Resolve trading dates
-    const { signalDate, refDate } = resolveSignalDates(targetDate);
+    // Get market status and user override from options
+    const marketStatus = options.marketStatus || { isOpen: false, timestamp: new Date().toISOString() };
+    const userOverride = options.userOverride || {};
+    const today = getTodayIST();
     
-    // Determine mode based on data availability and time
-    const modeInfo = await getSignalsMode({ selectedDate: signalDate });
-    const detectedMode = modeInfo.mode;
+    // Resolve signals context using new resolver
+    const context = await resolveSignalsContext({
+      today,
+      marketStatus,
+      userOverride
+    });
+    
+    const signalDate = context.signalDate;
+    const refEodDate = context.refEodDate;
+    const premarketDate = context.premarketDate;
+    const detectedMode = context.mode;
     const modeDisplay = getModeDisplayName(detectedMode);
-    const modeDescription = getModeDescription(detectedMode);
+    const modeLabel = getModeLabel(detectedMode);
     
-    console.log(`📊 [generateSignalsForDate] Detected mode: ${modeDisplay} (${modeDescription})`);
-    console.log(`   Reasons: ${modeInfo.reasons.join(', ')}`);
-    console.log(`   Used dates: EOD=${modeInfo.usedDates.eodDate}, PreM=${modeInfo.usedDates.preMDate || 'N/A'}`);
+    if (DEBUG) {
+      console.log(`📊 [generateSignalsForDate] Resolved context:`);
+      console.log(`   Signal Date: ${signalDate}`);
+      console.log(`   EOD Date: ${refEodDate}`);
+      console.log(`   PreM Date: ${premarketDate || 'N/A'}`);
+      console.log(`   Mode: ${modeDisplay} (${modeLabel})`);
+      console.log(`   Reason: ${context.reason}`);
+    }
+    
+    if (!signalDate || !refEodDate) {
+      return {
+        status: 'INSUFFICIENT_DATA',
+        targetDate,
+        signalDate: null,
+        refDate: null,
+        strategy,
+        mode: detectedMode,
+        signal_count: 0,
+        signals: [],
+        missingFiles: context.missingFiles,
+        message: context.reason,
+        dataUsed: {
+          refEodDate: null,
+          premarketDate: null,
+          mode: detectedMode,
+          signalDate: null,
+          marketOpen: marketStatus.isOpen,
+          marketTimestamp: marketStatus.timestamp
+        }
+      };
+    }
     
     // Get strategy from registry
     const strategyDef = getStrategy(strategy);
@@ -1370,7 +1411,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
           targetDate,
           signalDate,
           refDate,
-          strategy,
+        strategy,
           mode: detectedMode,
           signal_count: 0,
           signals: [],
@@ -1385,7 +1426,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
       const signalsStoreCollection = await getSignalsStoreCollection();
       const unsupportedDoc = {
         date: signalDate,
-        refDate: refDate,
+        refDate: refEodDate,
         strategy,
         mode: detectedMode,
         status: 'INSUFFICIENT_DATA',
@@ -1393,7 +1434,14 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
         signals: [],
         missingFiles: [],
         message: `Strategy "${strategyDef.name}" does not support ${modeDisplay} mode. Required: ${strategyDef.supportedModes.map(m => getModeDisplayName(m)).join(', ')}`,
-        modeInfo,
+        dataUsed: {
+          refEodDate,
+          premarketDate,
+          mode: detectedMode,
+          signalDate,
+          marketOpen: marketStatus.isOpen,
+          marketTimestamp: marketStatus.timestamp
+        },
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -1408,14 +1456,21 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
         status: 'INSUFFICIENT_DATA',
         targetDate,
         signalDate,
-        refDate,
+        refDate: refEodDate,
         strategy,
         mode: detectedMode,
         signal_count: 0,
         signals: [],
         missingFiles: [],
         message: `Strategy does not support ${modeDisplay} mode`,
-        modeInfo
+        dataUsed: {
+          refEodDate,
+          premarketDate,
+          mode: detectedMode,
+          signalDate,
+          marketOpen: marketStatus.isOpen,
+          marketTimestamp: marketStatus.timestamp
+        }
       };
     }
     
@@ -1424,15 +1479,22 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
       const signalsStoreCollection = await getSignalsStoreCollection();
       const noDataDoc = {
         date: signalDate,
-        refDate: refDate,
+        refDate: refEodDate,
         strategy,
         mode: detectedMode,
         status: 'INSUFFICIENT_DATA',
         signal_count: 0,
         signals: [],
-        missingFiles: modeInfo.reasons,
-        message: `No data available. ${modeInfo.reasons.join('. ')}`,
-        modeInfo,
+        missingFiles: context.missingFiles,
+        message: context.reason,
+        dataUsed: {
+          refEodDate,
+          premarketDate,
+          mode: detectedMode,
+          signalDate,
+          marketOpen: marketStatus.isOpen,
+          marketTimestamp: marketStatus.timestamp
+        },
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -1447,14 +1509,21 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
         status: 'INSUFFICIENT_DATA',
         targetDate,
         signalDate,
-        refDate,
+        refDate: refEodDate,
         strategy,
         mode: detectedMode,
         signal_count: 0,
         signals: [],
-        missingFiles: modeInfo.reasons,
-        message: `No data available. ${modeInfo.reasons.join('. ')}`,
-        modeInfo
+        missingFiles: context.missingFiles,
+        message: context.reason,
+        dataUsed: {
+          refEodDate,
+          premarketDate,
+          mode: detectedMode,
+          signalDate,
+          marketOpen: marketStatus.isOpen,
+          marketTimestamp: marketStatus.timestamp
+        }
       };
     }
     
@@ -1466,13 +1535,13 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     }
     
     // Run strategy with mode-aware parameters
-    console.log(`✅ [generateSignalsForDate] Running strategy "${strategyDef.name}" in ${modeDisplay} mode...`);
+    if (DEBUG) console.log(`✅ [generateSignalsForDate] Running strategy "${strategyDef.name}" in ${modeDisplay} mode...`);
     
     const result = await strategyDef.run({
       date: signalDate,
       mode: detectedMode,
-      eodDate: modeInfo.usedDates.eodDate,
-      preMDate: modeInfo.usedDates.preMDate,
+      eodDate: refEodDate,
+      preMDate: premarketDate,
       moodScore,
       params: strategyDef.defaults || {}
     });
@@ -1493,40 +1562,42 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     // Save to signals_store collection
     const signalsStoreCollection = await getSignalsStoreCollection();
     
-    // Get top rejection reasons from diagnostics
+    // Get top rejection reasons from diagnostics (use meta.rejectStats if available, else compute)
     const diagnostics = result.diagnostics || {};
-    const rejectionReasons = Object.entries(diagnostics)
+    const rejectStats = result.meta?.rejectStats || Object.entries(diagnostics)
       .filter(([reason, count]) => count > 0)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([reason, count]) => ({ reason, count }));
+      .map(([reason, count]) => ({
+        ruleId: reason,
+        label: reason.replace(/_/g, ' '),
+        rejectedCount: count
+      }))
+      .sort((a, b) => b.rejectedCount - a.rejectedCount)
+      .slice(0, 5);
     
-    // Prepare debug info with mode and diagnostics
-    const debugInfo = {
-      mode: detectedMode,
-      modeDisplay: modeDisplay,
-      modeDescription: modeDescription,
-      modeInfo: modeInfo,
-      filtersUsed: strategyDef.defaults || {},
-      diagnostics: diagnostics,
-      topRejectionReasons: rejectionReasons,
-      countsBeforeFilters: result.filterCounters || {}
-    };
+    // Get filters used (from strategy meta if available)
+    const filtersUsed = result.meta?.filtersUsed || [];
     
     const storeDoc = {
       date: signalDate,
-      refDate: refDate,
+      refDate: refEodDate,
       strategy,
-      mode: detectedMode, // Use detected mode, not legacy mode
+      mode: detectedMode,
       status,
       signal_count: signalsArray.length,
       signals: signalsArray,
       run_id: result.run_id || null,
       message: result.message || (status === 'READY' ? `Generated ${signalsArray.length} signals` : 'No signals generated'),
       diagnostics: diagnostics,
-      topRejectionReasons: rejectionReasons,
-      modeInfo: modeInfo,
-      debug: debugInfo,
+      rejectStats: rejectStats,
+      filtersUsed: filtersUsed,
+      dataUsed: {
+        refEodDate,
+        premarketDate,
+        mode: detectedMode,
+        signalDate,
+        marketOpen: marketStatus.isOpen,
+        marketTimestamp: marketStatus.timestamp
+      },
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -1538,30 +1609,38 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
       { upsert: true }
     );
     
-    console.log(`✅ [generateSignalsForDate] Saved to signals_store: status=${status}, count=${signalsArray.length}, mode=${modeDisplay}`);
+    if (DEBUG) console.log(`✅ [generateSignalsForDate] Saved to signals_store: status=${status}, count=${signalsArray.length}, mode=${modeDisplay}`);
     
     return {
       status,
       targetDate,
       signalDate,
-      refDate,
+      refDate: refEodDate,
       strategy,
       mode: detectedMode,
       modeDisplay,
-      modeDescription,
+      modeLabel,
       signal_count: signalsArray.length,
       signals: signalsArray,
       run_id: result.run_id || null,
       message: storeDoc.message,
       diagnostics: diagnostics,
-      topRejectionReasons: rejectionReasons,
-      modeInfo: modeInfo,
+      rejectStats: rejectStats,
+      filtersUsed: filtersUsed,
+      dataUsed: {
+        refEodDate,
+        premarketDate,
+        mode: detectedMode,
+        signalDate,
+        marketOpen: marketStatus.isOpen,
+        marketTimestamp: marketStatus.timestamp
+      },
       usedDates: { 
         targetDate, 
         signalDate, 
-        refDate,
-        eodDate: modeInfo.usedDates.eodDate,
-        preMDate: modeInfo.usedDates.preMDate
+        refDate: refEodDate,
+        eodDate: refEodDate,
+        preMDate: premarketDate
       }
     };
     

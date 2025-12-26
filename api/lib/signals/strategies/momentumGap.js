@@ -15,21 +15,48 @@ const {
 const { prevTradingDay } = require('../../tradingCalendar');
 const { MODE_EOD, MODE_PREM, MODE_LIVE } = require('../mode');
 
-// Default parameters
+// Default parameters (sane defaults for NSE)
 const DEFAULTS = {
-  gapMin: 1.5,
-  gapMax: 12,
-  preMMinAbs: 25000,
-  preMMinRel: 0.05,
-  eodScoreMin: 45,
-  preMScoreMin: 50,
+  gapMin: 1.5,        // Minimum gap % (was 30%, now 1.5%)
+  gapMax: 12,         // Maximum gap % (was unlimited, now 12%)
+  preMMinAbs: 50000,  // Minimum premarket volume (absolute)
+  preMMinRel: 0.05,   // Minimum relative volume (5% of avg)
+  eodScoreMin: 45,    // EOD watchlist score threshold
+  preMScoreMin: 50,   // Premarket confirmed score threshold
   series: 'EQ',
   priceMin: 20,
   priceMax: 2000,
-  liquidityMin: 300000,
-  volatilityMin: 1.5, // ATR% or HighLow%
-  closeNearHighMin: 0.70,
+  liquidityMin: 300000, // Use yesterday TOTTRDQTY >= 300k
+  volatilityMin: 2.0,    // (HIGH-LOW)/CLOSE >= 2% OR close in top 30% of range
+  closeNearHighMin: 0.70, // Close in top 30% of day range
   extremeGapMode: false
+};
+
+/**
+ * Strategy Rules (for UI display)
+ */
+const RULES_TEXT = {
+  EOD: [
+    'Series: EQ',
+    'Price: ₹20–₹2000',
+    'Liquidity: Yesterday volume >= 300,000',
+    'Volatility: (HIGH-LOW)/CLOSE >= 2% OR close in top 30% of range',
+    'Score threshold: >= 45',
+    'Output: Watchlist candidates (50–200 typical)'
+  ],
+  PREMARKET: [
+    'Start from EOD shortlist',
+    'Gap filter: abs(gap%) >= 1.5% and <= 12%',
+    'Premarket volume: >= 50,000 (or skip if field missing)',
+    'Score threshold: >= 50 (after premarket confirmation)',
+    'Output: Actionable list (5–25 typical)'
+  ],
+  LIVE: [
+    'Use PREMARKET list as base',
+    'Apply mood-based confidence adjustments only',
+    'Do NOT reshuffle list every 30s',
+    'Only re-rank if confidence delta >= 15 or stop condition triggered'
+  ]
 };
 
 // Diagnostics rejection reasons
@@ -165,18 +192,22 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
       continue;
     }
     
-    // Volatility
+    // Volatility: (HIGH-LOW)/CLOSE >= 2% OR close in top 30% of range
     const volatility = getVolatilityProxy(high, low, close);
-    if (volatility < config.volatilityMin) {
-      diagnostics[REJECTION_REASONS.VOLATILITY_TOO_LOW]++;
-      continue;
-    }
-    
-    // Strength: Close near high
     const dayRange = high - low;
     const closePosition = dayRange > 0 ? (close - low) / dayRange : 0;
-    if (closePosition < config.closeNearHighMin) {
-      diagnostics[REJECTION_REASONS.NOT_NEAR_HIGH]++;
+    
+    // Check volatility OR close position (either condition passes)
+    const volatilityPass = volatility >= config.volatilityMin;
+    const closePositionPass = closePosition >= config.closeNearHighMin;
+    
+    if (!volatilityPass && !closePositionPass) {
+      // Failed both: volatility too low AND not near high
+      if (volatility < config.volatilityMin) {
+        diagnostics[REJECTION_REASONS.VOLATILITY_TOO_LOW]++;
+      } else {
+        diagnostics[REJECTION_REASONS.NOT_NEAR_HIGH]++;
+      }
       continue;
     }
     
@@ -240,14 +271,59 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
   // Limit to 200 candidates
   const finalSignals = watchlistCandidates.slice(0, 200);
   
+  // Get top rejection reasons
+  const rejectStats = Object.entries(diagnostics)
+    .filter(([_, count]) => count > 0)
+    .map(([reason, count]) => ({
+      ruleId: reason,
+      label: getRejectionLabel(reason),
+      rejectedCount: count
+    }))
+    .sort((a, b) => b.rejectedCount - a.rejectedCount);
+  
+  // Get filters used for this mode
+  const filtersUsed = [
+    { label: 'Series', value: config.series },
+    { label: 'Price Range', value: `₹${config.priceMin}–₹${config.priceMax}` },
+    { label: 'Liquidity', value: `>= ${(config.liquidityMin / 1000).toFixed(0)}k` },
+    { label: 'Volatility', value: `>= ${config.volatilityMin}% OR close in top 30%` },
+    { label: 'Score Min', value: config.eodScoreMin }
+  ];
+  
   return {
     success: true,
     signals: finalSignals,
     diagnostics,
+    meta: {
+      rejectStats,
+      filtersUsed,
+      modeDisplay: 'EOD',
+      dataUsed: { eodDate }
+    },
     message: finalSignals.length > 0
       ? `Generated ${finalSignals.length} watchlist candidates (EOD mode)`
       : `No watchlist candidates (EOD mode)`
   };
+}
+
+/**
+ * Get human-readable label for rejection reason
+ */
+function getRejectionLabel(reason) {
+  const labels = {
+    NOT_EQ: 'Not EQ series',
+    GAP_TOO_SMALL: 'Gap too small (< 1.5%)',
+    GAP_TOO_LARGE: 'Gap too large (> 12%)',
+    PREM_VOL_TOO_LOW_ABS: 'Premarket volume too low (< 50k)',
+    PREM_VOL_TOO_LOW_REL: 'Premarket relative volume too low',
+    SCORE_TOO_LOW: 'Score too low',
+    LIQUIDITY_TOO_LOW: 'Liquidity too low (< 300k)',
+    PRICE_OUT_OF_RANGE: 'Price out of range (₹20–₹2000)',
+    VOLATILITY_TOO_LOW: 'Volatility too low (< 2%)',
+    NOT_NEAR_HIGH: 'Not near day high (< 70% of range)',
+    TRAP_GUARD: 'Trap guard (high gap, low volume)'
+  };
+  return labels[reason] || reason;
 }
 
 /**
@@ -355,16 +431,13 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
       continue;
     }
     
-    // Premarket volume filter (relative)
-    const preMMinRel = Math.max(config.preMMinAbs, config.preMMinRel * avgVol20D);
-    if (preMVolume < preMMinRel) {
-      if (preMVolume < config.preMMinAbs) {
-        diagnostics[REJECTION_REASONS.PREM_VOL_TOO_LOW_ABS]++;
-      } else {
-        diagnostics[REJECTION_REASONS.PREM_VOL_TOO_LOW_REL]++;
-      }
+    // Premarket volume filter
+    // Use absolute minimum (50000) or skip if preMVolume field is missing/0
+    if (preMVolume > 0 && preMVolume < config.preMMinAbs) {
+      diagnostics[REJECTION_REASONS.PREM_VOL_TOO_LOW_ABS]++;
       continue;
     }
+    // If preMVolume is 0 or missing, skip volume filter (field might not be available)
     
     // Trap guard: If gap > 12% and relVol < 0.15, reject
     if (gapPercent > 12) {
@@ -408,10 +481,33 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
   // Limit to 25 candidates
   const finalSignals = validatedCandidates.slice(0, 25);
   
+  // Get top rejection reasons
+  const rejectStats = Object.entries(diagnostics)
+    .filter(([_, count]) => count > 0)
+    .map(([reason, count]) => ({
+      ruleId: reason,
+      label: getRejectionLabel(reason),
+      rejectedCount: count
+    }))
+    .sort((a, b) => b.rejectedCount - a.rejectedCount);
+  
+  // Get filters used for this mode
+  const filtersUsed = [
+    { label: 'Gap Range', value: `${config.gapMin}%–${config.gapMax}%` },
+    { label: 'Premarket Volume', value: `>= ${(config.preMMinAbs / 1000).toFixed(0)}k` },
+    { label: 'Score Min', value: config.preMScoreMin }
+  ];
+  
   return {
     success: true,
     signals: finalSignals,
     diagnostics,
+    meta: {
+      rejectStats,
+      filtersUsed,
+      modeDisplay: 'PREMARKET',
+      dataUsed: { eodDate, preMDate: date }
+    },
     message: finalSignals.length > 0
       ? `Generated ${finalSignals.length} validated candidates (Premarket mode)`
       : `No validated candidates (Premarket mode)`
@@ -457,6 +553,10 @@ async function runMomentumGapLIVE(date, eodDate, moodScore, params = {}) {
     return {
       ...eodResult,
       signals: adjustedSignals,
+      meta: {
+        ...eodResult.meta,
+        modeDisplay: 'LIVE'
+      },
       message: `Live-adjusted watchlist (${adjustedSignals.length} candidates)`
     };
   }
@@ -522,6 +622,7 @@ async function runMomentumGap({ date, mode, eodDate, preMDate, moodScore = null,
 module.exports = {
   runMomentumGap,
   DEFAULTS,
-  REJECTION_REASONS
+  REJECTION_REASONS,
+  RULES_TEXT
 };
 

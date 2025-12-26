@@ -8,7 +8,9 @@ class MarketMoodApp {
             strategy: null,
             backendMessage: null,
             mode: null,
-            refDate: null
+            refDate: null,
+            modeLabel: null,
+            dataUsed: null
         };
         this.lastMarketStatus = null; // Store last known market status
         this.lastSuccessfulStatus = null; // Store last successful market status
@@ -1673,7 +1675,7 @@ class MarketMoodApp {
         } else {
             // Refresh mood page (default)
             console.log('🔄 Refreshing mood page...');
-            this.loadData();
+        this.loadData();
         }
     }
 
@@ -8280,8 +8282,20 @@ class MarketMoodApp {
             // Update status with target date and strategy
             this.updateSignalsStatus({ date: targetDate, strategy: selectedStrategy });
 
+            // Get market status and user override from localStorage
+            const marketStatus = this.lastMarketStatus || { isOpen: false, timestamp: new Date().toISOString() };
+            const userOverride = {
+                mode: localStorage.getItem('nsemm.modeOverride') || 'AUTO',
+                strategy: selectedStrategy
+            };
+            
             // READ-ONLY: Only GET signals, no POST generation
-            let url = `/api/signals?date=${targetDate}&strategy=${selectedStrategy}`;
+            // Pass marketStatus and modeOverride as query params
+            const marketStatusParam = encodeURIComponent(JSON.stringify(marketStatus));
+            const modeOverrideParam = encodeURIComponent(userOverride.mode);
+            let url = `/api/signals?date=${targetDate}&strategy=${selectedStrategy}&modeOverride=${modeOverrideParam}&marketStatus=${marketStatusParam}`;
+            
+            console.log('🔍 Fetching signals with marketStatus:', marketStatus.isOpen, 'modeOverride:', modeOverrideParam);
 
             console.log('🔍 Fetching signals (read-only) from:', url);
             let response = await apiConfig.fetch(url);
@@ -8334,14 +8348,21 @@ class MarketMoodApp {
                                         message: `Premarket not uploaded for ${targetDate}`
                                     },
                                     backendMessage: data.message,
-                                    mode: data.mode || 'strategy-only',
-                                    modeDisplay: data.modeDisplay,
-                                    modeDescription: data.modeDescription,
-                                    modeInfo: data.modeInfo,
+                                    mode: data.mode || 'MODE_EOD',
+                                    modeDisplay: data.modeDisplay || (data.modeLabel ? data.modeLabel.split('(')[0].trim() : 'EOD'),
+                                    modeLabel: data.modeLabel || (data.modeDisplay === 'EOD' ? 'EOD (Watchlist)' : data.modeDisplay === 'PREMARKET' ? 'PREMARKET (Confirmed)' : data.modeDisplay === 'LIVE' ? 'LIVE (Adaptive)' : 'EOD (Watchlist)'),
+                                    modeDescription: data.modeLabel ? data.modeLabel.split('(')[1]?.replace(')', '') : '',
+                                    modeInfo: { mode: data.mode, reason: data.message },
                                     diagnostics: data.diagnostics,
-                                    topRejectionReasons: data.topRejectionReasons,
-                                    refDate: usedDates.refDate,
-                                    usedDates: usedDates,
+                                    rejectStats: data.rejectStats,
+                                    filtersUsed: data.filtersUsed,
+                                    topRejectionReasons: data.rejectStats,
+                                    refDate: data.dataUsed?.refEodDate || usedDates.refDate,
+                                    usedDates: {
+                                        eodDate: data.dataUsed?.refEodDate || usedDates.eodDate,
+                                        preMDate: data.dataUsed?.premarketDate || usedDates.preMDate
+                                    },
+                                    dataUsed: data.dataUsed,
                                     strategy: selectedStrategy
                                 });
                                 signalsLoading.style.display = 'none';
@@ -8414,6 +8435,45 @@ class MarketMoodApp {
             } else if (status === 'NO_MATCH') {
                 // Strategy ran but found no matches
                 console.log('ℹ️ No stocks met criteria for this date');
+                
+                // Update status with signals info (including modeLabel and dataUsed)
+                const usedDates = data.usedDates || { targetDate, signalDate: data.signalDate || targetDate, refDate: data.refDate };
+                const dataUsed = data.dataUsed || {
+                    refEodDate: usedDates.refDate || usedDates.eodDate,
+                    premarketDate: usedDates.preMDate,
+                    mode: data.mode,
+                    signalDate: data.signalDate,
+                    marketOpen: marketStatus.isOpen,
+                    marketTimestamp: marketStatus.timestamp
+                };
+                
+                this.updateSignalsStatus({
+                    date: usedDates.signalDate || targetDate,
+                    signalsInfo: {
+                        hasSignals: false,
+                        signals: [],
+                        success: true,
+                        message: data.message || 'No stocks met criteria'
+                    },
+                    backendMessage: data.message,
+                    mode: data.mode || 'MODE_EOD',
+                    modeDisplay: data.modeDisplay || (data.modeLabel ? data.modeLabel.split('(')[0].trim() : 'EOD'),
+                    modeLabel: data.modeLabel || (data.modeDisplay === 'EOD' ? 'EOD (Watchlist)' : data.modeDisplay === 'PREMARKET' ? 'PREMARKET (Confirmed)' : data.modeDisplay === 'LIVE' ? 'LIVE (Adaptive)' : 'EOD (Watchlist)'),
+                    modeDescription: data.modeLabel ? data.modeLabel.split('(')[1]?.replace(')', '') : '',
+                    modeInfo: { mode: data.mode, reason: data.message },
+                    diagnostics: data.diagnostics,
+                    rejectStats: data.rejectStats,
+                    filtersUsed: data.filtersUsed,
+                    topRejectionReasons: data.rejectStats,
+                    refDate: dataUsed.refEodDate,
+                    usedDates: {
+                        eodDate: dataUsed.refEodDate,
+                        preMDate: dataUsed.premarketDate
+                    },
+                    dataUsed: dataUsed,
+                    strategy: selectedStrategy
+                });
+                
                 signalsEmpty.style.display = 'flex';
                 signalsEmpty.style.flexDirection = 'column';
                 signalsEmpty.style.justifyContent = 'center';
@@ -8428,12 +8488,17 @@ class MarketMoodApp {
                     emptyTitle.textContent = 'No Potential Signals';
                 }
                 if (signalsEmptyMessage) {
-                    let message = `No stocks met criteria for ${targetDate}.<br><br>`;
+                    let message = `No stocks met criteria for ${data.signalDate || targetDate}.<br><br>`;
                     message += `<strong>Why this happens:</strong><br>`;
                     message += `The strategy ran successfully but no stocks passed all the filters. This is normal when market conditions don't meet the strategy's requirements.<br><br>`;
                     
-                    // Add debug info if available
-                    if (data?.debug && data.debug.filtersUsed) {
+                    // Add filters used if available
+                    if (data.filtersUsed && Array.isArray(data.filtersUsed) && data.filtersUsed.length > 0) {
+                        message += `<strong>Filters used:</strong><br>`;
+                        data.filtersUsed.forEach(f => {
+                            message += `• ${f.label}: ${f.value}<br>`;
+                        });
+                    } else if (data?.debug && data.debug.filtersUsed) {
                         message += `<strong>Filters used:</strong><br>`;
                         message += `• Minimum gap: ${(data.debug.filtersUsed.minGapPercent * 100).toFixed(1)}%<br>`;
                         message += `• Minimum volume: ${data.debug.filtersUsed.minVolume.toLocaleString()}<br>`;
@@ -8441,14 +8506,16 @@ class MarketMoodApp {
                         message += `• Series: ${data.debug.filtersUsed.series}<br>`;
                     }
                     
-                    if (data?.debug?.topReason || data?.topReason) {
+                    // Add top rejection reasons if available
+                    if (data.rejectStats && Array.isArray(data.rejectStats) && data.rejectStats.length > 0) {
+                        const topReason = data.rejectStats[0];
+                        message += `<br><strong>Top filter reason:</strong> ${topReason.label} (${topReason.rejectedCount} stocks)`;
+                    } else if (data?.debug?.topReason || data?.topReason) {
                         message += `<br><strong>Top filter reason:</strong> ${data.debug?.topReason || data.topReason}`;
                     }
                     
                     signalsEmptyMessage.innerHTML = message;
                 }
-                
-                // Strategy recommendation card removed - strategy shown in selector button only
                 
                 signalsLoading.style.display = 'none';
                 this._switchingView = false;
@@ -8563,17 +8630,42 @@ class MarketMoodApp {
                 strategyAnalysis.recommendedStocks = topStocks;
             }
             
-            // Update status with final signals info
+            // Update status with final signals info (including modeLabel and dataUsed)
+            const usedDates = data?.usedDates || { targetDate, signalDate: data?.signalDate || targetDate, refDate: data?.refDate };
+            const dataUsed = data?.dataUsed || {
+                refEodDate: usedDates.refDate || usedDates.eodDate,
+                premarketDate: usedDates.preMDate,
+                mode: data?.mode,
+                signalDate: data?.signalDate || targetDate,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp
+            };
+            
             this.updateSignalsStatus({
+                date: usedDates.signalDate || targetDate,
                 signalsInfo: {
                     hasSignals: hasSignals,
                     signals: signalsArray,
                     success: signalsSuccess,
                     message: signalsMessage || `Found ${signalsArray.length} signals`
                 },
-                strategy: selectedStrategy,
                 backendMessage: signalsMessage,
-                mode: 'signals'
+                mode: data?.mode || 'MODE_EOD',
+                modeDisplay: data?.modeDisplay || (data?.modeLabel ? data.modeLabel.split('(')[0].trim() : 'EOD'),
+                modeLabel: data?.modeLabel || (data?.modeDisplay === 'EOD' ? 'EOD (Watchlist)' : data?.modeDisplay === 'PREMARKET' ? 'PREMARKET (Confirmed)' : data?.modeDisplay === 'LIVE' ? 'LIVE (Adaptive)' : 'EOD (Watchlist)'),
+                modeDescription: data?.modeLabel ? data.modeLabel.split('(')[1]?.replace(')', '') : '',
+                modeInfo: { mode: data?.mode, reason: data?.message },
+                diagnostics: data?.diagnostics,
+                rejectStats: data?.rejectStats,
+                filtersUsed: data?.filtersUsed,
+                topRejectionReasons: data?.rejectStats,
+                refDate: dataUsed.refEodDate,
+                usedDates: {
+                    eodDate: dataUsed.refEodDate,
+                    preMDate: dataUsed.premarketDate
+                },
+                dataUsed: dataUsed,
+                strategy: selectedStrategy
             });
 
             // Display signals
@@ -9145,11 +9237,15 @@ class MarketMoodApp {
         if (mode !== undefined) this._signalsStatusData.mode = mode;
         if (refDate !== undefined) this._signalsStatusData.refDate = refDate;
         if (modeDisplay !== undefined) this._signalsStatusData.modeDisplay = modeDisplay;
+        if (modeLabel !== undefined) this._signalsStatusData.modeLabel = modeLabel;
         if (modeDescription !== undefined) this._signalsStatusData.modeDescription = modeDescription;
         if (modeInfo !== undefined) this._signalsStatusData.modeInfo = modeInfo;
         if (diagnostics !== undefined) this._signalsStatusData.diagnostics = diagnostics;
+        if (rejectStats !== undefined) this._signalsStatusData.rejectStats = rejectStats;
+        if (filtersUsed !== undefined) this._signalsStatusData.filtersUsed = filtersUsed;
         if (topRejectionReasons !== undefined) this._signalsStatusData.topRejectionReasons = topRejectionReasons;
         if (usedDates !== undefined) this._signalsStatusData.usedDates = usedDates;
+        if (dataUsed !== undefined) this._signalsStatusData.dataUsed = dataUsed;
 
         // Use stored data with fallbacks
         // Prioritize new parameters over stored data
@@ -9163,11 +9259,15 @@ class MarketMoodApp {
         const message = backendMessage || signals?.message || this._signalsStatusData.backendMessage || '';
         const refDateValue = refDate !== undefined ? refDate : this._signalsStatusData.refDate;
         const currentModeDisplay = modeDisplay !== undefined ? modeDisplay : this._signalsStatusData.modeDisplay;
+        const currentModeLabel = modeDisplay !== undefined ? (modeDisplay === 'EOD' ? 'EOD (Watchlist)' : modeDisplay === 'PREMARKET' ? 'PREMARKET (Confirmed)' : modeDisplay === 'LIVE' ? 'LIVE (Adaptive)' : modeDisplay) : this._signalsStatusData.modeLabel;
         const currentModeDescription = modeDescription !== undefined ? modeDescription : this._signalsStatusData.modeDescription;
         const currentModeInfo = modeInfo !== undefined ? modeInfo : this._signalsStatusData.modeInfo;
         const currentDiagnostics = diagnostics !== undefined ? diagnostics : this._signalsStatusData.diagnostics;
-        const currentTopReasons = topRejectionReasons !== undefined ? topRejectionReasons : this._signalsStatusData.topRejectionReasons;
+        const currentRejectStats = rejectStats !== undefined ? rejectStats : this._signalsStatusData.rejectStats;
+        const currentFiltersUsed = filtersUsed !== undefined ? filtersUsed : this._signalsStatusData.filtersUsed;
+        const currentTopReasons = topRejectionReasons !== undefined ? topRejectionReasons : (currentRejectStats || this._signalsStatusData.topRejectionReasons);
         const currentUsedDates = usedDates !== undefined ? usedDates : this._signalsStatusData.usedDates;
+        const currentDataUsed = dataUsed !== undefined ? dataUsed : this._signalsStatusData.dataUsed;
 
         // Determine signals engine status
         let engineStatus = 'Temporarily unavailable — showing strategy only.';
@@ -9207,11 +9307,12 @@ class MarketMoodApp {
         }
 
         // Display date with refDate info
-        const eodDate = currentUsedDates?.eodDate || refDateValue;
-        const preMDate = currentUsedDates?.preMDate;
-        const dateDisplay = eodDate 
-            ? `${targetDate} (EOD: ${eodDate}${preMDate ? `, PreM: ${preMDate}` : ''})`
-            : targetDate;
+        const dataUsedInfo = currentDataUsed || {};
+        const eodDate = dataUsedInfo.refEodDate || currentUsedDates?.eodDate || refDateValue;
+        const preMDate = dataUsedInfo.premarketDate || currentUsedDates?.preMDate;
+        const signalDateDisplay = dataUsedInfo.signalDate || targetDate;
+        // Show signal date clearly
+        const dateDisplay = signalDateDisplay;
 
         // Get strategy name with mode indicator
         const strategyNames = {
@@ -9297,22 +9398,28 @@ class MarketMoodApp {
                         <line x1="12" y1="18" x2="12" y2="22"></line>
                     </svg>
                     <span style="color: #6b7280; font-weight: 500; min-width: 60px;">Mode:</span>
-                    <span style="padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; background: ${modeBadge.bg}; color: ${modeBadge.text};">${currentModeDisplay}</span>
-                    ${currentModeDescription ? `<span style="color: #6b7280; font-size: 0.85rem; margin-left: 8px;">${currentModeDescription}</span>` : ''}
+                    <span style="padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; background: ${modeBadge.bg}; color: ${modeBadge.text};">${currentModeLabel || currentModeDisplay}</span>
                 </div>
                 ` : ''}
-                ${(eodDate || preMDate) ? `
+                ${(eodDate || preMDate || currentDataUsed) ? `
                 <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <div style="color: #6b7280; font-weight: 500; font-size: 0.85rem; margin-bottom: 4px;">Data Used:</div>
                     <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="color: #6b7280; min-width: 80px;">EOD Data:</span>
+                            <span style="color: #6b7280; min-width: 100px;">EOD Data (Bhav):</span>
                             <span style="color: ${eodDate ? '#10b981' : '#ef4444'}; font-weight: 600;">${eodDate || 'Missing'}</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="color: #6b7280; min-width: 80px;">PreM Data:</span>
+                            <span style="color: #6b7280; min-width: 100px;">PreM Data:</span>
                             <span style="color: ${preMDate ? '#10b981' : '#6b7280'}; font-weight: 600;">${preMDate || 'Not uploaded'}</span>
                         </div>
+                        ${currentDataUsed?.marketOpen ? `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #6b7280; min-width: 100px;">Live:</span>
+                            <span style="color: #10b981; font-weight: 600;">ON</span>
+                            ${currentDataUsed.marketTimestamp ? `<span style="color: #6b7280; font-size: 0.8rem; margin-left: 8px;">(${new Date(currentDataUsed.marketTimestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })})</span>` : ''}
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
                 ` : ''}
@@ -9332,9 +9439,70 @@ class MarketMoodApp {
                         </svg>
                         <span style="color: #111827; font-weight: 500; flex: 1; line-height: 1.4;">${strategyText}</span>
                     </div>
-                    <a href="#" id="tryOtherStrategiesLinkStatus" style="display: inline-block; font-size: 0.85rem; color: ${moodColor}; text-decoration: none; margin-left: 28px; cursor: pointer; font-weight: 500; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
-                        Try other Strategies →
-                    </a>
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px; margin-left: 28px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #6b7280; font-size: 0.85rem; min-width: 70px;">Strategy:</label>
+                            <select id="strategySelectorStatus" style="
+                                flex: 1;
+                                padding: 6px 10px;
+                                border: 1px solid #d1d5db;
+                                border-radius: 6px;
+                                font-size: 0.85rem;
+                                background: white;
+                                color: #111827;
+                                cursor: pointer;
+                            ">
+                                <option value="momentum_gap" ${strategyInfo === 'momentum_gap' ? 'selected' : ''}>Momentum Gap</option>
+                                <option value="watchlist_score" ${strategyInfo === 'watchlist_score' ? 'selected' : ''}>Watchlist Score (EOD)</option>
+                                <option value="eod_breakout" ${strategyInfo === 'eod_breakout' ? 'selected' : ''}>EOD Breakout (EOD)</option>
+                            </select>
+                </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #6b7280; font-size: 0.85rem; min-width: 70px;">Mode:</label>
+                            <select id="modeSelectorStatus" style="
+                                flex: 1;
+                                padding: 6px 10px;
+                                border: 1px solid #d1d5db;
+                                border-radius: 6px;
+                                font-size: 0.85rem;
+                                background: white;
+                                color: #111827;
+                                cursor: pointer;
+                            ">
+                                <option value="AUTO" ${localStorage.getItem('nsemm.modeOverride') !== 'AUTO' && localStorage.getItem('nsemm.modeOverride') ? '' : 'selected'}>AUTO</option>
+                                <option value="EOD" ${localStorage.getItem('nsemm.modeOverride') === 'EOD' ? 'selected' : ''}>EOD</option>
+                                <option value="PREMARKET" ${localStorage.getItem('nsemm.modeOverride') === 'PREMARKET' ? 'selected' : ''}>PREMARKET</option>
+                                <option value="LIVE" ${localStorage.getItem('nsemm.modeOverride') === 'LIVE' ? 'selected' : ''}>LIVE</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 4px;">
+                            <button id="applyStrategyModeBtn" style="
+                                flex: 1;
+                                padding: 6px 12px;
+                                background: ${moodColor};
+                                color: white;
+                                border: none;
+                                border-radius: 6px;
+                                font-size: 0.85rem;
+                                font-weight: 500;
+                                cursor: pointer;
+                                transition: opacity 0.2s;
+                            " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Apply</button>
+                            ${localStorage.getItem('nsemm.modeOverride') && localStorage.getItem('nsemm.modeOverride') !== 'AUTO' ? `
+                            <button id="resetModeBtn" style="
+                                padding: 6px 12px;
+                                background: #f3f4f6;
+                                color: #6b7280;
+                                border: 1px solid #d1d5db;
+                                border-radius: 6px;
+                                font-size: 0.85rem;
+                                font-weight: 500;
+                                cursor: pointer;
+                                transition: opacity 0.2s;
+                            " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Reset to Auto</button>
+                            ` : ''}
+                        </div>
+                    </div>
                 </div>
                 ${currentTopReasons && currentTopReasons.length > 0 && (!signals || !signals.hasSignals) ? `
                 <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
