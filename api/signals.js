@@ -19,6 +19,7 @@ const {
   resolveSignalDates,
   isTradingDay
 } = require('./lib/tradingCalendar');
+const { getModeDisplayName, getModeDescription } = require('./lib/signals/mode');
 
 // Try to load uuid, but don't fail if it's not available
 let uuidv4;
@@ -735,20 +736,35 @@ const handler = async (req, res) => {
             console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}`);
           }
 
+          // Get mode display info
+          const modeDisplay = storedDoc.mode ? getModeDisplayName(storedDoc.mode) : mode;
+          const modeDescription = storedDoc.mode ? getModeDescription(storedDoc.mode) : '';
+          
           const response = {
             targetDate,
             signalDate: storedDoc.date || signalDate,
             refDate: storedDoc.refDate || refDate,
             strategy: storedDoc.strategy,
             mode: storedDoc.mode || mode,
+            modeDisplay,
+            modeDescription,
             status: storedDoc.status, // READY | NO_MATCH | INSUFFICIENT_DATA | ERROR
             signal_count: storedDoc.signal_count || 0,
             signals: transformedSignals,
             hasSignals: storedDoc.status === 'READY' && transformedSignals.length > 0,
             message: storedDoc.message || 'Signals retrieved',
             missingFiles: storedDoc.missingFiles || null,
+            diagnostics: storedDoc.diagnostics || null,
+            topRejectionReasons: storedDoc.topRejectionReasons || null,
+            modeInfo: storedDoc.modeInfo || null,
             run_id: storedDoc.run_id || null,
-            usedDates: { targetDate, signalDate: storedDoc.date || signalDate, refDate: storedDoc.refDate || refDate }
+            usedDates: { 
+              targetDate, 
+              signalDate: storedDoc.date || signalDate, 
+              refDate: storedDoc.refDate || refDate,
+              eodDate: storedDoc.modeInfo?.usedDates?.eodDate || null,
+              preMDate: storedDoc.modeInfo?.usedDates?.preMDate || null
+            }
           };
           
           // Include debug info if requested
@@ -787,10 +803,16 @@ const handler = async (req, res) => {
               refDate: result.refDate || refDate,
               strategy: result.strategy,
               mode: result.mode || mode,
+              modeDisplay: result.modeDisplay || (result.mode ? getModeDisplayName(result.mode) : mode),
+              modeDescription: result.modeDescription || (result.mode ? getModeDescription(result.mode) : ''),
               status: result.status,
               signal_count: result.signal_count || 0,
               signals: transformedSignals,
               hasSignals: result.status === 'READY' && transformedSignals.length > 0,
+              diagnostics: result.diagnostics || null,
+              topRejectionReasons: result.topRejectionReasons || null,
+              modeInfo: result.modeInfo || null,
+              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refDate },
               message: result.message || 'Signals generated automatically',
               missingFiles: result.missingFiles || null,
               usedDates: result.usedDates || { targetDate, signalDate, refDate }

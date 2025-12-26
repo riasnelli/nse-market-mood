@@ -8323,8 +8323,14 @@ class MarketMoodApp {
                                         message: `Premarket not uploaded for ${targetDate}`
                                     },
                                     backendMessage: data.message,
-                                    mode: 'strategy-only',
+                                    mode: data.mode || 'strategy-only',
+                                    modeDisplay: data.modeDisplay,
+                                    modeDescription: data.modeDescription,
+                                    modeInfo: data.modeInfo,
+                                    diagnostics: data.diagnostics,
+                                    topRejectionReasons: data.topRejectionReasons,
                                     refDate: usedDates.refDate,
+                                    usedDates: usedDates,
                                     strategy: selectedStrategy
                                 });
                                 signalsLoading.style.display = 'none';
@@ -8343,8 +8349,14 @@ class MarketMoodApp {
                                 message: data.message
                             },
                             backendMessage: data.message,
-                            mode: (data.status === 'READY' && data.signals && data.signals.length > 0) ? 'signals' : 'strategy-only',
+                            mode: data.mode || ((data.status === 'READY' && data.signals && data.signals.length > 0) ? 'signals' : 'strategy-only'),
+                            modeDisplay: data.modeDisplay,
+                            modeDescription: data.modeDescription,
+                            modeInfo: data.modeInfo,
+                            diagnostics: data.diagnostics,
+                            topRejectionReasons: data.topRejectionReasons,
                             refDate: usedDates.refDate,
+                            usedDates: usedDates,
                             strategy: selectedStrategy
                         });
                     } catch (parseError) {
@@ -9097,7 +9109,7 @@ class MarketMoodApp {
         }
     }
 
-    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode, refDate }) {
+    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode, refDate, modeDisplay, modeDescription, modeInfo, diagnostics, topRejectionReasons, usedDates }) {
         const statusPanel = document.getElementById('signalsStatusPanel');
         if (!statusPanel) {
             console.warn('Signals status panel not found');
@@ -9121,6 +9133,12 @@ class MarketMoodApp {
         if (backendMessage !== undefined) this._signalsStatusData.backendMessage = backendMessage;
         if (mode !== undefined) this._signalsStatusData.mode = mode;
         if (refDate !== undefined) this._signalsStatusData.refDate = refDate;
+        if (modeDisplay !== undefined) this._signalsStatusData.modeDisplay = modeDisplay;
+        if (modeDescription !== undefined) this._signalsStatusData.modeDescription = modeDescription;
+        if (modeInfo !== undefined) this._signalsStatusData.modeInfo = modeInfo;
+        if (diagnostics !== undefined) this._signalsStatusData.diagnostics = diagnostics;
+        if (topRejectionReasons !== undefined) this._signalsStatusData.topRejectionReasons = topRejectionReasons;
+        if (usedDates !== undefined) this._signalsStatusData.usedDates = usedDates;
 
         // Use stored data with fallbacks
         // Prioritize new parameters over stored data
@@ -9133,6 +9151,12 @@ class MarketMoodApp {
         }
         const message = backendMessage || signals?.message || this._signalsStatusData.backendMessage || '';
         const refDateValue = refDate !== undefined ? refDate : this._signalsStatusData.refDate;
+        const currentModeDisplay = modeDisplay !== undefined ? modeDisplay : this._signalsStatusData.modeDisplay;
+        const currentModeDescription = modeDescription !== undefined ? modeDescription : this._signalsStatusData.modeDescription;
+        const currentModeInfo = modeInfo !== undefined ? modeInfo : this._signalsStatusData.modeInfo;
+        const currentDiagnostics = diagnostics !== undefined ? diagnostics : this._signalsStatusData.diagnostics;
+        const currentTopReasons = topRejectionReasons !== undefined ? topRejectionReasons : this._signalsStatusData.topRejectionReasons;
+        const currentUsedDates = usedDates !== undefined ? usedDates : this._signalsStatusData.usedDates;
 
         // Determine signals engine status
         let engineStatus = 'Temporarily unavailable — showing strategy only.';
@@ -9172,8 +9196,10 @@ class MarketMoodApp {
         }
 
         // Display date with refDate info
-        const dateDisplay = refDateValue 
-            ? `${targetDate} (using bhavcopy from ${refDateValue})`
+        const eodDate = currentUsedDates?.eodDate || refDateValue;
+        const preMDate = currentUsedDates?.preMDate;
+        const dateDisplay = eodDate 
+            ? `${targetDate} (EOD: ${eodDate}${preMDate ? `, PreM: ${preMDate}` : ''})`
             : targetDate;
 
         // Get strategy name with mode indicator
@@ -9201,8 +9227,11 @@ class MarketMoodApp {
                 const signalCount = signals?.signals ? signals.signals.length : 0;
                 const hasSignals = signals?.hasSignals === true && signalCount > 0;
                 
-                if (!hasSignals && signalCount === 0) {
-                    strategyText = `Strategy: ${strategyName} (strategy-only mode, no entry list)`;
+                // Use mode description if available
+                if (currentModeDescription) {
+                    strategyText = `Strategy: ${strategyName} (${currentModeDescription})`;
+                } else if (!hasSignals && signalCount === 0) {
+                    strategyText = `Strategy: ${strategyName} (no signals generated)`;
                 } else {
                     strategyText = `Strategy: ${strategyName}`;
                 }
@@ -9221,6 +9250,15 @@ class MarketMoodApp {
             }
         }
 
+        // Get mode badge color
+        const getModeBadgeColor = (mode) => {
+            if (mode === 'EOD') return { bg: '#fef3c7', text: '#92400e' };
+            if (mode === 'PREMARKET') return { bg: '#dbeafe', text: '#1e40af' };
+            if (mode === 'LIVE') return { bg: '#dcfce7', text: '#166534' };
+            return { bg: '#fee2e2', text: '#991b1b' };
+        };
+        const modeBadge = currentModeDisplay ? getModeBadgeColor(currentModeDisplay) : null;
+
         // Render status panel
         statusPanel.innerHTML = `
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
@@ -9238,8 +9276,35 @@ class MarketMoodApp {
                         <line x1="3" y1="10" x2="21" y2="10"></line>
                     </svg>
                     <span style="color: #6b7280; font-weight: 500; min-width: 50px;">Date:</span>
-                    <span style="color: #111827; font-weight: 600;">${targetDate}</span>
+                    <span style="color: #111827; font-weight: 600;">${dateDisplay}</span>
                     </div>
+                ${currentModeDisplay ? `
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="2" x2="12" y2="6"></line>
+                        <line x1="12" y1="18" x2="12" y2="22"></line>
+                    </svg>
+                    <span style="color: #6b7280; font-weight: 500; min-width: 60px;">Mode:</span>
+                    <span style="padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; background: ${modeBadge.bg}; color: ${modeBadge.text};">${currentModeDisplay}</span>
+                    ${currentModeDescription ? `<span style="color: #6b7280; font-size: 0.85rem; margin-left: 8px;">${currentModeDescription}</span>` : ''}
+                </div>
+                ` : ''}
+                ${(eodDate || preMDate) ? `
+                <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <div style="color: #6b7280; font-weight: 500; font-size: 0.85rem; margin-bottom: 4px;">Data Used:</div>
+                    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #6b7280; min-width: 80px;">EOD Data:</span>
+                            <span style="color: ${eodDate ? '#10b981' : '#ef4444'}; font-weight: 600;">${eodDate || 'Missing'}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #6b7280; min-width: 80px;">PreM Data:</span>
+                            <span style="color: ${preMDate ? '#10b981' : '#6b7280'}; font-weight: 600;">${preMDate || 'Not uploaded'}</span>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
                 <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -9260,6 +9325,19 @@ class MarketMoodApp {
                         Try other Strategies →
                     </a>
                 </div>
+                ${currentTopReasons && currentTopReasons.length > 0 && (!signals || !signals.hasSignals) ? `
+                <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <div style="color: #6b7280; font-weight: 500; font-size: 0.85rem; margin-bottom: 4px;">Top Rejection Reasons:</div>
+                    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem;">
+                        ${currentTopReasons.slice(0, 3).map(r => `
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="color: #6b7280;">${r.reason}:</span>
+                                <span style="color: #ef4444; font-weight: 600;">${r.count}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
             </div>
         `;
         

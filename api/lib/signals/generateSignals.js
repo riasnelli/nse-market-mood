@@ -27,6 +27,9 @@ const {
   isCalendarFallbackUsed
 } = require('../tradingCalendar');
 
+const { getSignalsMode, getModeDisplayName, getModeDescription, MODE_EOD, MODE_PREM, MODE_LIVE, MODE_NONE } = require('./mode');
+const { getStrategy, supportsMode } = require('./registry');
+
 /**
  * Get current mood from database (most recent)
  */
@@ -1332,50 +1335,113 @@ async function checkDataAvailability(targetDate, mode = 'PLAYBOOK') {
 }
 
 /**
- * Generate signals for a date and save to signals_store
+ * Generate signals for a date and save to signals_store (Mode-aware)
  * 
  * @param {string} targetDate - Target date in YYYY-MM-DD format
  * @param {string} strategy - Strategy name (default: 'momentum_gap')
- * @param {string} mode - Mode: 'PLAYBOOK' | 'PREMARKET' | 'LIVE' (default: 'PLAYBOOK')
- * @returns {Promise<Object>} - { status, targetDate, signalDate, refDate, strategy, mode, signal_count, signals, message, missingFiles? }
+ * @param {string} legacyMode - Legacy mode parameter (ignored, mode is auto-detected)
+ * @returns {Promise<Object>} - { status, targetDate, signalDate, refDate, strategy, mode, signal_count, signals, message, missingFiles?, diagnostics?, modeInfo? }
  */
-async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mode = 'PLAYBOOK') {
+async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', legacyMode = 'PLAYBOOK') {
   try {
-    console.log(`📊 [generateSignalsForDate] Starting generation for ${targetDate} with strategy ${strategy}, mode ${mode}`);
+    console.log(`📊 [generateSignalsForDate] Starting generation for ${targetDate} with strategy ${strategy}`);
     
     // Resolve trading dates
     const { signalDate, refDate } = resolveSignalDates(targetDate);
     
-    // Check data availability
-    const dataCheck = await checkDataAvailability(targetDate, mode);
+    // Determine mode based on data availability and time
+    const modeInfo = await getSignalsMode({ selectedDate: signalDate });
+    const detectedMode = modeInfo.mode;
+    const modeDisplay = getModeDisplayName(detectedMode);
+    const modeDescription = getModeDescription(detectedMode);
     
-    // PLAYBOOK mode requires bhavcopy
-    if (!dataCheck.available.bhav) {
-      // Missing required data - save INSUFFICIENT_DATA status
+    console.log(`📊 [generateSignalsForDate] Detected mode: ${modeDisplay} (${modeDescription})`);
+    console.log(`   Reasons: ${modeInfo.reasons.join(', ')}`);
+    console.log(`   Used dates: EOD=${modeInfo.usedDates.eodDate}, PreM=${modeInfo.usedDates.preMDate || 'N/A'}`);
+    
+    // Get strategy from registry
+    const strategyDef = getStrategy(strategy);
+    if (!strategyDef) {
+      console.warn(`⚠️ Unknown strategy: ${strategy}, falling back to momentum_gap`);
+      const fallbackStrategy = getStrategy('momentum_gap');
+      if (!fallbackStrategy) {
+        return {
+          status: 'ERROR',
+          targetDate,
+          signalDate,
+          refDate,
+          strategy,
+          mode: detectedMode,
+          signal_count: 0,
+          signals: [],
+          message: `Unknown strategy: ${strategy}`
+        };
+      }
+      strategy = 'momentum_gap';
+    }
+    
+    // Check if strategy supports detected mode
+    if (!supportsMode(strategy, detectedMode)) {
       const signalsStoreCollection = await getSignalsStoreCollection();
-      
-      const insufficientDataDoc = {
+      const unsupportedDoc = {
         date: signalDate,
         refDate: refDate,
         strategy,
-        mode,
+        mode: detectedMode,
         status: 'INSUFFICIENT_DATA',
         signal_count: 0,
         signals: [],
-        missingFiles: dataCheck.missingFiles,
-        message: `Cannot generate playbook: missing bhavcopy for ${refDate}.`,
+        missingFiles: [],
+        message: `Strategy "${strategyDef.name}" does not support ${modeDisplay} mode. Required: ${strategyDef.supportedModes.map(m => getModeDisplayName(m)).join(', ')}`,
+        modeInfo,
         createdAt: new Date(),
         updatedAt: new Date()
       };
       
-      // Upsert (update if exists, insert if not)
       await signalsStoreCollection.updateOne(
-        { date: signalDate, strategy, mode },
-        { $set: insufficientDataDoc },
+        { date: signalDate, strategy, mode: detectedMode },
+        { $set: unsupportedDoc },
         { upsert: true }
       );
       
-      console.log(`⚠️ [generateSignalsForDate] INSUFFICIENT_DATA for ${signalDate}: refDate=${refDate}, missingFiles=${dataCheck.missingFiles.join(', ')}`);
+      return {
+        status: 'INSUFFICIENT_DATA',
+        targetDate,
+        signalDate,
+        refDate,
+        strategy,
+        mode: detectedMode,
+        signal_count: 0,
+        signals: [],
+        missingFiles: [],
+        message: `Strategy does not support ${modeDisplay} mode`,
+        modeInfo
+      };
+    }
+    
+    // Check if we have minimum required data
+    if (detectedMode === MODE_NONE) {
+      const signalsStoreCollection = await getSignalsStoreCollection();
+      const noDataDoc = {
+        date: signalDate,
+        refDate: refDate,
+        strategy,
+        mode: detectedMode,
+        status: 'INSUFFICIENT_DATA',
+        signal_count: 0,
+        signals: [],
+        missingFiles: modeInfo.reasons,
+        message: `No data available. ${modeInfo.reasons.join('. ')}`,
+        modeInfo,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      await signalsStoreCollection.updateOne(
+        { date: signalDate, strategy, mode: detectedMode },
+        { $set: noDataDoc },
+        { upsert: true }
+      );
       
       return {
         status: 'INSUFFICIENT_DATA',
@@ -1383,66 +1449,33 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mod
         signalDate,
         refDate,
         strategy,
-        mode,
+        mode: detectedMode,
         signal_count: 0,
         signals: [],
-        missingFiles: dataCheck.missingFiles,
-        message: `Cannot generate playbook: missing bhavcopy for ${refDate}.`
+        missingFiles: modeInfo.reasons,
+        message: `No data available. ${modeInfo.reasons.join('. ')}`,
+        modeInfo
       };
     }
     
-    // Check if premarket is required for mode
-    // EOD-only strategies (watchlist_score, eod_breakout) don't need premarket
-    const eodOnlyStrategies = ['watchlist_score', 'eod_breakout'];
-    const requiresPremarket = !eodOnlyStrategies.includes(strategy) && (mode === 'PREMARKET' || mode === 'LIVE');
-    
-    if (requiresPremarket && !dataCheck.available.premarket) {
-      return {
-        status: 'INSUFFICIENT_DATA',
-        targetDate,
-        signalDate,
-        refDate,
-        strategy,
-        mode,
-        signal_count: 0,
-        signals: [],
-        missingFiles: dataCheck.missingFiles,
-        message: `Premarket missing for ${signalDate} (${signalDate}). Playbook is available.`
-      };
+    // Get mood score for LIVE mode
+    let moodScore = null;
+    if (detectedMode === MODE_LIVE) {
+      const mood = await getCurrentMood();
+      moodScore = mood?.score || 50; // Default to neutral
     }
     
-    // Data is available - generate signals using strategy-specific logic
-    console.log(`✅ [generateSignalsForDate] Data available, generating signals with strategy: ${strategy}, mode: ${mode}...`);
+    // Run strategy with mode-aware parameters
+    console.log(`✅ [generateSignalsForDate] Running strategy "${strategyDef.name}" in ${modeDisplay} mode...`);
     
-    let result;
-    switch (strategy) {
-      case 'momentum_gap':
-        result = await generateSimpleMomentumGapSignals(signalDate, strategy, refDate);
-        break;
-      case 'breakout':
-        result = await generateBreakoutSignals(signalDate, strategy, refDate);
-        break;
-      case 'mean_reversion':
-        result = await generateMeanReversionSignals(signalDate, strategy, refDate);
-        break;
-      case 'defensive':
-        result = await generateDefensiveSignals(signalDate, strategy, refDate);
-        break;
-      case 'volatility_play':
-        result = await generateVolatilityPlaySignals(signalDate, strategy, refDate);
-        break;
-      case 'watchlist_score':
-        // EOD-only strategy - no premarket required
-        result = await generateWatchlistScoreSignals(signalDate, strategy, refDate);
-        break;
-      case 'eod_breakout':
-        // EOD-only strategy - no premarket required
-        result = await generateEODBreakoutSignals(signalDate, strategy, refDate);
-        break;
-      default:
-        console.warn(`⚠️ Unknown strategy: ${strategy}, falling back to momentum_gap`);
-        result = await generateSimpleMomentumGapSignals(signalDate, 'momentum_gap', refDate);
-    }
+    const result = await strategyDef.run({
+      date: signalDate,
+      mode: detectedMode,
+      eodDate: modeInfo.usedDates.eodDate,
+      preMDate: modeInfo.usedDates.preMDate,
+      moodScore,
+      params: strategyDef.defaults || {}
+    });
     
     // Determine status based on result
     let status;
@@ -1460,30 +1493,39 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mod
     // Save to signals_store collection
     const signalsStoreCollection = await getSignalsStoreCollection();
     
-    // Prepare debug info (filters used, counts before filters)
+    // Get top rejection reasons from diagnostics
+    const diagnostics = result.diagnostics || {};
+    const rejectionReasons = Object.entries(diagnostics)
+      .filter(([reason, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([reason, count]) => ({ reason, count }));
+    
+    // Prepare debug info with mode and diagnostics
     const debugInfo = {
-      filtersUsed: {
-        minGapPercent: 0.3,
-        minVolume: 100000,
-        minScore: 50,
-        series: 'EQ'
-      },
-      countsBeforeFilters: result.filterCounters || {},
-      topReason: result.topReason || null
+      mode: detectedMode,
+      modeDisplay: modeDisplay,
+      modeDescription: modeDescription,
+      modeInfo: modeInfo,
+      filtersUsed: strategyDef.defaults || {},
+      diagnostics: diagnostics,
+      topRejectionReasons: rejectionReasons,
+      countsBeforeFilters: result.filterCounters || {}
     };
     
     const storeDoc = {
       date: signalDate,
       refDate: refDate,
       strategy,
-      mode,
+      mode: detectedMode, // Use detected mode, not legacy mode
       status,
       signal_count: signalsArray.length,
       signals: signalsArray,
       run_id: result.run_id || null,
       message: result.message || (status === 'READY' ? `Generated ${signalsArray.length} signals` : 'No signals generated'),
-      filterCounters: result.filterCounters || null,
-      topReason: result.topReason || null,
+      diagnostics: diagnostics,
+      topRejectionReasons: rejectionReasons,
+      modeInfo: modeInfo,
       debug: debugInfo,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -1491,12 +1533,12 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mod
     
     // Upsert (update if exists, insert if not)
     await signalsStoreCollection.updateOne(
-      { date: signalDate, strategy, mode },
+      { date: signalDate, strategy, mode: detectedMode },
       { $set: storeDoc },
       { upsert: true }
     );
     
-    console.log(`✅ [generateSignalsForDate] Saved to signals_store: status=${status}, count=${signalsArray.length}`);
+    console.log(`✅ [generateSignalsForDate] Saved to signals_store: status=${status}, count=${signalsArray.length}, mode=${modeDisplay}`);
     
     return {
       status,
@@ -1504,28 +1546,50 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mod
       signalDate,
       refDate,
       strategy,
-      mode,
+      mode: detectedMode,
+      modeDisplay,
+      modeDescription,
       signal_count: signalsArray.length,
       signals: signalsArray,
       run_id: result.run_id || null,
       message: storeDoc.message,
-      filterCounters: result.filterCounters,
-      topReason: result.topReason,
-      usedDates: { targetDate, signalDate, refDate }
+      diagnostics: diagnostics,
+      topRejectionReasons: rejectionReasons,
+      modeInfo: modeInfo,
+      usedDates: { 
+        targetDate, 
+        signalDate, 
+        refDate,
+        eodDate: modeInfo.usedDates.eodDate,
+        preMDate: modeInfo.usedDates.preMDate
+      }
     };
     
   } catch (error) {
-    console.error(`❌ [generateSignalsForDate] Error generating signals for ${date}:`, error);
+    console.error(`❌ [generateSignalsForDate] Error generating signals for ${targetDate}:`, error);
+    
+    // Try to resolve dates for error response
+    let signalDate, refDate;
+    try {
+      const dates = resolveSignalDates(targetDate);
+      signalDate = dates.signalDate;
+      refDate = dates.refDate;
+    } catch (dateError) {
+      signalDate = targetDate;
+      refDate = targetDate;
+    }
     
     // Save ERROR status to signals_store
     try {
       const signalsStoreCollection = await getSignalsStoreCollection();
       await signalsStoreCollection.updateOne(
-        { date, strategy },
+        { date: signalDate, strategy },
         {
           $set: {
-            date,
+            date: signalDate,
+            refDate: refDate,
             strategy,
+            mode: MODE_NONE,
             status: 'ERROR',
             signal_count: 0,
             signals: [],
@@ -1542,8 +1606,11 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', mod
     
     return {
       status: 'ERROR',
-      date,
+      targetDate,
+      signalDate,
+      refDate,
       strategy,
+      mode: MODE_NONE,
       signal_count: 0,
       signals: [],
       message: `Signal generation failed: ${error.message || 'Unknown error'}`,
