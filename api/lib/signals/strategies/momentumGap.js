@@ -39,9 +39,9 @@ const RULES_TEXT = {
   EOD: [
     'Series: EQ',
     'Price: ₹20–₹2000',
-    'Liquidity: Yesterday volume >= 300,000',
-    'Volatility: (HIGH-LOW)/CLOSE >= 2% OR close in top 30% of range',
-    'Score threshold: >= 45',
+    'Liquidity: Yesterday volume >= 200,000',
+    'Volatility: (HIGH-LOW)/CLOSE >= 1.5% OR close in top 35% OR price move >= 1%',
+    'Score threshold: >= 40',
     'Output: Watchlist candidates (50–200 typical)'
   ],
   PREMARKET: [
