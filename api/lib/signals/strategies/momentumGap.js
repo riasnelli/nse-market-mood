@@ -181,8 +181,8 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
     const symbol = stock.symbol || stock.SYMBOL;
     if (!symbol) continue;
     
-    const close = parseFloat(stock.close || stock.CLOSE || stock.lastPrice || 0);
-    const open = parseFloat(stock.open || stock.OPEN || 0);
+    const close = parseFloat(stock.close || stock.CLOSE || stock.lastPrice || stock.LAST_PRICE || 0);
+    const open = parseFloat(stock.open || stock.OPEN || stock.PREV_CLOSE || stock.prevClose || close);
     const high = parseFloat(stock.high || stock.HIGH || close);
     const low = parseFloat(stock.LOW || stock.low || close);
     // Try multiple volume field names (NSE CSV uses TOTTRDQTY)
@@ -218,14 +218,16 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
       continue;
     }
     
-    // Liquidity
+    // Liquidity check - use volume directly if avgVol20D not available
     const avgVol20D = await getAvgVol20D(symbol, eodDate, volume);
-    if (avgVol20D < config.liquidityMin) {
+    const effectiveVolume = avgVol20D || volume; // Fallback to current volume if avg not available
+    
+    if (effectiveVolume < config.liquidityMin) {
       diagnostics[REJECTION_REASONS.LIQUIDITY_TOO_LOW]++;
       continue;
     }
     
-    // Volatility: (HIGH-LOW)/CLOSE >= 2% OR close in top 30% of range
+    // Volatility: (HIGH-LOW)/CLOSE >= threshold OR close in top X% of range
     const volatility = getVolatilityProxy(high, low, close);
     const dayRange = high - low;
     const closePosition = dayRange > 0 ? (close - low) / dayRange : 0;
@@ -234,11 +236,15 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
     const volatilityPass = volatility >= config.volatilityMin;
     const closePositionPass = closePosition >= config.closeNearHighMin;
     
-    if (!volatilityPass && !closePositionPass) {
-      // Failed both: volatility too low AND not near high
+    // Also allow if price moved significantly (change > 1%)
+    const priceChange = close > 0 ? Math.abs((close - open) / close) * 100 : 0;
+    const priceMovePass = priceChange >= 1.0;
+    
+    if (!volatilityPass && !closePositionPass && !priceMovePass) {
+      // Failed all three: volatility too low AND not near high AND no significant price move
       if (volatility < config.volatilityMin) {
         diagnostics[REJECTION_REASONS.VOLATILITY_TOO_LOW]++;
-      } else {
+      } else if (closePosition < config.closeNearHighMin) {
         diagnostics[REJECTION_REASONS.NOT_NEAR_HIGH]++;
       }
       continue;
