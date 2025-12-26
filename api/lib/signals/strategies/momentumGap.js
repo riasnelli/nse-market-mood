@@ -117,10 +117,14 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
       .find({ date: eodDate, series: 'EQ' })
       .toArray();
     
+    console.log(`[MomentumGap EOD] Found ${bhavcopyData.length} EQ stocks in daily_bhavcopy for ${eodDate}`);
+    
     if (bhavcopyData.length === 0) {
       const uploadedBhavDocs = await uploadedBhavCollection
         .find({ date: eodDate })
         .toArray();
+      
+      console.log(`[MomentumGap EOD] Found ${uploadedBhavDocs.length} uploaded bhavcopy docs for ${eodDate}`);
       
       for (const doc of uploadedBhavDocs) {
         if (doc.indices && Array.isArray(doc.indices)) {
@@ -128,14 +132,26 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
           bhavcopyData = bhavcopyData.concat(eqStocks);
         }
       }
+      
+      console.log(`[MomentumGap EOD] Total EQ stocks from uploaded data: ${bhavcopyData.length}`);
+    }
+    
+    if (bhavcopyData.length === 0) {
+      console.warn(`[MomentumGap EOD] No bhavcopy data found for ${eodDate}`);
+      return {
+        success: false,
+        signals: [],
+        diagnostics,
+        message: `No bhavcopy data found for ${eodDate}`
+      };
     }
   } catch (error) {
-    console.error('Error fetching bhavcopy:', error);
+    console.error(`[MomentumGap EOD] Error fetching bhavcopy for ${eodDate}:`, error);
     return {
       success: false,
       signals: [],
       diagnostics,
-      message: `Error fetching bhavcopy data for ${eodDate}`
+      message: `Error fetching bhavcopy data for ${eodDate}: ${error.message}`
     };
   }
   

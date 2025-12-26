@@ -1356,6 +1356,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     
     // Resolve signals context using new resolver
     const context = await resolveSignalsContext({
+      targetDate,
       today,
       marketStatus,
       userOverride
