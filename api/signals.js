@@ -832,16 +832,6 @@ const handler = async (req, res) => {
             marketOpen: marketStatus.isOpen,
             marketTimestamp: marketStatus.timestamp
           };
-          
-          // Get dataUsed from storedDoc or construct from available fields
-          const dataUsed = storedDoc.dataUsed || {
-            refEodDate: storedDoc.refDate || refEodDate,
-            premarketDate: storedDoc.modeInfo?.usedDates?.preMDate || premarketDate,
-            mode: storedMode || detectedMode,
-            signalDate: storedDoc.date || signalDate,
-            marketOpen: marketStatus.isOpen,
-            marketTimestamp: marketStatus.timestamp
-          };
 
           const response = {
             targetDate,
@@ -908,22 +898,51 @@ const handler = async (req, res) => {
               reason: signal.reason
             })) : [];
             
-            return res.status(200).json({
+        return res.status(200).json({
+              success: true,
+              engine: 'OK',
+              requested: { date: targetDate, strategy, modeOverride },
               targetDate: result.targetDate || targetDate,
               signalDate: result.signalDate || signalDate,
               refDate: result.refDate || refDate,
-              strategy: result.strategy,
-              mode: result.mode,
+              strategy: result.strategy || strategy,
+              mode: result.mode || detectedMode,
               modeDisplay: result.modeDisplay || (result.mode ? getModeDisplayName(result.mode) : 'EOD'),
               modeLabel: result.modeLabel || (result.mode ? getModeLabel(result.mode) : 'EOD (Watchlist)'),
               status: result.status,
-              signal_count: result.signal_count || 0,
+              signal_count: transformedSignals.length,
               signals: transformedSignals,
               hasSignals: result.status === 'READY' && transformedSignals.length > 0,
               diagnostics: result.diagnostics || null,
               rejectStats: result.rejectStats || null,
               filtersUsed: result.filtersUsed || null,
-              dataUsed: result.dataUsed || null,
+              context: {
+                mode: result.mode || detectedMode,
+                signalDate: result.signalDate || signalDate,
+                refEodDate: result.dataUsed?.refEodDate || result.refDate || refDate,
+                premarketDate: result.dataUsed?.premarketDate || null,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp,
+                reason: result.message || 'Signals generated'
+              },
+              dataUsed: result.dataUsed || {
+                refEodDate: result.refDate || refDate,
+                premarketDate: result.dataUsed?.premarketDate || null,
+                mode: result.mode || detectedMode,
+                signalDate: result.signalDate || signalDate,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp
+              },
+              strategyMeta: {
+                id: strategyMeta.id,
+                name: strategyMeta.name,
+                rulesText: strategyMeta.rulesText
+              },
+              meta: {
+                rejectStats: result.rejectStats || [],
+                filtersUsed: result.filtersUsed || [],
+                topRejectReason: result.rejectStats && result.rejectStats.length > 0 ? result.rejectStats[0] : null
+              },
               message: result.message || 'Signals generated automatically',
               missingFiles: result.missingFiles || null,
               usedDates: result.usedDates || { 
@@ -1026,8 +1045,14 @@ const handler = async (req, res) => {
         
         // Return NO_DATA status if signals couldn't be generated
         return res.status(200).json({
-          date: date,
-          strategy: strategy,
+          success: true,
+          engine: 'OK',
+          requested: { date: targetDate, strategy, modeOverride },
+          targetDate,
+          signalDate,
+          refDate: refEodDate,
+          strategy,
+          mode: detectedMode,
           status: 'NO_DATA',
           signal_count: 0,
           signals: [],
