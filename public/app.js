@@ -6480,34 +6480,49 @@ class MarketMoodApp {
                 console.log(`  ${dateKey}: indices=${dateData.indices.count} (id: ${dateData.indices.id || 'none'}, file: ${dateData.indices.fileName || 'none'}), bhav=${dateData.bhav.count} (id: ${dateData.bhav.id || 'none'}, file: ${dateData.bhav.fileName || 'none'}), premarket=${dateData.premarket.count} (id: ${dateData.premarket.id || 'none'}, file: ${dateData.premarket.fileName || 'none'}), ma=${dateData.marketactivity.count} (id: ${dateData.marketactivity.id || 'none'}, file: ${dateData.marketactivity.fileName || 'none'}), 52w=${dateData.week52.count} (id: ${dateData.week52.id || 'none'}, file: ${dateData.week52.fileName || 'none'})`);
             });
 
-            // Helper function to parse NSE date chunks (DDMMYYYY format)
-            // Example: "22122025" → "2025-12-22"
+            // Helper function to parse NSE date chunks
+            // Detects YYYYMMDD vs DDMMYYYY based on first 4 digits
+            // Example: "22122025" → "2025-12-22" (DDMMYYYY)
+            // Example: "20251222" → "2025-12-22" (YYYYMMDD)
             function parseNseFileDateChunk(raw) {
                 if (!raw || typeof raw !== 'string') return null;
 
-                // Expecting exactly 8 chars: DDMMYYYY (e.g., "22122025")
+                // Extract 8-digit sequence
                 const digits = raw.replace(/\D/g, '');
                 if (digits.length !== 8) return null;
 
-                const dd = digits.slice(0, 2);
-                const mm = digits.slice(2, 4);
-                const yyyy = digits.slice(4, 8);
+                const first4 = Number(digits.substring(0, 4));
+                
+                // If first 4 digits are >= 2000 and <= 2099, treat as YYYYMMDD
+                if (first4 >= 2000 && first4 <= 2099) {
+                    // YYYYMMDD format
+                    const year = digits.substring(0, 4);
+                    const month = digits.substring(4, 6);
+                    const day = digits.substring(6, 8);
+                    const yearNum = Number(year);
+                    const monthNum = Number(month);
+                    const dayNum = Number(day);
 
-                const day = Number(dd);
-                const month = Number(mm);
-                const year = Number(yyyy);
+                    if (yearNum >= 2000 && yearNum <= 2100 && monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+                        return `${year}-${month}-${day}`;
+                    }
+                } else {
+                    // DDMMYYYY format (most common for NSE files)
+                    const dd = digits.substring(0, 2);
+                    const mm = digits.substring(2, 4);
+                    const yyyy = digits.substring(4, 8);
+                    const day = Number(dd);
+                    const month = Number(mm);
+                    const year = Number(yyyy);
 
-                const isValid =
-                    year >= 2000 && year <= 2100 &&
-                    month >= 1 && month <= 12 &&
-                    day >= 1 && day <= 31;
-
-                if (!isValid) {
-                    console.warn('Skipping invalid NSE date chunk:', raw, '→ parsed as', `${yyyy}-${mm}-${dd}`);
-                    return null;
+                    if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                        return `${yyyy}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    }
                 }
 
-                return `${yyyy}-${mm}-${dd}`; // 2025-12-22
+                // Invalid date
+                console.warn('Skipping invalid NSE date chunk:', raw);
+                return null;
             }
 
             // Use a more robust normalization function
@@ -8440,9 +8455,37 @@ class MarketMoodApp {
                     data = null;
                             }
                         } else {
-                // Non-OK response - don't try to parse JSON from 404 HTML pages
-                console.warn(`⚠️ Signals API returned ${response.status}, skipping JSON parse`);
-                data = null;
+                // Non-OK response (404, 500, etc.) - treat as backend bug
+                console.error(`❌ Signals API returned ${response.status} - backend bug, not engine unavailable`);
+                // Try to parse JSON anyway (API should always return JSON, even on errors)
+                try {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        data = await response.json();
+                    } else {
+                        data = null;
+                    }
+                } catch (parseError) {
+                    console.error('Failed to parse error response:', parseError);
+                    data = null;
+                }
+                
+                // If we still don't have data, show engine unavailable
+                if (!data) {
+                    this.updateSignalsStatus({
+                        date: targetDate,
+                        signalsInfo: {
+                            hasSignals: false,
+                            signals: [],
+                            success: false,
+                            message: 'Engine temporarily unavailable — server error'
+                        },
+                        backendMessage: `Server returned ${response.status} ${response.statusText}`,
+                        strategy: selectedStrategy
+                    });
+                    signalsLoading.style.display = 'none';
+                    return;
+                }
             }
             
             // Extract signals array and status from data with safe defaults

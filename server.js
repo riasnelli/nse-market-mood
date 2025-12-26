@@ -293,44 +293,49 @@ app.get('/api/router-test', (req, res) => {
   });
 });
 
-// CRITICAL FALLBACK: Add a direct route for /api/data as a last resort
-// This ensures /api/data works even if router mounting fails
+// CRITICAL FALLBACK: Add direct routes for /api/data and /api/signals as a last resort
+// This ensures these routes work even if router mounting fails
 // Register this AFTER the router so router takes precedence, but before static files
-let dataHandlerLoaded = false;
-let fallbackDataHandler = null;
-
-try {
-  console.log('🔧 Loading fallback /api/data route handler...');
-  const dataModule = require('./api/data');
-  let dataHandler = null;
-  
-  if (typeof dataModule === 'function') {
-    dataHandler = dataModule;
-    console.log('   ✅ Handler found as direct export');
-  } else if (dataModule.default && typeof dataModule.default === 'function') {
-    dataHandler = dataModule.default;
-    console.log('   ✅ Handler found as default export');
-  } else if (dataModule.handler && typeof dataModule.handler === 'function') {
-    dataHandler = dataModule.handler;
-    console.log('   ✅ Handler found as .handler property');
+function loadFallbackHandler(routeName, filePath) {
+  try {
+    console.log(`🔧 Loading fallback /api/${routeName} route handler...`);
+    const handlerModule = require(filePath);
+    let handler = null;
+    
+    if (typeof handlerModule === 'function') {
+      handler = handlerModule;
+      console.log(`   ✅ Handler found as direct export`);
+    } else if (handlerModule.default && typeof handlerModule.default === 'function') {
+      handler = handlerModule.default;
+      console.log(`   ✅ Handler found as default export`);
+    } else if (handlerModule.handler && typeof handlerModule.handler === 'function') {
+      handler = handlerModule.handler;
+      console.log(`   ✅ Handler found as .handler property`);
+    }
+    
+    if (handler && typeof handler === 'function') {
+      const wrappedHandler = wrapServerlessHandler(handler);
+      console.log(`   ✅ Fallback handler wrapped and ready`);
+      return wrappedHandler;
+    } else {
+      console.error(`   ❌ Could not find ${routeName} handler for fallback route`);
+      console.error(`   Module type:`, typeof handlerModule);
+      console.error(`   Module keys:`, Object.keys(handlerModule || {}));
+      return null;
+    }
+  } catch (error) {
+    console.error(`❌ Error loading fallback /api/${routeName} route:`, error.message);
+    console.error(`   Stack:`, error.stack);
+    return null;
   }
-  
-  if (dataHandler && typeof dataHandler === 'function') {
-    fallbackDataHandler = wrapServerlessHandler(dataHandler);
-    dataHandlerLoaded = true;
-    console.log('   ✅ Fallback handler wrapped and ready');
-  } else {
-    console.error('   ❌ Could not find data handler for fallback route');
-    console.error('   Module type:', typeof dataModule);
-    console.error('   Module keys:', Object.keys(dataModule || {}));
-  }
-} catch (error) {
-  console.error('❌ Error loading fallback /api/data route:', error.message);
-  console.error('   Stack:', error.stack);
 }
 
-// Register fallback route AFTER router (so router takes precedence)
-// But make sure it's registered before static files
+// Load fallback handlers
+const fallbackDataHandler = loadFallbackHandler('data', './api/data');
+const fallbackSignalsHandler = loadFallbackHandler('signals', './api/signals');
+
+// Register fallback routes AFTER router (so router takes precedence)
+// But make sure they're registered before static files
 if (fallbackDataHandler) {
   app.all('/api/data', (req, res, next) => {
     console.log(`🔄 Fallback /api/data route hit for ${req.method} ${req.path}${req.url !== req.path ? ` (${req.url})` : ''}`);
@@ -348,6 +353,25 @@ if (fallbackDataHandler) {
   console.log('✅ Fallback /api/data route registered (will be used if router fails)');
 } else {
   console.error('❌ Fallback /api/data route NOT registered - handler loading failed');
+}
+
+if (fallbackSignalsHandler) {
+  app.all('/api/signals', (req, res, next) => {
+    console.log(`🔄 Fallback /api/signals route hit for ${req.method} ${req.path}${req.url !== req.path ? ` (${req.url})` : ''}`);
+    console.log(`   Response already sent: ${res.headersSent}, writableEnded: ${res.writableEnded}`);
+    
+    // Check if response was already sent (router handled it)
+    if (res.headersSent || res.writableEnded) {
+      console.log(`   ⚠️ Response already sent, skipping fallback handler`);
+      return; // Router already handled it
+    }
+    
+    console.log(`   ✅ Calling fallback handler...`);
+    fallbackSignalsHandler(req, res, next);
+  });
+  console.log('✅ Fallback /api/signals route registered (will be used if router fails)');
+} else {
+  console.error('❌ Fallback /api/signals route NOT registered - handler loading failed');
 }
 
 // Add a direct test route for /api/data to help diagnose routing issues

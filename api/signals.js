@@ -709,24 +709,21 @@ const handler = async (req, res) => {
       
       if (!signalDate || !refEodDate) {
         return res.status(200).json({
-          targetDate,
-          signalDate: null,
-          refDate: null,
-          strategy,
-          mode: detectedMode,
-          status: 'INSUFFICIENT_DATA',
-          signal_count: 0,
-          signals: [],
-          hasSignals: false,
-          message: context.reason,
-          missingFiles: context.missingFiles,
-          dataUsed: {
+          success: true,
+          engineStatus: 'no_data',
+          requested: { date: targetDate, strategy, modeOverride },
+          context: {
+            signalDate: null,
             refEodDate: null,
             premarketDate: null,
-            mode: detectedMode,
-            signalDate: null,
-            marketOpen: marketStatus.isOpen,
-            marketTimestamp: marketStatus.timestamp
+            hasBhav: false,
+            hasPremarket: false,
+            missingFiles: context.missingFiles || []
+          },
+          signals: [],
+          meta: {
+            reason: context.reason || 'Insufficient data available',
+            mode: detectedMode
           }
         });
       }
@@ -735,41 +732,21 @@ const handler = async (req, res) => {
         if (DEBUG) console.log('[SIGNALS API] MongoDB not configured, returning NO_DATA status');
         return res.status(200).json({
           success: true,
-          engine: 'OK',
+          engineStatus: 'disabled',
           requested: { date: targetDate, strategy, modeOverride },
-          targetDate,
-          signalDate,
-          refDate: refEodDate,
-          strategy,
-          mode: detectedMode,
-          status: 'NO_DATA',
-          signal_count: 0,
-          signals: [],
-          hasSignals: false,
-          message: 'MongoDB not configured. Signals cannot be generated.',
           context: {
-            mode: detectedMode,
-            signalDate,
-            refEodDate,
-            premarketDate,
-            marketOpen: marketStatus.isOpen,
-            marketTimestamp: marketStatus.timestamp,
-            reason: 'MongoDB not configured'
+            signalDate: signalDate || null,
+            refEodDate: refEodDate || null,
+            premarketDate: premarketDate || null,
+            hasBhav: !!refEodDate,
+            hasPremarket: !!premarketDate,
+            missingFiles: context.missingFiles || []
           },
-          dataUsed: {
-            refEodDate,
-            premarketDate,
-            mode: detectedMode,
-            signalDate,
-            marketOpen: marketStatus.isOpen,
-            marketTimestamp: marketStatus.timestamp
-          },
-          strategyMeta: {
-            id: strategyMeta.id,
-            name: strategyMeta.name,
-            rulesText: strategyMeta.rulesText
-          },
-          meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
+          signals: [],
+          meta: {
+            reason: 'MongoDB not configured. Signals cannot be generated.',
+            mode: detectedMode
+          }
         });
       }
 
