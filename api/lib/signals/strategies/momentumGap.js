@@ -21,14 +21,14 @@ const DEFAULTS = {
   gapMax: 12,         // Maximum gap % (was unlimited, now 12%)
   preMMinAbs: 50000,  // Minimum premarket volume (absolute)
   preMMinRel: 0.05,   // Minimum relative volume (5% of avg)
-  eodScoreMin: 45,    // EOD watchlist score threshold
+  eodScoreMin: 40,    // EOD watchlist score threshold (reduced from 45)
   preMScoreMin: 50,   // Premarket confirmed score threshold
   series: 'EQ',
   priceMin: 20,
   priceMax: 2000,
-  liquidityMin: 300000, // Use yesterday TOTTRDQTY >= 300k
-  volatilityMin: 2.0,    // (HIGH-LOW)/CLOSE >= 2% OR close in top 30% of range
-  closeNearHighMin: 0.70, // Close in top 30% of day range
+  liquidityMin: 200000, // Reduced from 300k to 200k for more candidates
+  volatilityMin: 1.5,    // Reduced from 2.0% to 1.5% OR close in top 35% of range
+  closeNearHighMin: 0.65, // Reduced from 0.70 to 0.65 (close in top 35% instead of 30%)
   extremeGapMode: false
 };
 
@@ -271,8 +271,16 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
       score += closePosition * 30; // Based on close position
     }
     
+    // Price movement component (0-10) - NEW
+    if (priceChange >= 2.0) {
+      score += 10;
+    } else if (priceChange >= 1.0) {
+      score += 5;
+    }
+    
     // Volume component (0-20)
-    score += Math.min(20, (avgVol20D / 1000000) * 2);
+    const effectiveVol = avgVol20D || volume;
+    score += Math.min(20, (effectiveVol / 1000000) * 2);
     
     // Delivery component (0-15)
     if (delivery > 0 && volume > 0) {
@@ -293,7 +301,7 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
       target_price: parseFloat((close * 1.05).toFixed(2)),
       score: Math.round(score),
       gap_percent: 0, // No gap in EOD mode
-      volume: avgVol20D,
+      volume: avgVol20D || volume,
       reason: near52WHigh 
         ? `Near 52W High, Score: ${Math.round(score)}`
         : `Close near high (${(closePosition * 100).toFixed(0)}%), Score: ${Math.round(score)}`,
