@@ -7924,7 +7924,9 @@ class MarketMoodApp {
                 date: new Date().toISOString().split('T')[0],
                 signalsInfo: null,
                 dataAvailability: null,
-                strategy: this.selectedStrategy || 'momentum_gap'
+                strategy: this.selectedStrategy || 'momentum_gap',
+                modeDisplay: 'EOD',
+                modeLabel: 'EOD (Watchlist)'
             });
             
             // Resolve signals context BEFORE loading signals (never call loadSignals with null)
@@ -9212,7 +9214,7 @@ class MarketMoodApp {
         }
     }
 
-    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode, refDate, modeDisplay, modeDescription, modeInfo, diagnostics, topRejectionReasons, usedDates }) {
+    updateSignalsStatus({ date, signalsInfo, dataAvailability, strategy, backendMessage, mode, refDate, modeDisplay, modeLabel, modeDescription, modeInfo, diagnostics, rejectStats, filtersUsed, topRejectionReasons, usedDates, dataUsed }) {
         const statusPanel = document.getElementById('signalsStatusPanel');
         if (!statusPanel) {
             console.warn('Signals status panel not found');
