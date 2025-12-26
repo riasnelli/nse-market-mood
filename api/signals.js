@@ -692,6 +692,7 @@ const handler = async (req, res) => {
       // Resolve signals context (this determines signalDate, refEodDate, premarketDate, mode)
       const today = getTodayIST();
       const context = await resolveSignalsContext({
+        targetDate,
         today,
         marketStatus,
         userOverride
@@ -1049,7 +1050,7 @@ const handler = async (req, res) => {
           engine: 'OK',
           requested: { date: targetDate, strategy, modeOverride },
           targetDate,
-          signalDate,
+          signalDate: signalDate || targetDate,
           refDate: refEodDate,
           strategy,
           mode: detectedMode,
@@ -1057,19 +1058,77 @@ const handler = async (req, res) => {
           signal_count: 0,
           signals: [],
           hasSignals: false,
+          message: 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).',
+          context: {
+            mode: detectedMode,
+            signalDate: signalDate || targetDate,
+            refEodDate: refEodDate,
+            premarketDate: premarketDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp,
+            reason: 'No signals generated'
+          },
+          dataUsed: {
+            refEodDate: refEodDate,
+            premarketDate: premarketDate,
+            mode: detectedMode,
+            signalDate: signalDate || targetDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp
+          },
+          strategyMeta: {
+            id: strategyMeta.id,
+            name: strategyMeta.name,
+            rulesText: strategyMeta.rulesText
+          },
+          meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
+          signal_count: 0,
+          signals: [],
+          hasSignals: false,
           message: 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).'
         });
       } catch (error) {
         console.error('[SIGNALS API] Error retrieving signals:', error);
+        const date = req.query.date || new Date().toISOString().split('T')[0];
+        const strategy = req.query.strategy || 'momentum_gap';
+        const modeOverride = req.query.modeOverride || 'AUTO';
         return res.status(200).json({
-          date: date,
-          strategy: strategy,
+          success: false,
+          engine: 'ERROR',
+          requested: { date, strategy, modeOverride },
+          targetDate: date,
+          signalDate: null,
+          refDate: null,
+          strategy,
+          mode: 'MODE_NONE',
           status: 'ERROR',
           signal_count: 0,
           signals: [],
           hasSignals: false,
-          message: 'Error retrieving signals',
-          error: error.message
+          message: `Error retrieving signals: ${error.message}`,
+          context: {
+            mode: 'MODE_NONE',
+            signalDate: null,
+            refEodDate: null,
+            premarketDate: null,
+            marketOpen: false,
+            marketTimestamp: null,
+            reason: `Error: ${error.message}`
+          },
+          dataUsed: {
+            refEodDate: null,
+            premarketDate: null,
+            mode: 'MODE_NONE',
+            signalDate: null,
+            marketOpen: false,
+            marketTimestamp: null
+          },
+          strategyMeta: {
+            id: strategy,
+            name: strategy,
+            rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
+          },
+          meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
         });
       }
       
@@ -1123,20 +1182,93 @@ const handler = async (req, res) => {
       });
 
     } else {
-      // Method not allowed
-      return res.status(405).json({ 
-        error: 'Method not allowed',
-        message: `Method ${req.method} is not supported for this endpoint`,
-        allowed: ['GET', 'POST']
+      // Method not allowed - but still return 200 with error info
+      const date = req.query.date || new Date().toISOString().split('T')[0];
+      const strategy = req.query.strategy || 'momentum_gap';
+      const modeOverride = req.query.modeOverride || 'AUTO';
+      return res.status(200).json({
+        success: false,
+        engine: 'ERROR',
+        requested: { date, strategy, modeOverride },
+        targetDate: date,
+        signalDate: null,
+        refDate: null,
+        strategy,
+        mode: 'MODE_NONE',
+        status: 'ERROR',
+        signal_count: 0,
+        signals: [],
+        hasSignals: false,
+        message: `Method ${req.method} is not supported. Allowed: GET, POST`,
+        context: {
+          mode: 'MODE_NONE',
+          signalDate: null,
+          refEodDate: null,
+          premarketDate: null,
+          marketOpen: false,
+          marketTimestamp: null,
+          reason: `Method ${req.method} not allowed`
+        },
+        dataUsed: {
+          refEodDate: null,
+          premarketDate: null,
+          mode: 'MODE_NONE',
+          signalDate: null,
+          marketOpen: false,
+          marketTimestamp: null
+        },
+        strategyMeta: {
+          id: strategy,
+          name: strategy,
+          rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
+        },
+        meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
       });
     }
   } catch (error) {
     console.error('❌ Error in signals endpoint:', error);
     const date = req.query.date || new Date().toISOString().split('T')[0];
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error.message,
-      date: date
+    const strategy = req.query.strategy || 'momentum_gap';
+    const modeOverride = req.query.modeOverride || 'AUTO';
+    
+    // NEVER return 404 or 500 - always return 200 with error info
+    return res.status(200).json({
+      success: false,
+      engine: 'ERROR',
+      requested: { date, strategy, modeOverride },
+      targetDate: date,
+      signalDate: null,
+      refDate: null,
+      strategy,
+      mode: 'MODE_NONE',
+      status: 'ERROR',
+      signal_count: 0,
+      signals: [],
+      hasSignals: false,
+      message: `Error: ${error.message || 'Internal server error'}`,
+      context: {
+        mode: 'MODE_NONE',
+        signalDate: null,
+        refEodDate: null,
+        premarketDate: null,
+        marketOpen: false,
+        marketTimestamp: null,
+        reason: `Error: ${error.message || 'Internal server error'}`
+      },
+      dataUsed: {
+        refEodDate: null,
+        premarketDate: null,
+        mode: 'MODE_NONE',
+        signalDate: null,
+        marketOpen: false,
+        marketTimestamp: null
+      },
+      strategyMeta: {
+        id: strategy,
+        name: strategy,
+        rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
+      },
+      meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
     });
   }
 };

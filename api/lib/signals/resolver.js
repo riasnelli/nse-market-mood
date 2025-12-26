@@ -80,34 +80,76 @@ async function hasPreMForDate(date) {
  * Resolve signals context
  * 
  * @param {Object} options
+ * @param {string} options.targetDate - Requested date (YYYY-MM-DD) - use this as signalDate, don't auto-jump
  * @param {string} options.today - Today's date (YYYY-MM-DD)
- * @param {Object} options.marketStatus - { isOpen: boolean, timestamp?: string }
+ * @param {Object} options.marketStatus - { isOpen: boolean, reason?: string, timestamp?: string }
  * @param {Object} options.userOverride - { mode?: string, strategy?: string } from localStorage
  * @returns {Promise<Object>} - { signalDate, refEodDate, premarketDate, mode, missingFiles, reason }
  */
-async function resolveSignalsContext({ today, marketStatus = { isOpen: false }, userOverride = {} }) {
+async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpen: false }, userOverride = {} }) {
   const missingFiles = [];
-  let signalDate = null;
+  let signalDate = targetDate || today; // Use requested date, don't auto-jump
   let refEodDate = null;
   let premarketDate = null;
   let mode = MODE_NONE;
   let reason = '';
   
-  // Get latest Bhav date (any date <= today)
-  const latestBhavDate = await getLatestBhavDate(today);
+  // Handle API_FORBIDDEN: treat as UNKNOWN (don't force closed)
+  const effectiveMarketStatus = { ...marketStatus };
+  if (marketStatus.reason === 'API_FORBIDDEN') {
+    effectiveMarketStatus.isOpen = undefined; // Treat as unknown
+    effectiveMarketStatus.verified = false;
+  }
+  
+  // Get latest Bhav date (any date <= signalDate)
+  const latestBhavDate = await getLatestBhavDate(signalDate);
   
   if (!latestBhavDate) {
     return {
-      signalDate: null,
+      signalDate,
       refEodDate: null,
       premarketDate: null,
       mode: MODE_NONE,
-      missingFiles: ['bhavcopy'],
-      reason: 'No Bhavcopy data available'
+      missingFiles: [`bhavcopy for ${signalDate}`],
+      reason: `No Bhavcopy data available up to ${signalDate}`
     };
   }
   
   refEodDate = latestBhavDate;
+  
+  // Check if premarket exists for signalDate
+  const hasSignalDatePreM = await hasPreMForDate(signalDate);
+  if (hasSignalDatePreM) {
+    premarketDate = signalDate;
+  } else {
+    // Try to find latest premarket date >= refEodDate
+    try {
+      const premarketCollection = await getPreMarketDataCollection();
+      const latestPreM = await premarketCollection
+        .find({ date: { $gte: refEodDate, $lte: signalDate } })
+        .sort({ date: -1 })
+        .limit(1)
+        .toArray();
+      
+      if (latestPreM.length > 0) {
+        premarketDate = latestPreM[0].date;
+      } else {
+        // Check uploaded premarket
+        const uploadedPreMCollection = await getUploadedDataCollection('premarket');
+        const uploadedPreM = await uploadedPreMCollection
+          .find({ date: { $gte: refEodDate, $lte: signalDate } })
+          .sort({ date: -1 })
+          .limit(1)
+          .toArray();
+        
+        if (uploadedPreM.length > 0) {
+          premarketDate = uploadedPreM[0].date;
+        }
+      }
+    } catch (error) {
+      console.error('Error checking premarket dates:', error);
+    }
+  }
   
   // Check user override
   const overrideMode = userOverride.mode;
@@ -115,81 +157,59 @@ async function resolveSignalsContext({ today, marketStatus = { isOpen: false }, 
   
   // AUTO mode selection
   if (isAutoMode) {
-    if (marketStatus.isOpen === true) {
-      // Market is open
-      const hasTodayPreM = await hasPreMForDate(today);
-      
-      if (hasTodayPreM) {
-        // LIVE mode: today's PreM + latest Bhav
-        signalDate = today;
-        premarketDate = today;
-        mode = MODE_LIVE;
-        reason = `Market open with PreM data for today`;
-      } else {
-        // EOD mode: no PreM, but market is open (unusual but possible)
-        signalDate = today;
-        premarketDate = null;
-        mode = MODE_EOD;
-        reason = `Market open but no PreM data for today`;
-        missingFiles.push(`premarket for ${today}`);
-      }
+    // If market is open (and not API_FORBIDDEN), use LIVE mode if PreM exists
+    if (effectiveMarketStatus.isOpen === true && hasSignalDatePreM) {
+      mode = MODE_LIVE;
+      reason = `Market open with PreM data for ${signalDate}`;
+    } else if (effectiveMarketStatus.isOpen === true && !hasSignalDatePreM) {
+      mode = MODE_EOD;
+      reason = `Market open but no PreM data for ${signalDate}`;
+      missingFiles.push(`premarket for ${signalDate}`);
+    } else if (hasSignalDatePreM) {
+      // PreM exists but market not open (or unknown) -> PREMARKET mode
+      mode = MODE_PREM;
+      reason = `Premarket data available for ${signalDate}`;
+    } else if (premarketDate) {
+      // PreM exists for a different date
+      mode = MODE_PREM;
+      reason = `Premarket data available for ${premarketDate}`;
     } else {
-      // Market is closed
-      const session = getMarketSession();
-      
-      // Check if we're in pre-open window (09:00-09:15) and PreM exists for today
-      if (session === 'PREMARKET' && await hasPreMForDate(today)) {
-        signalDate = today;
-        premarketDate = today;
-        mode = MODE_PREM;
-        reason = `Pre-open window with PreM data for today`;
-      } else {
-        // After-market: tomorrow signals based on latest Bhav
-        signalDate = nextTradingDay(refEodDate);
-        const hasSignalDatePreM = await hasPreMForDate(signalDate);
-        
-        if (hasSignalDatePreM) {
-          premarketDate = signalDate;
-          mode = MODE_PREM;
-          reason = `After-market: signals for ${signalDate} with PreM`;
-        } else {
-          premarketDate = null;
-          mode = MODE_EOD;
-          reason = `After-market: watchlist for ${signalDate} (no PreM)`;
-        }
-      }
+      // No PreM -> EOD mode
+      mode = MODE_EOD;
+      reason = `EOD watchlist for ${signalDate} (no PreM data)`;
+      missingFiles.push(`premarket for ${signalDate}`);
     }
   } else {
     // User override mode
     const overrideModeUpper = overrideMode.toUpperCase();
     
     if (overrideModeUpper === 'LIVE') {
-      // Force LIVE mode
-      const hasTodayPreM = await hasPreMForDate(today);
-      signalDate = today;
-      refEodDate = latestBhavDate;
-      premarketDate = hasTodayPreM ? today : null;
-      mode = hasTodayPreM ? MODE_LIVE : MODE_EOD;
-      reason = `User override: LIVE mode${hasTodayPreM ? '' : ' (PreM missing, falling back to EOD)'}`;
-      if (!hasTodayPreM) missingFiles.push(`premarket for ${today}`);
+      mode = hasSignalDatePreM ? MODE_LIVE : MODE_EOD;
+      premarketDate = hasSignalDatePreM ? signalDate : premarketDate;
+      reason = `User override: LIVE mode${hasSignalDatePreM ? '' : ' (PreM missing, falling back to EOD)'}`;
+      if (!hasSignalDatePreM) missingFiles.push(`premarket for ${signalDate}`);
     } else if (overrideModeUpper === 'PREMARKET') {
-      // Force PREMARKET mode
-      const hasTodayPreM = await hasPreMForDate(today);
-      signalDate = today;
-      refEodDate = latestBhavDate;
-      premarketDate = hasTodayPreM ? today : null;
-      mode = hasTodayPreM ? MODE_PREM : MODE_EOD;
-      reason = `User override: PREMARKET mode${hasTodayPreM ? '' : ' (PreM missing, falling back to EOD)'}`;
-      if (!hasTodayPreM) missingFiles.push(`premarket for ${today}`);
+      mode = hasSignalDatePreM ? MODE_PREM : MODE_EOD;
+      premarketDate = hasSignalDatePreM ? signalDate : premarketDate;
+      reason = `User override: PREMARKET mode${hasSignalDatePreM ? '' : ' (PreM missing, falling back to EOD)'}`;
+      if (!hasSignalDatePreM) missingFiles.push(`premarket for ${signalDate}`);
     } else if (overrideModeUpper === 'EOD') {
-      // Force EOD mode
-      signalDate = nextTradingDay(refEodDate);
-      premarketDate = null;
       mode = MODE_EOD;
+      premarketDate = null;
       reason = `User override: EOD mode`;
     } else {
       // Invalid override, fall back to AUTO
-      return await resolveSignalsContext({ today, marketStatus, userOverride: {} });
+      return await resolveSignalsContext({ targetDate, today, marketStatus: effectiveMarketStatus, userOverride: {} });
+    }
+  }
+  
+  // Update missingFiles to reflect what's truly missing
+  if (!refEodDate) {
+    missingFiles.push(`bhavcopy for ${signalDate}`);
+  }
+  if (mode === MODE_PREM || mode === MODE_LIVE) {
+    if (!premarketDate) {
+      missingFiles.push(`premarket for ${signalDate}`);
     }
   }
   
@@ -200,8 +220,8 @@ async function resolveSignalsContext({ today, marketStatus = { isOpen: false }, 
     mode,
     missingFiles,
     reason,
-    marketOpen: marketStatus.isOpen,
-    marketTimestamp: marketStatus.timestamp
+    marketOpen: effectiveMarketStatus.isOpen,
+    marketTimestamp: effectiveMarketStatus.timestamp
   };
 }
 

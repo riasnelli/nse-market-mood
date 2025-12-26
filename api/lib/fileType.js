@@ -132,70 +132,61 @@ function parseDateFromFilename(fileName) {
     return null;
   }
 
-  // Pattern 1: DDMMYYYY (8 digits) - most common for NSE files
-  // e.g., CM_52_wk_High_low_22122025.csv, sec_bhavdata_full_23122025.csv
-  const ddmmyyyyMatch = fileName.match(/(\d{2})(\d{2})(\d{4})/);
-  if (ddmmyyyyMatch) {
-    const [, dd, mm, yyyy] = ddmmyyyyMatch;
-    const day = Number(dd);
-    const month = Number(mm);
-    const year = Number(yyyy);
+  // Find all 8-digit sequences in the filename
+  const all8DigitMatches = fileName.match(/\d{8}/g);
+  if (all8DigitMatches && all8DigitMatches.length > 0) {
+    // Process each 8-digit match, use the first valid one
+    for (const match of all8DigitMatches) {
+      const first4 = Number(match.substring(0, 4));
+      
+      // If first 4 digits are >= 2000 and <= 2099, treat as YYYYMMDD
+      if (first4 >= 2000 && first4 <= 2099) {
+        // YYYYMMDD format
+        const year = match.substring(0, 4);
+        const month = match.substring(4, 6);
+        const day = match.substring(6, 8);
+        const yearNum = Number(year);
+        const monthNum = Number(month);
+        const dayNum = Number(day);
 
-    // Validate date range
-    if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
-      throw new Error(
-        `Invalid parsed date from filename ${fileName}: ${year}-${month}-${day}. ` +
-        `Year must be 2000-2100, month 1-12, day 1-31.`
-      );
+        if (yearNum >= 2000 && yearNum <= 2100 && monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+          return `${year}-${month}-${day}`;
+        }
+      } else {
+        // DDMMYYYY format (most common for NSE files)
+        const dd = match.substring(0, 2);
+        const mm = match.substring(2, 4);
+        const yyyy = match.substring(4, 8);
+        const day = Number(dd);
+        const month = Number(mm);
+        const year = Number(yyyy);
+
+        if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          return `${yyyy}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+      }
     }
-
-    return `${yyyy}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    // If we processed 8-digit matches but none were valid, continue to other patterns
   }
 
-  // Pattern 2: YYYYMMDD (8 digits) - alternative format
-  // e.g., ind_close_all_20251219.csv
-  const yyyymmddMatch = fileName.match(/(\d{4})(\d{2})(\d{2})/);
-  if (yyyymmddMatch) {
-    const [, year, month, day] = yyyymmddMatch;
-    const yearNum = Number(year);
-    const monthNum = Number(month);
-    const dayNum = Number(day);
-
-    // Validate date range
-    if (yearNum < 2000 || yearNum > 2100 || monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
-      throw new Error(
-        `Invalid parsed date from filename ${fileName}: ${year}-${month}-${day}. ` +
-        `Year must be 2000-2100, month 1-12, day 1-31.`
-      );
-    }
-
-    return `${year}-${month}-${day}`;
-  }
-
-  // Pattern 3: DDMMYY (6 digits at end) - for MA files
+  // Pattern 2: DDMMYY (6 digits at end) - for MA files
   // e.g., MA191225.csv -> 2025-12-19
   const ddmmyyMatch = fileName.match(/(\d{2})(\d{2})(\d{2})\.csv$/i);
   if (ddmmyyMatch) {
     const [, day, month, yy] = ddmmyyMatch;
-    // Assume 20XX for years
     const year = `20${yy}`;
     const yearNum = Number(year);
     const monthNum = Number(month);
     const dayNum = Number(day);
 
-    // Validate date range
-    if (yearNum < 2000 || yearNum > 2100 || monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
-      throw new Error(
-        `Invalid parsed date from filename ${fileName}: ${year}-${month}-${day}. ` +
-        `Year must be 2000-2100, month 1-12, day 1-31.`
-      );
+    if (yearNum >= 2000 && yearNum <= 2100 && monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+      return `${year}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
     }
-
-    return `${year}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
   }
 
-  // Pattern 4: DD-MMM-YYYY in filename (e.g., MW-Pre-Open-Market-19-Dec-2025.csv)
-  const ddMmmYyyyMatch = fileName.match(/(\d{2})-([A-Z]{3})-(\d{4})/i);
+  // Pattern 3: DD-MMM-YYYY in filename (e.g., MW-Pre-Open-Market-26-Dec-2025.csv)
+  // Match pattern: digits-MMM-digits anywhere in filename
+  const ddMmmYyyyMatch = fileName.match(/(\d{1,2})-([A-Z]{3})-(\d{4})/i);
   if (ddMmmYyyyMatch) {
     const [, day, monthStr, year] = ddMmmYyyyMatch;
     const monthMap = {
@@ -203,20 +194,18 @@ function parseDateFromFilename(fileName) {
       'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
       'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
     };
-    const month = monthMap[monthStr.toUpperCase()] || '01';
+    const month = monthMap[monthStr.toUpperCase()];
+    if (!month) {
+      return null; // Invalid month name
+    }
     const yearNum = Number(year);
     const monthNum = Number(month);
     const dayNum = Number(day);
 
     // Validate date range
-    if (yearNum < 2000 || yearNum > 2100 || monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
-      throw new Error(
-        `Invalid parsed date from filename ${fileName}: ${year}-${month}-${day}. ` +
-        `Year must be 2000-2100, month 1-12, day 1-31.`
-      );
+    if (yearNum >= 2000 && yearNum <= 2100 && monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+      return `${year}-${month}-${String(dayNum).padStart(2, '0')}`;
     }
-
-    return `${year}-${month}-${String(dayNum).padStart(2, '0')}`;
   }
 
   return null;

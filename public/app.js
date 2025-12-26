@@ -8300,16 +8300,54 @@ class MarketMoodApp {
             console.log('🔍 Fetching signals with marketStatus:', marketStatus.isOpen, 'modeOverride:', modeOverrideParam);
 
             console.log('🔍 Fetching signals (read-only) from:', url);
-            let response = await apiConfig.fetch(url);
+            let response;
             let data = null;
+            
+            try {
+                response = await apiConfig.fetch(url);
+            } catch (networkError) {
+                console.error('❌ Network error fetching signals:', networkError);
+                // Show engine unavailable for network errors
+                this.updateSignalsStatus({
+                    date: targetDate,
+                    signalsInfo: {
+                        hasSignals: false,
+                        signals: [],
+                        success: false,
+                        message: 'Engine temporarily unavailable — network error'
+                    },
+                    backendMessage: `Network error: ${networkError.message}`,
+                    strategy: selectedStrategy
+                });
+                signalsLoading.style.display = 'none';
+                return;
+            }
             
             if (response.ok) {
                 // Check if response is actually JSON before parsing
                 const contentType = response.headers.get('content-type');
                 if (contentType && contentType.includes('application/json')) {
                     try {
-                data = await response.json();
+                        data = await response.json();
                         console.log('✅ Signals API response:', data);
+                        
+                        // Check if success is false (error response)
+                        if (data.success === false || data.engine === 'ERROR') {
+                            // Show engine unavailable for errors
+                            this.updateSignalsStatus({
+                                date: targetDate,
+                                signalsInfo: {
+                                    hasSignals: false,
+                                    signals: [],
+                                    success: false,
+                                    message: 'Engine temporarily unavailable — showing strategy only'
+                                },
+                                backendMessage: data.message || 'Engine error',
+                                strategy: selectedStrategy
+                            });
+                            signalsLoading.style.display = 'none';
+                            return;
+                        }
                         
                         // Handle MARKET_CLOSED status
                         if (data.status === 'MARKET_CLOSED' && data.signalDate) {
@@ -8415,11 +8453,26 @@ class MarketMoodApp {
             let status = 'NO_DATA';
             
             if (data) {
-                status = data.status || 'NO_DATA';
-                signalsArray = Array.isArray(data.signals) ? data.signals : [];
-                hasSignals = status === 'READY' && signalsArray.length > 0;
-                signalsMessage = data.message || '';
-                signalsSuccess = status !== 'ERROR';
+                // Check if this is the new response format
+                if (data.success !== undefined) {
+                    signalsSuccess = data.success;
+                    status = data.status || 'NO_DATA';
+                    signalsArray = Array.isArray(data.signals) ? data.signals : [];
+                    hasSignals = status === 'READY' && signalsArray.length > 0;
+                    signalsMessage = data.message || '';
+                    
+                    // If success is true but no signals, show "No signals available yet" not "Engine unavailable"
+                    if (data.success === true && signalsArray.length === 0) {
+                        signalsSuccess = true; // Still a successful response
+                    }
+                } else {
+                    // Legacy format
+                    status = data.status || 'NO_DATA';
+                    signalsArray = Array.isArray(data.signals) ? data.signals : [];
+                    hasSignals = status === 'READY' && signalsArray.length > 0;
+                    signalsMessage = data.message || '';
+                    signalsSuccess = status !== 'ERROR';
+                }
             }
 
             signalsLoading.style.display = 'none';
