@@ -20,6 +20,7 @@ const {
   isTradingDay
 } = require('./lib/tradingCalendar');
 const { getModeDisplayName, getModeDescription, getModeLabel } = require('./lib/signals/mode');
+const { getStrategyMeta } = require('./lib/signals/registry');
 
 // Try to load uuid, but don't fail if it's not available
 let uuidv4;
@@ -679,7 +680,7 @@ const handler = async (req, res) => {
         try {
           const mood = await getCurrentMood();
           strategy = selectStrategyFromMood(mood);
-          if (DEBUG) {
+      if (DEBUG) {
             console.log(`[SIGNALS API] Selected strategy based on mood: ${strategy} (mood score: ${mood?.score || 'N/A'})`);
           }
         } catch (error) {
@@ -732,6 +733,9 @@ const handler = async (req, res) => {
       if (!mongoUri) {
         if (DEBUG) console.log('[SIGNALS API] MongoDB not configured, returning NO_DATA status');
         return res.status(200).json({
+          success: true,
+          engine: 'OK',
+          requested: { date: targetDate, strategy, modeOverride },
           targetDate,
           signalDate,
           refDate: refEodDate,
@@ -742,6 +746,15 @@ const handler = async (req, res) => {
           signals: [],
           hasSignals: false,
           message: 'MongoDB not configured. Signals cannot be generated.',
+          context: {
+            mode: detectedMode,
+            signalDate,
+            refEodDate,
+            premarketDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp,
+            reason: 'MongoDB not configured'
+          },
           dataUsed: {
             refEodDate,
             premarketDate,
@@ -749,7 +762,13 @@ const handler = async (req, res) => {
             signalDate,
             marketOpen: marketStatus.isOpen,
             marketTimestamp: marketStatus.timestamp
-          }
+          },
+          strategyMeta: {
+            id: strategyMeta.id,
+            name: strategyMeta.name,
+            rulesText: strategyMeta.rulesText
+          },
+          meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
         });
       }
 
@@ -813,27 +832,6 @@ const handler = async (req, res) => {
             marketOpen: marketStatus.isOpen,
             marketTimestamp: marketStatus.timestamp
           };
-          // Return stored document with status
-          const transformedSignals = Array.isArray(storedDoc.signals) ? storedDoc.signals.map(signal => ({
-            symbol: signal.symbol,
-            score: signal.score,
-            entry_price: signal.entry_price,
-            target_price: signal.target_price,
-            stop_loss: signal.stop_loss,
-            side: signal.side || 'BUY',
-            confidence_score: signal.confidence_score,
-            feature_fields: signal.feature_fields,
-            reason: signal.reason
-          })) : [];
-
-          if (DEBUG) {
-            console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}, mode=${storedDoc.mode}`);
-          }
-
-          // Get mode display info (single badge, no duplicates)
-          const storedMode = storedDoc.mode;
-          const modeDisplay = storedMode ? getModeDisplayName(storedMode) : 'EOD';
-          const modeLabel = storedMode ? getModeLabel(storedMode) : 'EOD (Watchlist)';
           
           // Get dataUsed from storedDoc or construct from available fields
           const dataUsed = storedDoc.dataUsed || {
@@ -844,7 +842,7 @@ const handler = async (req, res) => {
             marketOpen: marketStatus.isOpen,
             marketTimestamp: marketStatus.timestamp
           };
-          
+
           const response = {
             targetDate,
             signalDate: storedDoc.date || signalDate,
@@ -939,34 +937,86 @@ const handler = async (req, res) => {
           } else if (result.status === 'INSUFFICIENT_DATA') {
             // Data not available - return INSUFFICIENT_DATA status
             return res.status(200).json({
+              success: true,
+              engine: 'OK',
+              requested: { date: targetDate, strategy, modeOverride },
               targetDate: result.targetDate || targetDate,
               signalDate: result.signalDate || signalDate,
               refDate: result.refDate || refDate,
               strategy: result.strategy || strategy,
-              mode: result.mode || mode,
+              mode: result.mode || detectedMode,
               status: 'INSUFFICIENT_DATA',
               signal_count: 0,
               signals: [],
               hasSignals: false,
               message: result.message || 'Required CSV data not available for this date.',
               missingFiles: result.missingFiles || null,
-              usedDates: result.usedDates || { targetDate, signalDate, refDate }
+              context: {
+                mode: result.mode || detectedMode,
+                signalDate: result.signalDate || signalDate,
+                refEodDate: result.refDate || refDate,
+                premarketDate: null,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp,
+                reason: result.message || 'Required CSV data not available'
+              },
+              dataUsed: {
+                refEodDate: result.refDate || refDate,
+                premarketDate: null,
+                mode: result.mode || detectedMode,
+                signalDate: result.signalDate || signalDate,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp
+              },
+              strategyMeta: {
+                id: strategyMeta.id,
+                name: strategyMeta.name,
+                rulesText: strategyMeta.rulesText
+              },
+              meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
+              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refDate }
             });
           } else {
             // Generation failed (ERROR, etc.)
             return res.status(200).json({
+              success: true,
+              engine: 'OK',
+              requested: { date: targetDate, strategy, modeOverride },
               targetDate: result.targetDate || targetDate,
               signalDate: result.signalDate || signalDate,
               refDate: result.refDate || refDate,
               strategy: result.strategy || strategy,
-              mode: result.mode || mode,
+              mode: result.mode || detectedMode,
               status: result.status || 'ERROR',
               signal_count: 0,
               signals: [],
               hasSignals: false,
               message: result.message || 'Error generating signals. Please check logs.',
               missingFiles: result.missingFiles || null,
-              usedDates: result.usedDates || { targetDate, signalDate, refDate }
+              context: {
+                mode: result.mode || detectedMode,
+                signalDate: result.signalDate || signalDate,
+                refEodDate: result.refDate || refDate,
+                premarketDate: null,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp,
+                reason: result.message || 'Error generating signals'
+              },
+              dataUsed: {
+                refEodDate: result.refDate || refDate,
+                premarketDate: null,
+                mode: result.mode || detectedMode,
+                signalDate: result.signalDate || signalDate,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp
+              },
+              strategyMeta: {
+                id: strategyMeta.id,
+                name: strategyMeta.name,
+                rulesText: strategyMeta.rulesText
+              },
+              meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
+              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refDate }
             });
           }
         } catch (genError) {

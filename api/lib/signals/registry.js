@@ -156,11 +156,44 @@ function getStrategiesForMode(mode) {
   return getAllStrategies().filter(s => s.supportedModes.includes(mode));
 }
 
+/**
+ * Get strategy metadata including rules text
+ */
+function getStrategyMeta(strategyId) {
+  const strategy = getStrategy(strategyId);
+  if (!strategy) {
+    return null;
+  }
+  
+  // Get rules text from strategy module if available
+  let rulesText = {
+    EOD: [],
+    PREMARKET: [],
+    LIVE: []
+  };
+  
+  if (strategyId === 'momentum_gap') {
+    const momentumGapModule = require('./strategies/momentumGap');
+    if (momentumGapModule.RULES_TEXT) {
+      rulesText = momentumGapModule.RULES_TEXT;
+    }
+  }
+  
+  return {
+    id: strategy.id,
+    name: strategy.name,
+    description: strategy.description,
+    supportedModes: strategy.supportedModes,
+    rulesText: rulesText
+  };
+}
+
 module.exports = {
   STRATEGIES,
   getStrategy,
   getAllStrategies,
   supportsMode,
-  getStrategiesForMode
+  getStrategiesForMode,
+  getStrategyMeta
 };
 
