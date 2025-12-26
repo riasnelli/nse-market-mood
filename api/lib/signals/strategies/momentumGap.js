@@ -169,8 +169,25 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
     const open = parseFloat(stock.open || stock.OPEN || 0);
     const high = parseFloat(stock.high || stock.HIGH || close);
     const low = parseFloat(stock.LOW || stock.low || close);
-    const volume = parseFloat(stock.volume || stock.VOLUME || stock.totalTradedVolume || 0);
-    const delivery = parseFloat(stock.delivery || stock.DELIVERY || stock.deliveryQty || 0);
+    // Try multiple volume field names (NSE CSV uses TOTTRDQTY)
+    const volume = parseFloat(
+      stock.volume || 
+      stock.VOLUME || 
+      stock.totalTradedVolume || 
+      stock.TOTTRDQTY || 
+      stock.tottrdqty ||
+      stock.traded_quantity ||
+      stock.TRADED_QUANTITY ||
+      0
+    );
+    const delivery = parseFloat(
+      stock.delivery || 
+      stock.DELIVERY || 
+      stock.deliveryQty || 
+      stock.DELIVERY_QTY ||
+      stock.delivery_qty ||
+      0
+    );
     
     // Series filter
     const series = stock.series || stock.SERIES || 'EQ';
@@ -270,6 +287,18 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
   
   // Limit to 200 candidates
   const finalSignals = watchlistCandidates.slice(0, 200);
+  
+  // Log diagnostics for debugging
+  console.log(`[MomentumGap EOD] Processed ${bhavcopyData.length} stocks, found ${finalSignals.length} candidates`);
+  const totalRejected = Object.values(diagnostics).reduce((sum, count) => sum + count, 0);
+  console.log(`[MomentumGap EOD] Total rejected: ${totalRejected}, Accepted: ${finalSignals.length}`);
+  if (finalSignals.length === 0 && bhavcopyData.length > 0) {
+    const topRejections = Object.entries(diagnostics)
+      .filter(([_, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    console.warn(`[MomentumGap EOD] No signals found. Top rejection reasons:`, topRejections.map(([reason, count]) => `${reason}: ${count}`).join(', '));
+  }
   
   // Get top rejection reasons
   const rejectStats = Object.entries(diagnostics)
