@@ -1663,7 +1663,18 @@ class MarketMoodApp {
     handleManualRefresh() {
         // Manual refresh always works, regardless of market status
         // This allows users to refresh even when market is closed
-        this.loadData();
+        // Refresh the currently active page
+        if (this.currentView === 'signals') {
+            // Refresh signals page
+            console.log('🔄 Refreshing signals page...');
+            const currentDate = this._signalsStatusData?.date || new Date().toISOString().split('T')[0];
+            const currentStrategy = this.selectedStrategy || 'momentum_gap';
+            this.loadSignals(currentDate, currentStrategy);
+        } else {
+            // Refresh mood page (default)
+            console.log('🔄 Refreshing mood page...');
+            this.loadData();
+        }
     }
 
     isMarketOpen() {
