@@ -6511,9 +6511,9 @@ class MarketMoodApp {
                     const dd = digits.substring(0, 2);
                     const mm = digits.substring(2, 4);
                     const yyyy = digits.substring(4, 8);
-                    const day = Number(dd);
-                    const month = Number(mm);
-                    const year = Number(yyyy);
+                const day = Number(dd);
+                const month = Number(mm);
+                const year = Number(yyyy);
 
                     if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
                         return `${yyyy}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -6522,7 +6522,7 @@ class MarketMoodApp {
 
                 // Invalid date
                 console.warn('Skipping invalid NSE date chunk:', raw);
-                return null;
+                    return null;
             }
 
             // Use a more robust normalization function
@@ -8237,6 +8237,293 @@ class MarketMoodApp {
         return !holidays2025.has(dateStr);
     }
 
+    /**
+     * Generate signals locally from uploaded CSV data (fallback when backend fails)
+     * @param {string} targetDate - Target date (YYYY-MM-DD)
+     * @param {string} strategy - Strategy name (e.g., 'momentum_gap')
+     * @returns {Promise<Object|null>} - Signals response object or null if generation fails
+     */
+    async generateSignalsLocally(targetDate, strategy = 'momentum_gap') {
+        console.log('🔄 Generating signals locally for', targetDate, 'with strategy', strategy);
+        
+        try {
+            // Strategy constants (tunable)
+            const STRATEGY_CONFIG = {
+                momentum_gap: {
+                    gapMin: 1.0,           // Minimum gap % for longs (or -1.0 for shorts)
+                    gapMax: 12.0,          // Maximum gap % (reject extreme gaps)
+                    preopenVolumeMin: 25000, // Minimum premarket volume
+                    priceMin: 20,          // Minimum price (₹)
+                    priceMax: 2000,        // Maximum price (₹)
+                    series: 'EQ'           // Only EQ series
+                }
+            };
+            
+            const config = STRATEGY_CONFIG[strategy] || STRATEGY_CONFIG.momentum_gap;
+            
+            // Step 1: Get previous trading day for bhavcopy reference
+            const prevTradingDay = this.getPrevTradingDay(targetDate);
+            if (!prevTradingDay) {
+                return {
+                    success: true,
+                    status: 'INSUFFICIENT_DATA',
+                    signals: [],
+                    message: 'Cannot determine previous trading day',
+                    missingFiles: ['bhavcopy for reference date'],
+                    context: {
+                        signalDate: targetDate,
+                        refEodDate: null,
+                        premarketDate: null,
+                        hasBhav: false,
+                        hasPremarket: false,
+                        missingFiles: ['bhavcopy for reference date']
+                    }
+                };
+            }
+            
+            // Step 2: Fetch bhavcopy data for previous trading day
+            let bhavData = [];
+            try {
+                const bhavResponse = await fetch(`/api/data?action=get&date=${prevTradingDay}&type=bhav&full=true`);
+                if (bhavResponse.ok) {
+                    const bhavResult = await bhavResponse.json();
+                    if (bhavResult.success && bhavResult.data && Array.isArray(bhavResult.data)) {
+                        // Find the document with actual stock data
+                        const bhavDoc = bhavResult.data.find(d => d.indices && Array.isArray(d.indices));
+                        if (bhavDoc && bhavDoc.indices) {
+                            bhavData = bhavDoc.indices.filter(stock => 
+                                (stock.series || stock.SERIES) === 'EQ'
+                            );
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to fetch bhavcopy data:', e);
+            }
+            
+            if (bhavData.length === 0) {
+                return {
+                    success: true,
+                    status: 'INSUFFICIENT_DATA',
+                    signals: [],
+                    message: `No bhavcopy data available for ${prevTradingDay}`,
+                    missingFiles: [`bhavcopy for ${prevTradingDay}`],
+                    context: {
+                        signalDate: targetDate,
+                        refEodDate: prevTradingDay,
+                        premarketDate: null,
+                        hasBhav: false,
+                        hasPremarket: false,
+                        missingFiles: [`bhavcopy for ${prevTradingDay}`]
+                    }
+                };
+            }
+            
+            // Step 3: Fetch premarket data for target date
+            let premarketData = [];
+            try {
+                const preMResponse = await fetch(`/api/data?action=get&date=${targetDate}&type=premarket&full=true`);
+                if (preMResponse.ok) {
+                    const preMResult = await preMResponse.json();
+                    if (preMResult.success && preMResult.data && Array.isArray(preMResult.data)) {
+                        const preMDoc = preMResult.data.find(d => d.indices && Array.isArray(d.indices));
+                        if (preMDoc && preMDoc.indices) {
+                            premarketData = preMDoc.indices;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to fetch premarket data:', e);
+            }
+            
+            if (premarketData.length === 0) {
+                return {
+                    success: true,
+                    status: 'INSUFFICIENT_DATA',
+                    signals: [],
+                    message: `No premarket data available for ${targetDate}`,
+                    missingFiles: [`premarket for ${targetDate}`],
+                    context: {
+                        signalDate: targetDate,
+                        refEodDate: prevTradingDay,
+                        premarketDate: null,
+                        hasBhav: true,
+                        hasPremarket: false,
+                        missingFiles: [`premarket for ${targetDate}`]
+                    }
+                };
+            }
+            
+            // Step 4: Create lookup maps
+            const bhavMap = new Map();
+            bhavData.forEach(stock => {
+                const symbol = stock.symbol || stock.SYMBOL || stock.Symbol;
+                if (symbol) {
+                    bhavMap.set(symbol, stock);
+                }
+            });
+            
+            const preMMap = new Map();
+            premarketData.forEach(stock => {
+                const symbol = stock.symbol || stock.SYMBOL || stock.Symbol;
+                if (symbol) {
+                    preMMap.set(symbol, stock);
+                }
+            });
+            
+            // Step 5: Generate signals using momentum_gap strategy
+            const signals = [];
+            
+            for (const [symbol, preMStock] of preMMap.entries()) {
+                const bhavStock = bhavMap.get(symbol);
+                if (!bhavStock) continue; // Skip if no bhavcopy data
+                
+                // Get prices
+                const prevClose = parseFloat(
+                    bhavStock.close || bhavStock.CLOSE || bhavStock.lastPrice || 0
+                );
+                const preOpenPrice = parseFloat(
+                    preMStock.lastPrice || preMStock.LAST_PRICE || preMStock.price || 0
+                );
+                
+                if (prevClose <= 0 || preOpenPrice <= 0) continue;
+                
+                // Calculate gap
+                const gapPct = ((preOpenPrice - prevClose) / prevClose) * 100;
+                
+                // Filter by gap (longs only for now, gap >= 1.0%)
+                if (gapPct < config.gapMin || gapPct > config.gapMax) continue;
+                
+                // Filter by price range
+                if (preOpenPrice < config.priceMin || preOpenPrice > config.priceMax) continue;
+                
+                // Get volume
+                const preMVolume = parseFloat(
+                    preMStock.volume || preMStock.VOLUME || preMStock.totalTradedVolume || 0
+                );
+                
+                // Filter by premarket volume
+                if (preMVolume < config.preopenVolumeMin) continue;
+                
+                // Calculate confidence (0-100) based on gap and volume
+                let confidence = 50; // Base confidence
+                confidence += Math.min(30, gapPct * 2); // Gap contribution (up to 30 points)
+                confidence += Math.min(20, (preMVolume / 100000) * 2); // Volume contribution (up to 20 points)
+                confidence = Math.min(100, Math.max(0, confidence));
+                
+                // Create signal
+                const entryPrice = preOpenPrice;
+                const stopLoss = entryPrice * 0.97; // 3% stop loss
+                const targetPrice = entryPrice * 1.05; // 5% target
+                
+                signals.push({
+                    symbol: symbol,
+                    side: 'BUY',
+                    entry_price: parseFloat(entryPrice.toFixed(2)),
+                    stop_loss: parseFloat(stopLoss.toFixed(2)),
+                    target_price: parseFloat(targetPrice.toFixed(2)),
+                    score: Math.round(confidence),
+                    confidence_score: confidence / 100,
+                    gap_percent: parseFloat(gapPct.toFixed(2)),
+                    prev_close: parseFloat(prevClose.toFixed(2)),
+                    preopen_price: parseFloat(preOpenPrice.toFixed(2)),
+                    preopen_volume: preMVolume,
+                    reason: `Gap: ${gapPct.toFixed(2)}%, Volume: ${(preMVolume / 1000).toFixed(0)}k`,
+                    reasons: [
+                        `Gap up ${gapPct.toFixed(2)}%`,
+                        `Premarket volume ${(preMVolume / 1000).toFixed(0)}k`,
+                        `Price ₹${preOpenPrice.toFixed(2)}`
+                    ],
+                    feature_fields: {
+                        gap_percent: gapPct,
+                        vol_surge: preMVolume > 0 ? (preMVolume / (bhavStock.volume || 1)) : 1
+                    }
+                });
+            }
+            
+            // Sort by confidence/score (highest first)
+            signals.sort((a, b) => (b.score || 0) - (a.score || 0));
+            
+            // Return response in backend format
+            if (signals.length > 0) {
+                return {
+                    success: true,
+                    status: 'READY',
+                    signals: signals,
+                    message: `Generated ${signals.length} signals locally from uploaded CSV data`,
+                    context: {
+                        signalDate: targetDate,
+                        refEodDate: prevTradingDay,
+                        premarketDate: targetDate,
+                        hasBhav: true,
+                        hasPremarket: true,
+                        missingFiles: []
+                    },
+                    dataUsed: {
+                        refEodDate: prevTradingDay,
+                        premarketDate: targetDate,
+                        mode: 'MODE_PREM',
+                        signalDate: targetDate,
+                        marketOpen: false,
+                        marketTimestamp: null
+                    },
+                    mode: 'MODE_PREM',
+                    modeDisplay: 'PREMARKET',
+                    modeLabel: 'PREMARKET (Local Generation)',
+                    strategy: strategy,
+                    _localGeneration: true // Flag to indicate local generation
+                };
+            } else {
+                return {
+                    success: true,
+                    status: 'NO_MATCH',
+                    signals: [],
+                    message: 'No stocks met criteria for momentum gap strategy',
+                    context: {
+                        signalDate: targetDate,
+                        refEodDate: prevTradingDay,
+                        premarketDate: targetDate,
+                        hasBhav: true,
+                        hasPremarket: true,
+                        missingFiles: []
+                    },
+                    dataUsed: {
+                        refEodDate: prevTradingDay,
+                        premarketDate: targetDate,
+                        mode: 'MODE_PREM',
+                        signalDate: targetDate,
+                        marketOpen: false,
+                        marketTimestamp: null
+                    },
+                    mode: 'MODE_PREM',
+                    modeDisplay: 'PREMARKET',
+                    modeLabel: 'PREMARKET (Local Generation)',
+                    strategy: strategy,
+                    _localGeneration: true
+                };
+            }
+        } catch (error) {
+            console.error('❌ Error generating signals locally:', error);
+            return null; // Return null to indicate failure
+        }
+    }
+    
+    /**
+     * Get previous trading day (helper for local signal generation)
+     */
+    getPrevTradingDay(dateStr) {
+        const date = new Date(dateStr);
+        date.setDate(date.getDate() - 1);
+        
+        // Skip weekends
+        while (date.getDay() === 0 || date.getDay() === 6) {
+            date.setDate(date.getDate() - 1);
+        }
+        
+        // TODO: Skip NSE holidays (for now, just skip weekends)
+        return date.toISOString().split('T')[0];
+    }
+
     async loadSignals(signalDate, strategy = null) {
         // Ensure signalDate is never null/undefined
         let targetSignalDate = signalDate;
@@ -8305,7 +8592,7 @@ class MarketMoodApp {
                 mode: localStorage.getItem('nsemm.modeOverride') || 'AUTO',
                 strategy: selectedStrategy
             };
-            
+
             // READ-ONLY: Only GET signals, no POST generation
             // Pass marketStatus and modeOverride as query params
             const marketStatusParam = encodeURIComponent(JSON.stringify(marketStatus));
@@ -8322,20 +8609,41 @@ class MarketMoodApp {
                 response = await apiConfig.fetch(url);
             } catch (networkError) {
                 console.error('❌ Network error fetching signals:', networkError);
-                // Show engine unavailable for network errors
-                this.updateSignalsStatus({
-                    date: targetDate,
-                    signalsInfo: {
-                        hasSignals: false,
-                        signals: [],
-                        success: false,
-                        message: 'Engine temporarily unavailable — network error'
-                    },
-                    backendMessage: `Network error: ${networkError.message}`,
-                    strategy: selectedStrategy
-                });
-                signalsLoading.style.display = 'none';
-                return;
+                console.warn('⚠️ Attempting local signal generation as fallback...');
+                // Try to generate signals locally from uploaded CSV data
+                const localSignals = await this.generateSignalsLocally(targetDate, selectedStrategy);
+                if (localSignals) {
+                    // Use local signals data
+                    data = localSignals;
+                    console.log('✅ Generated signals locally after network error:', data);
+                    // Update status to show local generation
+                    this.updateSignalsStatus({
+                        date: targetDate,
+                        signalsInfo: {
+                            hasSignals: data.status === 'READY' && data.signals && data.signals.length > 0,
+                            signals: data.signals || [],
+                            success: true,
+                            message: 'Engine unavailable — generating locally from CSV uploads'
+                        },
+                        backendMessage: `Local generation (network error: ${networkError.message})`,
+                        strategy: selectedStrategy
+                    });
+                } else {
+                    // Local generation also failed, show engine unavailable
+                    this.updateSignalsStatus({
+                        date: targetDate,
+                        signalsInfo: {
+                            hasSignals: false,
+                            signals: [],
+                            success: false,
+                            message: 'Engine temporarily unavailable — network error'
+                        },
+                        backendMessage: `Network error: ${networkError.message}. Local generation also failed.`,
+                        strategy: selectedStrategy
+                    });
+                    signalsLoading.style.display = 'none';
+                    return;
+                }
             }
             
             if (response.ok) {
@@ -8343,7 +8651,7 @@ class MarketMoodApp {
                 const contentType = response.headers.get('content-type');
                 if (contentType && contentType.includes('application/json')) {
                     try {
-                        data = await response.json();
+                data = await response.json();
                         console.log('✅ Signals API response:', data);
                         
                         // Check if success is false (error response)
@@ -8467,24 +8775,46 @@ class MarketMoodApp {
                     }
                 } catch (parseError) {
                     console.error('Failed to parse error response:', parseError);
-                    data = null;
+                data = null;
                 }
                 
-                // If we still don't have data, show engine unavailable
+                // If we still don't have data, try local fallback
                 if (!data) {
+                    console.warn('⚠️ Backend returned non-OK response, attempting local signal generation...');
+                    // Try to generate signals locally from uploaded CSV data
+                    const localSignals = await this.generateSignalsLocally(targetDate, selectedStrategy);
+                    if (localSignals) {
+                    // Use local signals data
+                    data = localSignals;
+                    console.log('✅ Generated signals locally:', data);
+                    // Update status to show local generation
                     this.updateSignalsStatus({
                         date: targetDate,
                         signalsInfo: {
-                            hasSignals: false,
-                            signals: [],
-                            success: false,
-                            message: 'Engine temporarily unavailable — server error'
+                            hasSignals: data.status === 'READY' && data.signals && data.signals.length > 0,
+                            signals: data.signals || [],
+                            success: true,
+                            message: 'Engine unavailable — generating locally from CSV uploads'
                         },
-                        backendMessage: `Server returned ${response.status} ${response.statusText}`,
+                        backendMessage: `Local generation (backend returned ${response.status})`,
                         strategy: selectedStrategy
                     });
-                    signalsLoading.style.display = 'none';
-                    return;
+                    } else {
+                        // Local generation also failed, show engine unavailable
+                        this.updateSignalsStatus({
+                            date: targetDate,
+                            signalsInfo: {
+                                hasSignals: false,
+                                signals: [],
+                                success: false,
+                                message: 'Engine temporarily unavailable — server error'
+                            },
+                            backendMessage: `Server returned ${response.status} ${response.statusText}. Local generation also failed.`,
+                            strategy: selectedStrategy
+                        });
+                        signalsLoading.style.display = 'none';
+                        return;
+                    }
                 }
             }
             
@@ -8510,11 +8840,11 @@ class MarketMoodApp {
                     }
                 } else {
                     // Legacy format
-                    status = data.status || 'NO_DATA';
-                    signalsArray = Array.isArray(data.signals) ? data.signals : [];
-                    hasSignals = status === 'READY' && signalsArray.length > 0;
-                    signalsMessage = data.message || '';
-                    signalsSuccess = status !== 'ERROR';
+                status = data.status || 'NO_DATA';
+                signalsArray = Array.isArray(data.signals) ? data.signals : [];
+                hasSignals = status === 'READY' && signalsArray.length > 0;
+                signalsMessage = data.message || '';
+                signalsSuccess = status !== 'ERROR';
                 }
             }
 
