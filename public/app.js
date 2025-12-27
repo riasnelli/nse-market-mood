@@ -8480,52 +8480,70 @@ class MarketMoodApp {
                         // Handle INSUFFICIENT_DATA with proper UI messages
                         if (data.status === 'INSUFFICIENT_DATA') {
                             const usedDates = data.usedDates || { targetDate, signalDate: data.signalDate || targetDate, refDate: data.refDate };
-                            const missingFiles = data.missingFiles || [];
-                            
-                            // Check if premarket is missing for signalDate
-                            const isPremarketMissing = missingFiles.some(f => f.includes('premarket') && f.includes(targetDate));
-                            
-                            if (isPremarketMissing && this.lastMarketStatus && this.lastMarketStatus.isOpen) {
-                                // Market is open, premarket missing - show message without changing date
-                                signalsEmpty.style.display = 'block';
+                            const missingFiles = Array.isArray(data.missingFiles) ? data.missingFiles : [];
+                            const marketOpen = !!(data.context?.marketOpen ?? data.dataUsed?.marketOpen ?? this.lastMarketStatus?.isOpen);
+
+                            // Normalize mode from backend (never allow NONE in UI if backend gave you a mode)
+                            const backendMode = data.mode || data.resolvedMode || data.context?.mode || data.dataUsed?.mode || 'MODE_EOD';
+
+                            const modeDisplay =
+                                data.modeDisplay ||
+                                (backendMode === 'MODE_PREM' ? 'PREMARKET' : backendMode === 'MODE_LIVE' ? 'LIVE' : 'EOD');
+
+                            const modeLabel =
+                                data.modeLabel ||
+                                (modeDisplay === 'PREMARKET' ? 'PREMARKET (Confirmed)' :
+                                 modeDisplay === 'LIVE' ? 'LIVE (Adaptive)' :
+                                 'EOD (Watchlist)');
+
+                            // Render the empty state UI ONCE (don't do it again later)
+                            signalsEmpty.style.display = 'flex';
+                            signalsContainer.style.display = 'none';
+
+                            // OPTIONAL: If missing premarket for targetDate and marketOpen, show specific message
+                            const isPremarketMissing = missingFiles.some(f => f.toLowerCase().includes('premarket') && f.includes(targetDate));
+                            if (isPremarketMissing && marketOpen) {
                                 signalsEmpty.innerHTML = `
-                                    <div style="text-align: center; padding: 20px;">
-                                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                        <h3 style="color: #f59e0b; margin-bottom: 10px;">Premarket Not Uploaded</h3>
-                                        <p style="color: #666; font-size: 0.95rem; line-height: 1.5;">Premarket data not uploaded for ${targetDate}.</p>
-                                        <p style="color: #666; font-size: 0.85rem; margin-top: 15px;">Please upload premarket CSV to generate signals for today.</p>
+                                    <div style="text-align:center;padding:20px;">
+                                        <h3 style="color:#f59e0b;margin-bottom:10px;">Premarket Not Uploaded</h3>
+                                        <p style="color:#666;">Premarket data missing for ${targetDate}.</p>
                                     </div>
                                 `;
-                                
-                                this.updateSignalsStatus({
-                                    date: usedDates.signalDate || targetDate,
-                                    signalsInfo: {
-                                        hasSignals: false,
-                                        signals: [],
-                                        success: false,
-                                        message: `Premarket not uploaded for ${targetDate}`
-                                    },
-                                    backendMessage: data.message,
-                                    mode: data.mode || 'MODE_EOD',
-                                    modeDisplay: data.modeDisplay || (data.modeLabel ? data.modeLabel.split('(')[0].trim() : 'EOD'),
-                                    modeLabel: data.modeLabel || (data.modeDisplay === 'EOD' ? 'EOD (Watchlist)' : data.modeDisplay === 'PREMARKET' ? 'PREMARKET (Confirmed)' : data.modeDisplay === 'LIVE' ? 'LIVE (Adaptive)' : 'EOD (Watchlist)'),
-                                    modeDescription: data.modeLabel ? data.modeLabel.split('(')[1]?.replace(')', '') : '',
-                                    modeInfo: { mode: data.mode, reason: data.message },
-                                    diagnostics: data.diagnostics,
-                                    rejectStats: data.rejectStats,
-                                    filtersUsed: data.filtersUsed,
-                                    topRejectionReasons: data.rejectStats,
-                                    refDate: data.dataUsed?.refEodDate || usedDates.refDate,
-                                    usedDates: {
-                                        eodDate: data.dataUsed?.refEodDate || usedDates.eodDate,
-                                        preMDate: data.dataUsed?.premarketDate || usedDates.preMDate
-                                    },
-                                    dataUsed: data.dataUsed,
-                                    strategy: selectedStrategy
-                                });
-                                signalsLoading.style.display = 'none';
-                                return;
+                            } else {
+                                signalsEmpty.innerHTML = `
+                                    <div style="text-align:center;padding:20px;">
+                                        <h3 style="color:#6b7280;margin-bottom:10px;">Insufficient Data</h3>
+                                        <p style="color:#666;">Cannot generate signals for ${usedDates.signalDate || targetDate}.</p>
+                                        ${missingFiles.length ? `<p style="color:#999;font-size:0.9rem;margin-top:10px;">Missing: ${missingFiles.join(', ')}</p>` : ''}
+                                    </div>
+                                `;
                             }
+
+                            // ✅ Update the status panel with CONSISTENT mode/dataUsed
+                            this.updateSignalsStatus({
+                                date: usedDates.signalDate || targetDate,
+                                signalsInfo: { hasSignals: false, signals: [], success: true, message: data.message },
+                                backendMessage: data.message,
+                                mode: backendMode,
+                                modeDisplay,
+                                modeLabel,
+                                modeDescription: '',
+                                modeInfo: { mode: backendMode, reason: data.message },
+                                missingFiles,
+                                refDate: data.dataUsed?.refEodDate || usedDates.refDate,
+                                usedDates: usedDates,
+                                dataUsed: data.dataUsed || {
+                                    refEodDate: data.context?.refEodDate || usedDates.refDate || null,
+                                    premarketDate: data.context?.premarketDate || null,
+                                    mode: backendMode,
+                                    signalDate: usedDates.signalDate || targetDate,
+                                    marketOpen
+                                },
+                                strategy: selectedStrategy
+                            });
+
+                            signalsLoading.style.display = 'none';
+                            return; // ✅ CRITICAL: STOP HERE
                         }
                         
                         // Update status with signals info
@@ -8735,33 +8753,6 @@ class MarketMoodApp {
                         message += `<br><strong>Top filter reason:</strong> ${data.debug?.topReason || data.topReason}`;
                     }
                     
-                    signalsEmptyMessage.innerHTML = message;
-                }
-                
-                signalsLoading.style.display = 'none';
-                this._switchingView = false;
-                return;
-            } else if (status === 'INSUFFICIENT_DATA') {
-                // Missing required CSV files
-                console.log('⚠️ Insufficient data for signal generation');
-                signalsEmpty.style.display = 'flex';
-                signalsEmpty.style.flexDirection = 'column';
-                signalsEmpty.style.justifyContent = 'center';
-                signalsEmpty.style.alignItems = 'center';
-                signalsEmpty.style.minHeight = '50vh';
-                signalsContainer.style.display = 'none';
-                
-                const emptyTitle = signalsEmpty.querySelector('div[style*="font-size: 1.2rem"]');
-                const signalsEmptyMessage = signalsEmpty.querySelector('#signalsEmptyMessage');
-                
-                if (emptyTitle) {
-                    emptyTitle.textContent = 'Insufficient Data';
-                }
-                if (signalsEmptyMessage) {
-                    const missingFiles = data?.missingFiles || [];
-                    let message = `Cannot generate signals for ${targetDate}.<br><br><strong>Missing required files:</strong><br>`;
-                    message += missingFiles.map(f => `• ${f}`).join('<br>');
-                    message += `<br><br>Please upload the required CSV files. Signals will be generated automatically after upload.`;
                     signalsEmptyMessage.innerHTML = message;
                 }
                 
