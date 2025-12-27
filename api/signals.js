@@ -724,7 +724,6 @@ const handler = async (req, res) => {
       }
       
       // Resolve signals context (this determines signalDate, refEodDate, premarketDate, mode)
-      const today = getTodayIST();
       const context = await resolveSignalsContext({
         targetDate,
         today,
