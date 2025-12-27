@@ -343,56 +343,8 @@ class MarketMoodApp {
         
         this.updateThemeColor(initialColor, initialGradient);
         
-        // Also create safe area overlay immediately to prevent black inset
-        // Create safe area overlay immediately on init
-        this.ensureSafeAreaOverlay(initialColor, initialGradient);
-        
-        // Also ensure it's created even if mood-greeting-area doesn't exist yet
-        if (!document.getElementById('safeAreaOverlay')) {
-            this.ensureSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
-        }
-        
-        // Set up a periodic check to ensure safe area overlay always matches greeting area
-        // This handles cases where the background changes but updateThemeColor isn't called
-        this.safeAreaSyncInterval = setInterval(() => {
-            // Check both mood and signals greeting areas based on current view
-            const moodGreetingArea = document.querySelector('.mood-greeting-area');
-            const signalsGreetingArea = document.querySelector('.signals-greeting-area');
-            const greetingArea = (this.currentView === 'mood') ? moodGreetingArea : signalsGreetingArea;
-            
-            if (greetingArea) {
-                const computedStyle = getComputedStyle(moodGreetingArea);
-                const bgGradient = computedStyle.backgroundImage || computedStyle.background;
-                const bgColor = computedStyle.backgroundColor;
-                
-                if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
-                    const safeAreaOverlay = document.getElementById('safeAreaOverlay');
-                    if (safeAreaOverlay) {
-                        const currentBg = safeAreaOverlay.style.background || safeAreaOverlay.style.backgroundImage || '';
-                        const currentColor = safeAreaOverlay.style.backgroundColor || '';
-                        
-                        // Always update to ensure perfect match (iOS can be finicky)
-                        // Convert to string for comparison
-                        const bgGradientStr = bgGradient ? String(bgGradient) : '';
-                        const currentBgStr = currentBg ? String(currentBg) : '';
-                        
-                        if (currentBgStr !== bgGradientStr || currentColor !== bgColor) {
-                            // Silently sync to avoid console spam
-                            this.ensureSafeAreaOverlay(bgColor, bgGradient);
-                        }
-                    } else {
-                        // Recreate if missing (silently)
-                        this.ensureSafeAreaOverlay(bgColor, bgGradient);
-                    }
-                } else {
-                    // If mood-greeting-area doesn't have a color yet, ensure overlay exists with default
-                    const safeAreaOverlay = document.getElementById('safeAreaOverlay');
-                    if (!safeAreaOverlay) {
-                        this.ensureSafeAreaOverlay('#667eea', null);
-                    }
-                }
-            }
-        }, 2000); // Check every 2 seconds (reduced from 300ms to avoid excessive updates) for more responsive updates
+        // Ensure safe area overlay div exists (CSS variable handles styling)
+        this.ensureSafeAreaOverlay();
         
         this.updateTimeEl = document.getElementById('updateTime');
         this.greetingTimeEl = document.getElementById('greetingTime');
@@ -1609,11 +1561,8 @@ class MarketMoodApp {
         const greyGradient = `linear-gradient(135deg, ${defaultGrey} 0%, #6b7280 100%)`;
         
         // Update greeting area background directly
-        const moodGreetingArea = document.querySelector('.mood-greeting-area');
-        if (moodGreetingArea) {
-            moodGreetingArea.style.setProperty('background', greyGradient, 'important');
-            moodGreetingArea.style.setProperty('background-color', defaultGrey, 'important');
-        }
+        // Update CSS variable for error state (grey)
+        document.documentElement.style.setProperty('--mood-bg', greyGradient);
         
         // Update theme color
         this.updateThemeColor(defaultGrey, greyGradient);
@@ -1800,7 +1749,8 @@ class MarketMoodApp {
             if (loadingStatus) loadingStatus.textContent = status;
             
             // Update safe area overlay to match loading overlay
-            this.updateLoadingSafeArea(overlay);
+            // Safe area overlay will use CSS variable automatically
+            this.ensureSafeAreaOverlay();
         } else {
             console.error('❌ Loading overlay element not found!');
         }
@@ -1809,44 +1759,6 @@ class MarketMoodApp {
         }
     }
     
-    updateLoadingSafeArea(overlay) {
-        // Update safe area overlay to match loading overlay background
-        const computedStyle = getComputedStyle(overlay);
-        const bgGradient = computedStyle.backgroundImage || computedStyle.background;
-        const bgColor = computedStyle.backgroundColor;
-        
-        let safeAreaOverlay = document.getElementById('safeAreaOverlay');
-        if (!safeAreaOverlay) {
-            safeAreaOverlay = document.createElement('div');
-            safeAreaOverlay.id = 'safeAreaOverlay';
-            document.body.appendChild(safeAreaOverlay);
-        }
-        
-        const finalGradient = bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' 
-            ? bgGradient 
-            : `linear-gradient(135deg, ${bgColor} 0%, ${bgColor} 100%)`;
-        
-        // Add 1px extra height to prevent any gap
-        const safeAreaHeight = `calc(env(safe-area-inset-top, 0px) + 1px)`;
-        safeAreaOverlay.style.cssText = `
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            height: ${safeAreaHeight} !important;
-            min-height: ${safeAreaHeight} !important;
-            background-color: ${bgColor} !important;
-            background-image: ${finalGradient} !important;
-            background: ${finalGradient} !important;
-            background-attachment: fixed !important;
-            background-size: cover !important;
-            background-repeat: no-repeat !important;
-            z-index: 100000 !important;
-            pointer-events: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        `;
-    }
 
     hideMoodLoading() {
         console.log('🎨 Hiding mood loading overlay...');
@@ -2737,8 +2649,7 @@ class MarketMoodApp {
     }
 
     updateBackgroundColor(score) {
-        // Update greeting area background based on mood score
-        const moodGreetingArea = document.querySelector('.mood-greeting-area');
+        // Update CSS variable --mood-bg as single source of truth
         console.log('🎨 updateBackgroundColor called with score:', score);
 
         let gradient;
@@ -2774,31 +2685,22 @@ class MarketMoodApp {
             themeColor = '#dc2626'; // Dark red
         }
 
-        // Update greeting area background
-        if (moodGreetingArea) {
-            moodGreetingArea.style.setProperty('background', gradient, 'important');
-            moodGreetingArea.style.setProperty('background-color', themeColor, 'important');
-        }
+        // Update CSS variable --mood-bg (single source of truth)
+        // This automatically updates .safe-area-top, .mood-greeting-area, and .signals-greeting-area
+        document.documentElement.style.setProperty('--mood-bg', gradient);
         
-        // Also update signals greeting area background to match mood
-        const signalsGreetingArea = document.querySelector('.signals-greeting-area');
-        if (signalsGreetingArea) {
-            signalsGreetingArea.style.setProperty('background', gradient, 'important');
-            signalsGreetingArea.style.setProperty('background-color', themeColor, 'important');
-        }
-        
-        console.log('✅ Updated greeting area with gradient:', gradient, 'themeColor:', themeColor);
+        console.log('✅ Updated --mood-bg CSS variable with gradient:', gradient);
         
         // Update loading overlay if it's visible to match new background
         const loadingOverlay = document.getElementById('moodLoadingOverlay');
         if (loadingOverlay && !loadingOverlay.classList.contains('hidden')) {
             loadingOverlay.style.setProperty('background', gradient, 'important');
             loadingOverlay.style.setProperty('background-color', themeColor, 'important');
-            this.updateLoadingSafeArea(loadingOverlay);
+            // Safe area overlay will use CSS variable automatically
+            this.ensureSafeAreaOverlay();
         }
         
         // Update PWA theme-color meta tag for mobile browser inset
-        // Pass both color and gradient to ensure safe area matches greeting area
         this.updateThemeColor(themeColor, gradient);
         
         // Re-render calendar if it's open to update today's color to match current mood
@@ -2807,115 +2709,27 @@ class MarketMoodApp {
                 this.renderCalendar();
             }, 150);
         }
-        
-        // Force update safe area overlay again after DOM update to ensure perfect match
-        // Use requestAnimationFrame to ensure greeting area styles are applied
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                // Check both mood and signals greeting areas
-                const updatedMoodGreetingArea = document.querySelector('.mood-greeting-area');
-                const updatedSignalsGreetingArea = document.querySelector('.signals-greeting-area');
-                const greetingArea = updatedMoodGreetingArea || updatedSignalsGreetingArea;
-                
-                if (greetingArea) {
-                    const computedStyle = getComputedStyle(greetingArea);
-                    const bgGradient = computedStyle.backgroundImage || computedStyle.background;
-                    const bgColor = computedStyle.backgroundColor;
-                    
-                    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
-                        // Force update to ensure perfect match
-                        this.updateThemeColor(bgColor, bgGradient);
-                        // Also update safe area overlay
-                        this.ensureSafeAreaOverlay(bgColor, bgGradient);
-                    }
-                }
-            });
-        });
     }
 
-    ensureSafeAreaOverlay(color, gradient = null) {
-        // Ensure safe area overlay exists and has correct color immediately
-        // This is CRITICAL for iOS PWA to show mood color in the notch/Dynamic Island area
+    ensureSafeAreaOverlay() {
+        // Ensure safe area overlay div exists
+        // CSS handles styling via --mood-bg variable
         let safeAreaOverlay = document.getElementById('safeAreaOverlay');
         if (!safeAreaOverlay) {
             safeAreaOverlay = document.createElement('div');
             safeAreaOverlay.id = 'safeAreaOverlay';
+            safeAreaOverlay.className = 'safe-area-top';
             // Insert at the very beginning of body to ensure it's on top
             if (document.body.firstChild) {
                 document.body.insertBefore(safeAreaOverlay, document.body.firstChild);
             } else {
                 document.body.appendChild(safeAreaOverlay);
             }
-            console.log('✅ Created safeAreaOverlay element');
+            console.log('✅ Created safe-area-top element');
+        } else if (!safeAreaOverlay.classList.contains('safe-area-top')) {
+            // Add class if missing (for backwards compatibility)
+            safeAreaOverlay.classList.add('safe-area-top');
         }
-        
-        // ALWAYS read from greeting area as the source of truth (mood or signals page)
-        const moodGreetingArea = document.querySelector('.mood-greeting-area');
-        const signalsGreetingArea = document.querySelector('.signals-greeting-area');
-        const greetingArea = moodGreetingArea || signalsGreetingArea;
-        let finalColor = color || '#667eea';
-        let finalGrad = gradient || `linear-gradient(135deg, ${finalColor} 0%, ${finalColor} 100%)`;
-        
-        if (greetingArea) {
-            const computedStyle = getComputedStyle(greetingArea);
-            const bgGradient = computedStyle.backgroundImage || computedStyle.background;
-            const bgColor = computedStyle.backgroundColor;
-            
-            // Use the actual computed background from greeting area - this is the source of truth
-            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' && bgGradient !== 'rgba(0, 0, 0, 0)' && !bgGradient.includes('url(')) {
-                finalGrad = bgGradient;
-            }
-            if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent' && bgColor !== 'rgb(0, 0, 0)' && bgColor !== '#000000') {
-                finalColor = bgColor;
-                // If we have a color but no gradient, create a simple gradient
-                if (!finalGrad || finalGrad === 'none' || finalGrad === 'initial') {
-                    finalGrad = `linear-gradient(135deg, ${finalColor} 0%, ${finalColor} 100%)`;
-                }
-            }
-        }
-        
-        // Fallback: ensure we never use black
-        if (!finalColor || finalColor === 'rgba(0, 0, 0, 0)' || finalColor === 'transparent' || finalColor === 'rgb(0, 0, 0)' || finalColor === '#000000') {
-            finalColor = '#667eea';
-            finalGrad = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-        }
-        
-        // Only show safe area overlay if there's actually a safe area inset
-        // This prevents showing a visible line when there's no notch/Dynamic Island
-        const safeAreaInset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top)') || '0') || 0;
-        const safeAreaHeight = safeAreaInset > 0 ? `calc(env(safe-area-inset-top, 0px))` : '0px';
-        
-        // Apply styles with maximum specificity to override any other styles
-        // Use setProperty for each style to ensure they're applied
-        safeAreaOverlay.style.setProperty('position', 'fixed', 'important');
-        safeAreaOverlay.style.setProperty('top', '0', 'important');
-        safeAreaOverlay.style.setProperty('left', '0', 'important');
-        safeAreaOverlay.style.setProperty('right', '0', 'important');
-        safeAreaOverlay.style.setProperty('width', '100%', 'important');
-        safeAreaOverlay.style.setProperty('height', safeAreaHeight, 'important');
-        safeAreaOverlay.style.setProperty('min-height', safeAreaHeight, 'important');
-        safeAreaOverlay.style.setProperty('max-height', safeAreaHeight, 'important');
-        safeAreaOverlay.style.setProperty('background-color', finalColor, 'important');
-        safeAreaOverlay.style.setProperty('background-image', finalGrad, 'important');
-        safeAreaOverlay.style.setProperty('background', finalGrad, 'important');
-        safeAreaOverlay.style.setProperty('background-attachment', 'fixed', 'important');
-        safeAreaOverlay.style.setProperty('background-size', 'cover', 'important');
-        safeAreaOverlay.style.setProperty('background-position', 'center top', 'important');
-        safeAreaOverlay.style.setProperty('background-repeat', 'no-repeat', 'important');
-        safeAreaOverlay.style.setProperty('z-index', '999999', 'important'); // Even higher z-index
-        safeAreaOverlay.style.setProperty('pointer-events', 'none', 'important');
-        safeAreaOverlay.style.setProperty('margin', '0', 'important');
-        safeAreaOverlay.style.setProperty('padding', '0', 'important');
-        safeAreaOverlay.style.setProperty('border', 'none', 'important');
-        safeAreaOverlay.style.setProperty('display', 'block', 'important');
-        safeAreaOverlay.style.setProperty('visibility', 'visible', 'important');
-        safeAreaOverlay.style.setProperty('opacity', '1', 'important');
-        safeAreaOverlay.style.setProperty('transform', 'none', 'important');
-        
-        // Force a repaint
-        void safeAreaOverlay.offsetHeight;
-        
-        console.log('✅ Updated safeAreaOverlay to match mood-greeting-area:', finalColor, finalGrad);
     }
 
     updateThemeColor(color, gradient = null) {
@@ -2944,39 +2758,14 @@ class MarketMoodApp {
         // Use black-translucent for iOS PWA to show the theme color through
         appleStatusBar.setAttribute('content', 'black-translucent');
         
-        // Keep html and body background white (mood color is only on greeting area now)
+        // Keep html and body background white (mood color is only on greeting area)
         const html = document.documentElement;
         const body = document.body;
         html.style.setProperty('background-color', '#ffffff', 'important');
         body.style.setProperty('background-color', '#ffffff', 'important');
         
-        // CRITICAL: Always read from mood-greeting-area to ensure safe area matches exactly
-        // This ensures the inset area matches the greeting area background on iOS
-        const moodGreetingArea = document.querySelector('.mood-greeting-area');
-        let finalGradient = gradient || `linear-gradient(135deg, ${color} 0%, ${color} 100%)`;
-        let bgColor = color;
-        
-        if (moodGreetingArea) {
-            const computedStyle = getComputedStyle(moodGreetingArea);
-            const bgGradient = computedStyle.backgroundImage || computedStyle.background;
-            const bgColorStyle = computedStyle.backgroundColor;
-            
-            // Use the actual computed background from greeting area - this is the source of truth
-            if (bgGradient && bgGradient !== 'none' && bgGradient !== 'initial' && bgGradient !== 'rgba(0, 0, 0, 0)') {
-                finalGradient = bgGradient;
-            }
-            if (bgColorStyle && bgColorStyle !== 'rgba(0, 0, 0, 0)' && bgColorStyle !== 'transparent') {
-                bgColor = bgColorStyle;
-            }
-        }
-        
-        // Update safe area overlay to match mood-greeting-area exactly
-        this.ensureSafeAreaOverlay(bgColor, finalGradient);
-        
-        // Force a repaint to ensure updates are visible on iOS
-        void body.offsetHeight;
-        
-        console.log('✅ Updated safe area overlay to match mood-greeting-area:', bgColor, finalGradient);
+        // Note: Safe area overlay styling is handled by CSS variable --mood-bg
+        // The ensureSafeAreaOverlay() is called from updateBackgroundColor() when needed
     }
 
     setLoading(isLoading) {
@@ -7854,13 +7643,11 @@ class MarketMoodApp {
             const signalsGreetingArea = signalsPageView.querySelector('.signals-greeting-area');
             if (signalsGreetingArea) {
                 const computedStyle = getComputedStyle(signalsGreetingArea);
-                const bgGradient = computedStyle.backgroundImage || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                const bgColor = computedStyle.backgroundColor || '#667eea';
-                this.ensureSafeAreaOverlay(bgColor, bgGradient);
-            } else {
-                // Default signals page gradient
-                this.ensureSafeAreaOverlay('#667eea', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
+                // Safe area overlay will use CSS variable automatically
             }
+            
+            // Ensure safe area overlay exists (CSS variable handles styling)
+            this.ensureSafeAreaOverlay();
             
             // CRITICAL: Force hide mood page and show signals page with !important
             // This overrides any existing inline styles or CSS rules
@@ -7885,11 +7672,8 @@ class MarketMoodApp {
                 this.updateBackgroundColor(this.lastMarketData.mood.score);
             } else {
                 // If no mood data available, use default purple gradient
-                const signalsGreetingArea = document.querySelector('.signals-greeting-area');
-                if (signalsGreetingArea) {
-                    signalsGreetingArea.style.setProperty('background', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 'important');
-                    signalsGreetingArea.style.setProperty('background-color', '#667eea', 'important');
-                }
+                const defaultGradient = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                document.documentElement.style.setProperty('--mood-bg', defaultGradient);
             }
         
             // Ensure all Signals page sections are visible and properly styled

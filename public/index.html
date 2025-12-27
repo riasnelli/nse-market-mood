@@ -10,7 +10,7 @@
     <link rel="manifest" href="/manifest.json">
     <script src="/utils/nseParsers.js"></script>
     <script src="/utils/pollingManager.js"></script>
-    <meta name="theme-color" content="#667eea" id="themeColorMeta"/>
+    <meta name="theme-color" content="#667eea" id="theme-color-meta"/>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -823,32 +823,13 @@
                 if (!safeAreaOverlay) {
                     safeAreaOverlay = document.createElement('div');
                     safeAreaOverlay.id = 'safeAreaOverlay';
+                    safeAreaOverlay.className = 'safe-area-top';
                     if (document.body.firstChild) {
                         document.body.insertBefore(safeAreaOverlay, document.body.firstChild);
                     } else {
                         document.body.appendChild(safeAreaOverlay);
                     }
-                    // Set initial background to default mood color
-                    safeAreaOverlay.style.cssText = `
-                        position: fixed !important;
-                        top: 0 !important;
-                        left: 0 !important;
-                        right: 0 !important;
-                        width: 100% !important;
-                        height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
-                        min-height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
-                        max-height: calc(env(safe-area-inset-top, 0px) + 1px) !important;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-                        background-color: #667eea !important;
-                        z-index: 999999 !important;
-                        pointer-events: none !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        border: none !important;
-                        display: block !important;
-                        visibility: visible !important;
-                        opacity: 1 !important;
-                    `;
+                    // CSS handles styling via --mood-bg variable
                 }
             }
         })();

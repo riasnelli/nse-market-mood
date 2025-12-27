@@ -4,7 +4,7 @@
   "description": "Real-time NSE market sentiment indicator",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#1e40af",
+  "theme_color": "#667eea",
   "background_color": "#667eea",
   "orientation": "portrait",
   "icons": [

@@ -7,6 +7,7 @@
 :root {
     --mood-bg-color: #667eea;
     --mood-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --mood-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 html {
@@ -128,12 +129,9 @@ body.scroll-at-bottom::after {
     pointer-events: none;
 }
 
-/* Safe area overlay for iOS notch/Dynamic Island - managed by JavaScript */
-/* Removed body::before to avoid conflicts - JavaScript overlay takes precedence */
-
 /* Safe area overlay for iOS notch/Dynamic Island */
-/* Safe area overlay for iOS notch/Dynamic Island - managed by JavaScript */
-/* This overlay automatically inherits the mood-greeting-area background */
+/* Uses CSS variable --mood-bg as single source of truth */
+.safe-area-top,
 #safeAreaOverlay {
     position: fixed !important;
     top: 0 !important;
@@ -148,6 +146,7 @@ body.scroll-at-bottom::after {
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
+    background: var(--mood-bg) !important;
     background-attachment: fixed !important;
     background-size: cover !important;
     background-position: center top !important;
@@ -185,9 +184,8 @@ header {
     padding: 0 20px 104px 20px;
     padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
     color: white;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    background-color: #667eea;
-    transition: background 0.5s ease, background-color 0.5s ease;
+    background: var(--mood-bg);
+    transition: background 0.5s ease;
     border-radius: 0 0 30px 30px;
     width: 100vw;
     position: relative;
@@ -213,9 +211,7 @@ header {
     left: 0;
     right: 0;
     height: calc(env(safe-area-inset-top, 0px) + 4px);
-    background: inherit;
-    background-color: inherit;
-    background-image: inherit;
+    background: var(--mood-bg);
     z-index: -1;
     /* Ensure it covers safe area inset and extends to absolute top */
     margin: 0;
@@ -253,9 +249,8 @@ header {
     padding: 0 20px 104px 20px;
     padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
     color: white;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    background-color: #667eea;
-    transition: background 0.5s ease, background-color 0.5s ease;
+    background: var(--mood-bg);
+    transition: background 0.5s ease;
     border-radius: 0 0 30px 30px;
     width: 100vw;
     position: relative;
@@ -279,9 +274,7 @@ header {
     left: 0;
     right: 0;
     height: calc(env(safe-area-inset-top, 0px) + 4px);
-    background: inherit;
-    background-color: inherit;
-    background-image: inherit;
+    background: var(--mood-bg);
     z-index: -1;
     margin: 0;
     padding: 0;
