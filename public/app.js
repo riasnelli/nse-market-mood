@@ -7719,10 +7719,9 @@ class MarketMoodApp {
             }
             
             // Show initial status panel with default strategy
+            // Don't set signalsInfo to null - let it be set when signals are actually loaded
             this.updateSignalsStatus({
                 date: new Date().toISOString().split('T')[0],
-                signalsInfo: null,
-                dataAvailability: null,
                 strategy: this.selectedStrategy || 'momentum_gap',
                 modeDisplay: 'EOD',
                 modeLabel: 'EOD (Watchlist)'
@@ -8634,11 +8633,9 @@ class MarketMoodApp {
 
             signalsLoading.style.display = 'none';
 
-            // Update status with strategy (use selectedStrategy, not strategyAnalysis)
-                        this.updateSignalsStatus({
-                strategy: selectedStrategy,
-                            mode: hasSignals ? 'signals' : 'strategy-only'
-                        });
+            // Note: updateSignalsStatus was already called earlier with signalsInfo (around line 8522)
+            // Only update if we haven't already updated with signalsInfo
+            // This prevents overwriting the proper status with a null signalsInfo
 
             // Handle response based on status
             if (status === 'READY' && hasSignals) {
