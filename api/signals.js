@@ -551,6 +551,16 @@ function verifyAdminAuth(req) {
 const handler = async (req, res) => {
   const DEBUG = process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development';
   
+  // Health check endpoint: GET /api/signals?ping=1
+  if (req.method === 'GET' && req.query.ping === '1') {
+    return res.status(200).json({
+      ok: true,
+      endpoint: 'signals',
+      timestamp: new Date().toISOString(),
+      message: 'Signals endpoint is working'
+    });
+  }
+  
   try {
     // Check if MongoDB is configured
     const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
@@ -1058,7 +1068,7 @@ const handler = async (req, res) => {
             name: strategyMeta.name,
             rulesText: strategyMeta.rulesText
           },
-          meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
+          meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
           signal_count: 0,
           signals: [],
           hasSignals: false,

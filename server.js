@@ -166,94 +166,169 @@ apiRouter.use((req, res, next) => {
   next();
 });
 
-apiRoutes.forEach(({ path, file }) => {
+/**
+ * Normalize and mount an API route module
+ * Supports multiple export patterns:
+ * A) module.exports = router (Express Router)
+ * B) module.exports = handler(req,res) (function)
+ * C) module.exports = { router }
+ * D) module.exports = { handler }
+ * E) module.exports = { default: router/handler }
+ * 
+ * @param {express.Router} apiRouter - The API router to mount on
+ * @param {string} path - Route path (without /api prefix)
+ * @param {string} file - File name in /api directory
+ * @throws {Error} If module cannot be loaded or is not mountable
+ */
+function mountApiRoute(apiRouter, path, file) {
+  const filePath = `./api/${file}`;
+  const pathModule = require('path');
+  const fullPath = pathModule.join(__dirname, 'api', file);
+  
+  console.log(`\n📦 [API] Loading route: ${file}`);
+  console.log(`   Path: /api/${path}`);
+  console.log(`   Full path: ${fullPath}`);
+  
+  // Clear require cache to ensure fresh module load
+  let resolvedPath;
   try {
-    console.log(`📦 Loading ${file}...`);
-    const filePath = `./api/${file}`;
-    const pathModule = require('path');
-    const fullPath = pathModule.join(__dirname, 'api', file);
-    console.log(`   Full path: ${fullPath}`);
-    
-    // Clear require cache to ensure fresh module load
-    const resolvedPath = require.resolve(filePath);
+    resolvedPath = require.resolve(filePath);
     if (require.cache[resolvedPath]) {
       delete require.cache[resolvedPath];
-      console.log(`   ✅ Cleared require cache for ${file}`);
+      console.log(`   ✅ Cleared require cache`);
     }
+  } catch (resolveError) {
+    throw new Error(`Cannot resolve module path for ${file}: ${resolveError.message}`);
+  }
+  
+  // Load the module
+  let mod;
+  try {
+    mod = require(filePath);
+    console.log(`   ✅ Module loaded`);
+    console.log(`   Export type: ${typeof mod}`);
+    console.log(`   Export keys: ${Object.keys(mod || {}).join(', ') || '(none)'}`);
+  } catch (loadError) {
+    throw new Error(`Failed to load module ${file}: ${loadError.message}\nStack: ${loadError.stack}`);
+  }
+  
+  // Detect if it's a router or handler
+  // Rule: If module has .stack OR .use OR .get AND is NOT a function → Express Router
+  // Rule: If module is a function → serverless handler
+  let router = null;
+  let handler = null;
+  
+  // Check if it's a function first (handler)
+  if (typeof mod === 'function') {
+    handler = mod;
+    console.log(`   ✅ Detected as HANDLER (function export)`);
+  }
+  // Check if it's an object with router characteristics
+  else if (mod && typeof mod === 'object') {
+    // Check for Express Router: has .stack OR .use OR .get AND is NOT a function
+    const hasStack = mod.stack !== undefined;
+    const hasUse = mod.use && typeof mod.use === 'function';
+    const hasGet = mod.get && typeof mod.get === 'function';
+    const isRouter = hasStack || hasUse || hasGet;
     
-    const handlerModule = require(filePath);
-    console.log(`   Module loaded. Type: ${typeof handlerModule}`);
-    console.log(`   Module keys: ${Object.keys(handlerModule || {}).join(', ')}`);
-    
-    // Check for handler in multiple locations: module, module.default, module.handler
-    let handler;
-    if (typeof handlerModule === 'function') {
-      handler = handlerModule;
-      console.log(`   ✅ Handler found as direct export`);
-    } else if (handlerModule.default && typeof handlerModule.default === 'function') {
-      handler = handlerModule.default;
-      console.log(`   ✅ Handler found as default export`);
-    } else if (handlerModule.handler && typeof handlerModule.handler === 'function') {
-      handler = handlerModule.handler;
-      console.log(`   ✅ Handler found as .handler property`);
-    } else {
-      console.error(`❌ Handler for ${path} is not a function. Type: ${typeof handlerModule}`);
-      console.error(`   Module keys:`, Object.keys(handlerModule || {}));
-      console.error(`   Module value:`, handlerModule);
-      failedRoutes++;
-      return;
+    if (isRouter) {
+      router = mod;
+      console.log(`   ✅ Detected as ROUTER (has ${hasStack ? '.stack' : hasUse ? '.use' : '.get'})`);
     }
-    
-    if (typeof handler !== 'function') {
-      console.error(`❌ Handler for ${path} is not a function. Type: ${typeof handler}`);
-      failedRoutes++;
-      return;
+    // Check for router in properties
+    else if (mod.router) {
+      const subMod = mod.router;
+      const subHasStack = subMod.stack !== undefined;
+      const subHasUse = subMod.use && typeof subMod.use === 'function';
+      const subHasGet = subMod.get && typeof subMod.get === 'function';
+      if (subHasStack || subHasUse || subHasGet) {
+        router = subMod;
+        console.log(`   ✅ Detected router in .router property`);
+      }
     }
-    
-    console.log(`   ✅ Handler is a function, wrapping and mounting route`);
-    
-    // Wrap handler with serverless wrapper
+    // Check for default router
+    else if (mod.default && typeof mod.default === 'object') {
+      const subMod = mod.default;
+      const subHasStack = subMod.stack !== undefined;
+      const subHasUse = subMod.use && typeof subMod.use === 'function';
+      const subHasGet = subMod.get && typeof subMod.get === 'function';
+      if (subHasStack || subHasUse || subHasGet) {
+        router = subMod;
+        console.log(`   ✅ Detected router in .default property`);
+      }
+    }
+    // Check for handler in properties (if not a router)
+    if (!router) {
+      if (mod.handler && typeof mod.handler === 'function') {
+        handler = mod.handler;
+        console.log(`   ✅ Detected handler in .handler property`);
+      } else if (mod.default && typeof mod.default === 'function') {
+        handler = mod.default;
+        console.log(`   ✅ Detected handler in .default property`);
+      }
+    }
+  }
+  
+  // Validate we found something mountable
+  if (!router && !handler) {
+    const errorMsg = `Module ${file} is not mountable. Expected router or handler function.\n` +
+      `Type: ${typeof mod}\n` +
+      `Keys: ${Object.keys(mod || {}).join(', ') || '(none)'}\n` +
+      `Value: ${JSON.stringify(mod, null, 2).substring(0, 200)}`;
+    throw new Error(errorMsg);
+  }
+  
+  // Mount the route
+  const routePath = `/${path}`;
+  
+  if (router) {
+    // Mount Express Router - DO NOT wrap with wrapServerlessHandler
+    // DO NOT register individual HTTP verbs - router handles its own routing
+    apiRouter.use(routePath, router);
+    console.log(`   ✅ [API] Mounted /api${routePath} from ${file} as ROUTER`);
+  } else if (handler) {
+    // Mount serverless handler - wrap with serverless wrapper
     const wrappedHandler = wrapServerlessHandler(handler);
     
-    // Mount route on router - use path without /api prefix since router will be mounted at /api
-    const routePath = `/${path}`;
-    
-    // Add logging wrapper to track if route handler is called
+    // Add logging wrapper
     const loggedHandler = (req, res, next) => {
       console.log(`🎯 Route handler called for ${req.method} ${req.path} (route: /api${routePath})`);
       wrappedHandler(req, res, next);
     };
     
-    // Register for all HTTP methods explicitly - this is the most reliable approach
-    apiRouter.get(routePath, loggedHandler);
-    apiRouter.post(routePath, loggedHandler);
-    apiRouter.put(routePath, loggedHandler);
-    apiRouter.delete(routePath, loggedHandler);
-    apiRouter.patch(routePath, loggedHandler);
-    apiRouter.options(routePath, loggedHandler);
+    // Register for all HTTP methods using .all()
+    apiRouter.all(routePath, loggedHandler);
     
-    // Immediately verify the route was added to the stack
-    const routeAdded = apiRouter.stack.some(layer => 
-      (layer.route && layer.route.path === routePath) || 
-      (layer.regexp && layer.regexp.test(routePath))
-    );
-    if (routeAdded) {
-      console.log(`✅ Mounted API route: /api${routePath} - verified in router stack`);
-    } else {
-      console.error(`❌ FAILED to mount route /api${routePath} - not found in router stack!`);
-      console.error(`   Router stack length: ${apiRouter.stack.length}`);
-      console.error(`   Router stack:`, apiRouter.stack.map(l => {
-        if (l.route) return `ROUTE:${l.route.path}`;
-        if (l.regexp) return `MIDDLEWARE:${l.regexp.source}`;
-        return `UNKNOWN:${l.name || 'anonymous'}`;
-      }));
-    }
+    console.log(`   ✅ [API] Mounted /api${routePath} from ${file} as HANDLER`);
+  }
+  
+  // Verify route was added
+  const routeAdded = apiRouter.stack.some(layer => {
+    if (layer.route && layer.route.path === routePath) return true;
+    if (layer.regexp && layer.regexp.test(routePath)) return true;
+    if (layer.name === 'router' && layer.regexp && layer.regexp.test(`/${path}`)) return true;
+    return false;
+  });
+  
+  if (routeAdded) {
+    console.log(`   ✅ Verified route in router stack`);
+  } else {
+    console.warn(`   ⚠️  Route not immediately visible in stack (may be nested)`);
+  }
+}
+
+// Mount all API routes with robust error handling
+apiRoutes.forEach(({ path, file }) => {
+  try {
+    mountApiRoute(apiRouter, path, file);
     loadedRoutes++;
   } catch (error) {
-    console.error(`❌ Could not load API route ${path}:`, error.message);
-    console.error(`   Stack:`, error.stack);
+    console.error(`\n❌ CRITICAL: Failed to mount API route ${path} from ${file}`);
+    console.error(`   Error: ${error.message}`);
+    console.error(`   Stack: ${error.stack}`);
     failedRoutes++;
-    // Don't exit - continue loading other routes
+    // THROW to crash server - routes must be mountable
+    throw new Error(`Cannot mount API route ${path} from ${file}. Server cannot start. Original error: ${error.message}`);
   }
 });
 
@@ -293,100 +368,8 @@ app.get('/api/router-test', (req, res) => {
   });
 });
 
-// CRITICAL FALLBACK: Add direct routes for /api/data and /api/signals as a last resort
-// This ensures these routes work even if router mounting fails
-// Register this AFTER the router so router takes precedence, but before static files
-function loadFallbackHandler(routeName, filePath) {
-  try {
-    console.log(`🔧 Loading fallback /api/${routeName} route handler...`);
-    const handlerModule = require(filePath);
-    let handler = null;
-    
-    if (typeof handlerModule === 'function') {
-      handler = handlerModule;
-      console.log(`   ✅ Handler found as direct export`);
-    } else if (handlerModule.default && typeof handlerModule.default === 'function') {
-      handler = handlerModule.default;
-      console.log(`   ✅ Handler found as default export`);
-    } else if (handlerModule.handler && typeof handlerModule.handler === 'function') {
-      handler = handlerModule.handler;
-      console.log(`   ✅ Handler found as .handler property`);
-    }
-    
-    if (handler && typeof handler === 'function') {
-      const wrappedHandler = wrapServerlessHandler(handler);
-      console.log(`   ✅ Fallback handler wrapped and ready`);
-      return wrappedHandler;
-    } else {
-      console.error(`   ❌ Could not find ${routeName} handler for fallback route`);
-      console.error(`   Module type:`, typeof handlerModule);
-      console.error(`   Module keys:`, Object.keys(handlerModule || {}));
-      return null;
-    }
-  } catch (error) {
-    console.error(`❌ Error loading fallback /api/${routeName} route:`, error.message);
-    console.error(`   Stack:`, error.stack);
-    return null;
-  }
-}
-
-// Load fallback handlers
-const fallbackDataHandler = loadFallbackHandler('data', './api/data');
-const fallbackSignalsHandler = loadFallbackHandler('signals', './api/signals');
-
-// Register fallback routes AFTER router (so router takes precedence)
-// But make sure they're registered before static files
-if (fallbackDataHandler) {
-  app.all('/api/data', (req, res, next) => {
-    console.log(`🔄 Fallback /api/data route hit for ${req.method} ${req.path}${req.url !== req.path ? ` (${req.url})` : ''}`);
-    console.log(`   Response already sent: ${res.headersSent}, writableEnded: ${res.writableEnded}`);
-    
-    // Check if response was already sent (router handled it)
-    if (res.headersSent || res.writableEnded) {
-      console.log(`   ⚠️ Response already sent, skipping fallback handler`);
-      return; // Router already handled it
-    }
-    
-    console.log(`   ✅ Calling fallback handler...`);
-    fallbackDataHandler(req, res, next);
-  });
-  console.log('✅ Fallback /api/data route registered (will be used if router fails)');
-} else {
-  console.error('❌ Fallback /api/data route NOT registered - handler loading failed');
-}
-
-if (fallbackSignalsHandler) {
-  app.all('/api/signals', (req, res, next) => {
-    console.log(`🔄 Fallback /api/signals route hit for ${req.method} ${req.path}${req.url !== req.path ? ` (${req.url})` : ''}`);
-    console.log(`   Response already sent: ${res.headersSent}, writableEnded: ${res.writableEnded}`);
-    
-    // Check if response was already sent (router handled it)
-    if (res.headersSent || res.writableEnded) {
-      console.log(`   ⚠️ Response already sent, skipping fallback handler`);
-      return; // Router already handled it
-    }
-    
-    console.log(`   ✅ Calling fallback handler...`);
-    fallbackSignalsHandler(req, res, next);
-  });
-  console.log('✅ Fallback /api/signals route registered (will be used if router fails)');
-} else {
-  console.error('❌ Fallback /api/signals route NOT registered - handler loading failed');
-}
-
-// Add a direct test route for /api/data to help diagnose routing issues
-app.get('/api/data-test-route', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Direct /api/data test route - Express routing works',
-    path: req.path,
-    url: req.url,
-    query: req.query,
-    method: req.method,
-    dataHandlerLoaded: dataHandlerLoaded,
-    note: 'If you see this, Express can match /api/data paths. Check router mounting if /api/data still fails.'
-  });
-});
+// Note: Fallback routes removed - if routing fails, server will crash fast to reveal bugs
+// The mountApiRoute function now throws errors if routes cannot be mounted
 
 console.log(`✅ Finished loading routes: ${loadedRoutes} successful, ${failedRoutes} failed`);
 
