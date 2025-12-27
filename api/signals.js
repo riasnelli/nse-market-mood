@@ -661,28 +661,51 @@ const handler = async (req, res) => {
         // This maintains backward compatibility
       }
       
-      // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap&modeOverride=AUTO&marketStatus=... - Get signals for a date
+      // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap&modeOverride=EOD|PREMARKET|LIVE&marketStatus=... - Get signals for a date
       let targetDate = req.query.date || new Date().toISOString().split('T')[0];
       let strategy = req.query.strategy;
-      const modeOverride = req.query.modeOverride || 'AUTO'; // User override from localStorage
+      const modeOverride = req.query.modeOverride; // Only present when explicitly set (not AUTO)
       const includeDebug = req.query.debug === '1' || process.env.NODE_ENV !== 'production';
       
-      // Get market status from query (passed from client) or default to closed
-      let marketStatus = { isOpen: false, timestamp: new Date().toISOString() };
+      // Recompute market status using tradingCalendar - do NOT trust frontend
+      const today = getTodayIST();
+      const computedMarketOpen = isTradingDay(today) && (() => {
+        const ist = new Date();
+        const utc = ist.getTime() + (ist.getTimezoneOffset() * 60000);
+        const istOffset = 5.5 * 60 * 60000;
+        const istTime = new Date(utc + istOffset);
+        const hours = istTime.getHours();
+        const minutes = istTime.getMinutes();
+        const timeMinutes = hours * 60 + minutes;
+        // Market hours: 9:15 AM - 3:30 PM IST (555-930 minutes)
+        return timeMinutes >= 555 && timeMinutes < 930;
+      })();
+      
+      // Get market status from query (for diagnostic only, but recompute isOpen)
+      let marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
       if (req.query.marketStatus) {
         try {
-          marketStatus = JSON.parse(req.query.marketStatus);
+          const clientMarketStatus = JSON.parse(req.query.marketStatus);
+          // Use client status as diagnostic, but override isOpen with computed value
+          marketStatus = {
+            ...clientMarketStatus,
+            isOpen: computedMarketOpen, // Always use computed value
+            timestamp: new Date().toISOString()
+          };
         } catch (e) {
-          // If parsing fails, try to extract isOpen from string
-          if (req.query.marketStatus === 'true' || req.query.marketStatus === '1') {
-            marketStatus = { isOpen: true, timestamp: new Date().toISOString() };
-          }
+          // If parsing fails, use computed value
+          marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
         }
       }
       
-      // User override from query params
+      // User override from query params - only accept valid modes
+      const validModes = ['EOD', 'PREMARKET', 'LIVE'];
+      const overrideMode = modeOverride && validModes.includes(modeOverride.toUpperCase()) 
+        ? modeOverride.toUpperCase() 
+        : undefined; // Treat invalid/undefined as AUTO
+      
       const userOverride = {
-        mode: modeOverride !== 'AUTO' ? modeOverride : undefined,
+        mode: overrideMode,
         strategy: strategy
       };
       
@@ -887,15 +910,19 @@ const handler = async (req, res) => {
               reason: signal.reason
             })) : [];
             
-        return res.status(200).json({
+        // Determine resolvedBy for debug
+        const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
+        const resolvedMode = result.mode || detectedMode;
+        
+        const response = {
               success: true,
               engine: 'OK',
-              requested: { date: targetDate, strategy, modeOverride },
+              requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
               targetDate: result.targetDate || targetDate,
               signalDate: result.signalDate || signalDate,
               refDate: result.refDate || refDate,
               strategy: result.strategy || strategy,
-              mode: result.mode || detectedMode,
+              mode: resolvedMode,
               modeDisplay: result.modeDisplay || (result.mode ? getModeDisplayName(result.mode) : 'EOD'),
               modeLabel: result.modeLabel || (result.mode ? getModeLabel(result.mode) : 'EOD (Watchlist)'),
               status: result.status,
@@ -906,7 +933,7 @@ const handler = async (req, res) => {
               rejectStats: result.rejectStats || null,
               filtersUsed: result.filtersUsed || null,
               context: {
-                mode: result.mode || detectedMode,
+                mode: resolvedMode,
                 signalDate: result.signalDate || signalDate,
                 refEodDate: result.dataUsed?.refEodDate || result.refDate || refDate,
                 premarketDate: result.dataUsed?.premarketDate || null,
@@ -917,7 +944,7 @@ const handler = async (req, res) => {
               dataUsed: result.dataUsed || {
                 refEodDate: result.refDate || refDate,
                 premarketDate: result.dataUsed?.premarketDate || null,
-                mode: result.mode || detectedMode,
+                mode: resolvedMode,
                 signalDate: result.signalDate || signalDate,
                 marketOpen: marketStatus.isOpen,
                 marketTimestamp: marketStatus.timestamp
@@ -941,26 +968,41 @@ const handler = async (req, res) => {
                 eodDate: result.dataUsed?.refEodDate || null,
                 preMDate: result.dataUsed?.premarketDate || null
               }
-            });
+            };
+            
+            // Add debug fields
+            if (includeDebug) {
+              response.debug = {
+                resolvedMode: getModeDisplayName(resolvedMode),
+                resolvedBy,
+                computedMarketOpen: computedMarketOpen,
+                clientMarketStatus: req.query.marketStatus ? JSON.parse(req.query.marketStatus) : null
+              };
+            }
+            
+            return res.status(200).json(response);
           } else if (result.status === 'INSUFFICIENT_DATA') {
             // Data not available - return INSUFFICIENT_DATA status
-            return res.status(200).json({
+            const resolvedMode = result.mode || detectedMode;
+            const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
+            
+            const response = {
               success: true,
               engine: 'OK',
-              requested: { date: targetDate, strategy, modeOverride },
+              requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
               targetDate: result.targetDate || targetDate,
               signalDate: result.signalDate || signalDate,
               refDate: result.refDate || refDate,
               strategy: result.strategy || strategy,
-              mode: result.mode || detectedMode,
+              mode: resolvedMode,
               status: 'INSUFFICIENT_DATA',
               signal_count: 0,
               signals: [],
               hasSignals: false,
-              message: result.message || 'Required CSV data not available for this date.',
+              message: result.message || 'Insufficient data available for this date.',
               missingFiles: result.missingFiles || null,
               context: {
-                mode: result.mode || detectedMode,
+                mode: resolvedMode,
                 signalDate: result.signalDate || signalDate,
                 refEodDate: result.refDate || refDate,
                 premarketDate: null,
@@ -971,7 +1013,7 @@ const handler = async (req, res) => {
               dataUsed: {
                 refEodDate: result.refDate || refDate,
                 premarketDate: null,
-                mode: result.mode || detectedMode,
+                mode: resolvedMode,
                 signalDate: result.signalDate || signalDate,
                 marketOpen: marketStatus.isOpen,
                 marketTimestamp: marketStatus.timestamp
@@ -983,7 +1025,19 @@ const handler = async (req, res) => {
               },
               meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
               usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refDate }
-            });
+            };
+            
+            // Add debug fields
+            if (includeDebug) {
+              response.debug = {
+                resolvedMode: getModeDisplayName(resolvedMode),
+                resolvedBy,
+                computedMarketOpen: computedMarketOpen,
+                clientMarketStatus: req.query.marketStatus ? JSON.parse(req.query.marketStatus) : null
+              };
+            }
+            
+            return res.status(200).json(response);
           } else {
             // Generation failed (ERROR, etc.)
             return res.status(200).json({

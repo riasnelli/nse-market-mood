@@ -117,12 +117,20 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
   
   refEodDate = latestBhavDate;
   
-  // Check if premarket exists for signalDate
+  // Check premarket availability:
+  // 1. First check for signalDate (if mode is PREMARKET/LIVE for target date)
+  // 2. Then check for refEodDate (the date we actually use for EOD data)
+  // This ensures we correctly detect premarket when it exists for the refDate
   const hasSignalDatePreM = await hasPreMForDate(signalDate);
+  const hasRefDatePreM = await hasPreMForDate(refEodDate);
+  
   if (hasSignalDatePreM) {
     premarketDate = signalDate;
+  } else if (hasRefDatePreM) {
+    // Premarket exists for refDate (the EOD date we're using)
+    premarketDate = refEodDate;
   } else {
-    // Try to find latest premarket date >= refEodDate
+    // Try to find latest premarket date >= refEodDate and <= signalDate
     try {
       const premarketCollection = await getPreMarketDataCollection();
       const latestPreM = await premarketCollection
@@ -151,32 +159,36 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
     }
   }
   
+  // Track if we have premarket for refDate (used in mode detection)
+  const hasPremarketForRefDate = premarketDate === refEodDate || hasRefDatePreM;
+  
   // Check user override
   const overrideMode = userOverride.mode;
   const isAutoMode = !overrideMode || overrideMode === 'AUTO';
   
-  // AUTO mode selection
+  // AUTO mode selection - NEVER return MODE_NONE when EOD data exists
   if (isAutoMode) {
     // If market is open (and not API_FORBIDDEN), use LIVE mode if PreM exists
     if (effectiveMarketStatus.isOpen === true && hasSignalDatePreM) {
       mode = MODE_LIVE;
       reason = `Market open with PreM data for ${signalDate}`;
     } else if (effectiveMarketStatus.isOpen === true && !hasSignalDatePreM) {
+      // Market open but no PreM -> EOD mode (we have EOD data)
       mode = MODE_EOD;
-      reason = `Market open but no PreM data for ${signalDate}`;
+      reason = `Market open but no PreM data for ${signalDate}, using EOD mode`;
       missingFiles.push(`premarket for ${signalDate}`);
     } else if (hasSignalDatePreM) {
       // PreM exists but market not open (or unknown) -> PREMARKET mode
       mode = MODE_PREM;
       reason = `Premarket data available for ${signalDate}`;
     } else if (premarketDate) {
-      // PreM exists for a different date
+      // PreM exists for a different date (including refDate)
       mode = MODE_PREM;
       reason = `Premarket data available for ${premarketDate}`;
     } else {
-      // No PreM -> EOD mode
+      // No PreM but we have EOD data -> EOD mode (never MODE_NONE when EOD exists)
       mode = MODE_EOD;
-      reason = `EOD watchlist for ${signalDate} (no PreM data)`;
+      reason = `EOD watchlist for ${signalDate} (no PreM data, but EOD available)`;
       missingFiles.push(`premarket for ${signalDate}`);
     }
   } else {

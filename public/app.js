@@ -8371,18 +8371,30 @@ class MarketMoodApp {
 
             // Get market status and user override from localStorage
             const marketStatus = this.lastMarketStatus || { isOpen: false, timestamp: new Date().toISOString() };
+            const userOverrideMode = localStorage.getItem('nsemm.modeOverride') || 'AUTO';
+            
+            // Only send modeOverride when explicitly set to EOD, PREMARKET, or LIVE
+            // Do NOT send modeOverride=AUTO - backend will use AUTO behavior when param is missing
+            const validModes = ['EOD', 'PREMARKET', 'LIVE'];
+            const shouldSendModeOverride = userOverrideMode && validModes.includes(userOverrideMode.toUpperCase());
+            
             const userOverride = {
-                mode: localStorage.getItem('nsemm.modeOverride') || 'AUTO',
+                mode: shouldSendModeOverride ? userOverrideMode : undefined,
                 strategy: selectedStrategy
             };
 
             // READ-ONLY: Only GET signals, no POST generation
-            // Pass marketStatus and modeOverride as query params
+            // Pass marketStatus as diagnostic only (backend will recompute)
             const marketStatusParam = encodeURIComponent(JSON.stringify(marketStatus));
-            const modeOverrideParam = encodeURIComponent(userOverride.mode);
-            let url = `/api/signals?date=${targetDate}&strategy=${selectedStrategy}&modeOverride=${modeOverrideParam}&marketStatus=${marketStatusParam}`;
             
-            console.log('🔍 Fetching signals with marketStatus:', marketStatus.isOpen, 'modeOverride:', modeOverrideParam);
+            // Build URL - only include modeOverride if explicitly set
+            let url = `/api/signals?date=${targetDate}&strategy=${selectedStrategy}`;
+            if (shouldSendModeOverride) {
+                url += `&modeOverride=${encodeURIComponent(userOverrideMode)}`;
+            }
+            url += `&marketStatus=${marketStatusParam}`;
+            
+            console.log('🔍 Fetching signals with marketStatus:', marketStatus.isOpen, 'modeOverride:', shouldSendModeOverride ? userOverrideMode : '(AUTO - not sent)');
 
             console.log('🔍 Fetching signals (read-only) from:', url);
             let response;

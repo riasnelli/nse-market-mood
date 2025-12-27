@@ -1423,22 +1423,30 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     }
     
     // Check if strategy supports detected mode
-    if (!supportsMode(strategy, detectedMode)) {
+    // If MODE_NONE is detected but EOD data exists, fall back to EOD mode
+    let finalMode = detectedMode;
+    if (detectedMode === MODE_NONE && refEodDate) {
+      console.warn(`⚠️ MODE_NONE detected but EOD data exists (refEodDate: ${refEodDate}), falling back to MODE_EOD`);
+      finalMode = MODE_EOD;
+    }
+    
+    if (!supportsMode(strategy, finalMode)) {
       const signalsStoreCollection = await getSignalsStoreCollection();
+      const modeDisplayFinal = getModeDisplayName(finalMode);
       const unsupportedDoc = {
         date: signalDate,
         refDate: refEodDate,
         strategy,
-        mode: detectedMode,
+        mode: finalMode,
         status: 'INSUFFICIENT_DATA',
         signal_count: 0,
         signals: [],
-        missingFiles: [],
-        message: `Strategy "${strategyDef.name}" does not support ${modeDisplay} mode. Required: ${strategyDef.supportedModes.map(m => getModeDisplayName(m)).join(', ')}`,
+        missingFiles: context.missingFiles || [],
+        message: `Insufficient data: ${strategyDef.name} requires ${strategyDef.supportedModes.map(m => getModeDisplayName(m)).join(', ')} mode, but ${modeDisplayFinal} was detected.`,
         dataUsed: {
           refEodDate,
           premarketDate,
-          mode: detectedMode,
+          mode: finalMode,
           signalDate,
           marketOpen: marketStatus.isOpen,
           marketTimestamp: marketStatus.timestamp
@@ -1448,7 +1456,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
       };
       
       await signalsStoreCollection.updateOne(
-        { date: signalDate, strategy, mode: detectedMode },
+        { date: signalDate, strategy, mode: finalMode },
         { $set: unsupportedDoc },
         { upsert: true }
       );
@@ -1459,15 +1467,15 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
         signalDate,
         refDate: refEodDate,
         strategy,
-        mode: detectedMode,
+        mode: finalMode,
         signal_count: 0,
         signals: [],
-        missingFiles: [],
-        message: `Strategy does not support ${modeDisplay} mode`,
+        missingFiles: context.missingFiles || [],
+        message: `Insufficient data: Required mode not available.`,
         dataUsed: {
           refEodDate,
           premarketDate,
-          mode: detectedMode,
+          mode: finalMode,
           signalDate,
           marketOpen: marketStatus.isOpen,
           marketTimestamp: marketStatus.timestamp
@@ -1476,18 +1484,19 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     }
     
     // Check if we have minimum required data
-    if (detectedMode === MODE_NONE) {
+    // This should rarely trigger now since resolver never returns MODE_NONE when EOD exists
+    if (finalMode === MODE_NONE) {
       const signalsStoreCollection = await getSignalsStoreCollection();
       const noDataDoc = {
         date: signalDate,
         refDate: refEodDate,
         strategy,
-        mode: detectedMode,
+        mode: finalMode,
         status: 'INSUFFICIENT_DATA',
         signal_count: 0,
         signals: [],
-        missingFiles: context.missingFiles,
-        message: context.reason,
+        missingFiles: context.missingFiles || [],
+        message: context.reason || 'Insufficient data available for signal generation',
         dataUsed: {
           refEodDate,
           premarketDate,
@@ -1520,7 +1529,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
         dataUsed: {
           refEodDate,
           premarketDate,
-          mode: detectedMode,
+          mode: finalMode,
           signalDate,
           marketOpen: marketStatus.isOpen,
           marketTimestamp: marketStatus.timestamp
