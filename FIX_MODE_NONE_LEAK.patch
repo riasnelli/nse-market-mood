@@ -1,0 +1,84 @@
+# Fix MODE_NONE leak in API responses
+# Problem: Using detectedMode instead of finalMode after hard guard allows MODE_NONE to leak into responses
+# Solution: Replace all detectedMode references with finalMode after the hard guard
+
+File: api/signals.js
+
+## Issue 1: Line 880 - Stored doc dataUsed construction
+Line 880: Use finalMode instead of detectedMode
+
+OLD:
+            mode: storedMode || detectedMode,
+
+NEW:
+            mode: storedMode || finalMode,
+
+## Issue 2: Line 1029 - INSUFFICIENT_DATA response from generateSignalsForDate
+Line 1029: Use finalMode instead of detectedMode
+
+OLD:
+            const resolvedMode = result.mode || detectedMode;
+
+NEW:
+            const resolvedMode = result.mode || finalMode;
+
+## Issue 3: Lines 1097, 1105, 1116, 1128 - ERROR response from generateSignalsForDate
+Lines 1097, 1105, 1116, 1128: Use finalMode instead of detectedMode
+
+OLD:
+              mode: result.mode || detectedMode,
+              ...
+              context: {
+                mode: result.mode || detectedMode,
+                ...
+              },
+              dataUsed: {
+                ...
+                mode: result.mode || detectedMode,
+                ...
+              },
+              ...
+              resolvedMode: result.mode || detectedMode,
+
+NEW:
+              mode: result.mode || finalMode,
+              ...
+              context: {
+                mode: result.mode || finalMode,
+                ...
+              },
+              dataUsed: {
+                ...
+                mode: result.mode || finalMode,
+                ...
+              },
+              ...
+              resolvedMode: result.mode || finalMode,
+
+## Issue 4: Lines 1147, 1154, 1165 - NO_DATA fallback response
+Lines 1147, 1154, 1165: Use finalMode instead of detectedMode (should never be MODE_NONE here, but be safe)
+
+OLD:
+          mode: detectedMode,
+          ...
+          context: {
+            mode: detectedMode,
+            ...
+          },
+          dataUsed: {
+            ...
+            mode: detectedMode,
+            ...
+
+NEW:
+          mode: finalMode,
+          ...
+          context: {
+            mode: finalMode,
+            ...
+          },
+          dataUsed: {
+            ...
+            mode: finalMode,
+            ...
+

@@ -877,7 +877,7 @@ const handler = async (req, res) => {
           const dataUsed = storedDoc.dataUsed || {
             refEodDate: storedDoc.refDate || refEodDate,
             premarketDate: storedDoc.modeInfo?.usedDates?.preMDate || premarketDate,
-            mode: storedMode || detectedMode,
+            mode: storedMode || finalMode,
             signalDate: storedDoc.date || signalDate,
             marketOpen: marketStatus.isOpen,
             marketTimestamp: marketStatus.timestamp
@@ -1026,7 +1026,7 @@ const handler = async (req, res) => {
             return res.status(200).json(response);
           } else if (result.status === 'INSUFFICIENT_DATA') {
             // Data not available - return INSUFFICIENT_DATA status
-            const resolvedMode = result.mode || detectedMode;
+            const resolvedMode = result.mode || finalMode;
             const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
             
             const response = {
@@ -1094,7 +1094,7 @@ const handler = async (req, res) => {
               signalDate: result.signalDate || signalDate,
               refDate: result.refDate || refEodDate,
               strategy: result.strategy || strategy,
-              mode: result.mode || detectedMode,
+              mode: result.mode || finalMode,
               status: result.status || 'ERROR',
               signal_count: 0,
               signals: [],
@@ -1102,7 +1102,7 @@ const handler = async (req, res) => {
               message: result.message || 'Error generating signals. Please check logs.',
               missingFiles: result.missingFiles || null,
               context: {
-                mode: result.mode || detectedMode,
+                mode: result.mode || finalMode,
                 signalDate: result.signalDate || signalDate,
                 refEodDate: result.refDate || refEodDate,
                 premarketDate: null,
@@ -1113,7 +1113,7 @@ const handler = async (req, res) => {
               dataUsed: {
                 refEodDate: result.refDate || refEodDate,
                 premarketDate: null,
-                mode: result.mode || detectedMode,
+                mode: result.mode || finalMode,
                 signalDate: result.signalDate || signalDate,
                 marketOpen: marketStatus.isOpen,
                 marketTimestamp: marketStatus.timestamp
@@ -1125,7 +1125,7 @@ const handler = async (req, res) => {
               },
               meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
               usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
-              resolvedMode: result.mode || detectedMode,
+              resolvedMode: result.mode || finalMode,
               resolvedBy: resolvedBy,
               computedMarketOpen: computedMarketOpen
             });
@@ -1144,14 +1144,14 @@ const handler = async (req, res) => {
           signalDate: signalDate || targetDate,
           refDate: refEodDate,
           strategy,
-          mode: detectedMode,
+          mode: finalMode,
           status: 'NO_DATA',
           signal_count: 0,
           signals: [],
           hasSignals: false,
           message: 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).',
           context: {
-            mode: detectedMode,
+            mode: finalMode,
             signalDate: signalDate || targetDate,
             refEodDate: refEodDate,
             premarketDate: premarketDate,
@@ -1162,7 +1162,7 @@ const handler = async (req, res) => {
           dataUsed: {
             refEodDate: refEodDate,
             premarketDate: premarketDate,
-            mode: detectedMode,
+            mode: finalMode,
             signalDate: signalDate || targetDate,
             marketOpen: marketStatus.isOpen,
             marketTimestamp: marketStatus.timestamp
