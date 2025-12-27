@@ -21,6 +21,7 @@ const {
 } = require('./lib/tradingCalendar');
 const { getModeDisplayName, getModeDescription, getModeLabel, getTodayIST } = require('./lib/signals/mode');
 const { getStrategyMeta } = require('./lib/signals/registry');
+const { resolveSignalsContext } = require('./lib/signals/resolver');
 
 // Try to load uuid, but don't fail if it's not available
 let uuidv4;
