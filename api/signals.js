@@ -19,7 +19,7 @@ const {
   resolveSignalDates,
   isTradingDay
 } = require('./lib/tradingCalendar');
-const { getModeDisplayName, getModeDescription, getModeLabel, getTodayIST } = require('./lib/signals/mode');
+const { getModeDisplayName, getModeDescription, getModeLabel, getTodayIST, MODE_NONE, MODE_EOD, MODE_PREM, MODE_LIVE } = require('./lib/signals/mode');
 const { getStrategyMeta } = require('./lib/signals/registry');
 const { resolveSignalsContext } = require('./lib/signals/resolver');
 
@@ -783,14 +783,53 @@ const handler = async (req, res) => {
         });
       }
 
+      // Hard guard: NEVER allow MODE_NONE to reach strategy engines
+      // If mode is MODE_NONE but EOD data exists, force EOD mode
+      let finalMode = detectedMode;
+      const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
+      if (finalMode === MODE_NONE && refEodDate) {
+        console.warn(`⚠️ [SIGNALS API] MODE_NONE detected but EOD data exists (refEodDate: ${refEodDate}), forcing MODE_EOD`);
+        finalMode = MODE_EOD;
+      } else if (finalMode === MODE_NONE) {
+        // No data available - return INSUFFICIENT_DATA
+        return res.status(200).json({
+          success: true,
+          engineStatus: 'insufficient_data',
+          requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
+          context: {
+            signalDate: signalDate || null,
+            refEodDate: refEodDate || null,
+            premarketDate: premarketDate || null,
+            hasBhav: !!refEodDate,
+            hasPremarket: !!premarketDate,
+            missingFiles: context.missingFiles || []
+          },
+          signals: [],
+          meta: {
+            reason: context.reason || 'Insufficient data available for signal generation',
+            mode: null // Don't return MODE_NONE in response
+          },
+          resolvedMode: null,
+          resolvedBy: resolvedBy,
+          computedMarketOpen: computedMarketOpen
+        });
+      }
+
+      // Verify mode is one of the supported modes
+      const supportedModeConstants = [MODE_EOD, MODE_PREM, MODE_LIVE];
+      if (!supportedModeConstants.includes(finalMode)) {
+        console.error(`❌ [SIGNALS API] Invalid mode detected: ${finalMode}, forcing MODE_EOD`);
+        finalMode = MODE_EOD;
+      }
+
       try {
         // Read from signals_store collection (new unified store)
         const signalsStoreCollection = await getSignalsStoreCollection();
-        // First try to find with new mode, then fallback to any mode for this date+strategy
+        // First try to find with final mode, then fallback to any mode for this date+strategy
         let storedDoc = await signalsStoreCollection.findOne({ 
           date: signalDate,
           strategy: strategy || 'momentum_gap',
-          mode: detectedMode
+          mode: finalMode
         });
         
         // If not found with new mode, try to find any document for this date+strategy (might be legacy)
@@ -869,7 +908,10 @@ const handler = async (req, res) => {
               refDate: storedDoc.refDate || refEodDate,
               eodDate: dataUsed.refEodDate,
               preMDate: dataUsed.premarketDate
-            }
+            },
+            resolvedMode: storedMode,
+            resolvedBy: overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto',
+            computedMarketOpen: computedMarketOpen
           };
           
           // Include debug info if requested
@@ -909,9 +951,8 @@ const handler = async (req, res) => {
               reason: signal.reason
             })) : [];
             
-        // Determine resolvedBy for debug
-        const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
-        const resolvedMode = result.mode || detectedMode;
+        // Use resolvedBy from earlier guard (already computed)
+        const resolvedMode = result.mode || finalMode;
         
         const response = {
               success: true,
@@ -919,7 +960,7 @@ const handler = async (req, res) => {
               requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
               targetDate: result.targetDate || targetDate,
               signalDate: result.signalDate || signalDate,
-              refDate: result.refDate || refDate,
+              refDate: result.refDate || refEodDate,
               strategy: result.strategy || strategy,
               mode: resolvedMode,
               modeDisplay: result.modeDisplay || (result.mode ? getModeDisplayName(result.mode) : 'EOD'),
@@ -934,14 +975,14 @@ const handler = async (req, res) => {
               context: {
                 mode: resolvedMode,
                 signalDate: result.signalDate || signalDate,
-                refEodDate: result.dataUsed?.refEodDate || result.refDate || refDate,
+                refEodDate: result.dataUsed?.refEodDate || result.refDate || refEodDate,
                 premarketDate: result.dataUsed?.premarketDate || null,
                 marketOpen: marketStatus.isOpen,
                 marketTimestamp: marketStatus.timestamp,
                 reason: result.message || 'Signals generated'
               },
               dataUsed: result.dataUsed || {
-                refEodDate: result.refDate || refDate,
+                refEodDate: result.refDate || refEodDate,
                 premarketDate: result.dataUsed?.premarketDate || null,
                 mode: resolvedMode,
                 signalDate: result.signalDate || signalDate,
@@ -963,10 +1004,13 @@ const handler = async (req, res) => {
               usedDates: result.usedDates || { 
                 targetDate, 
                 signalDate: result.signalDate || signalDate, 
-                refDate: result.refDate || refDate,
+                refDate: result.refDate || refEodDate,
                 eodDate: result.dataUsed?.refEodDate || null,
                 preMDate: result.dataUsed?.premarketDate || null
-              }
+              },
+              resolvedMode: resolvedMode,
+              resolvedBy: resolvedBy,
+              computedMarketOpen: computedMarketOpen
             };
             
             // Add debug fields
@@ -991,7 +1035,7 @@ const handler = async (req, res) => {
               requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
               targetDate: result.targetDate || targetDate,
               signalDate: result.signalDate || signalDate,
-              refDate: result.refDate || refDate,
+              refDate: result.refDate || refEodDate,
               strategy: result.strategy || strategy,
               mode: resolvedMode,
               status: 'INSUFFICIENT_DATA',
@@ -1003,14 +1047,14 @@ const handler = async (req, res) => {
               context: {
                 mode: resolvedMode,
                 signalDate: result.signalDate || signalDate,
-                refEodDate: result.refDate || refDate,
+                refEodDate: result.refDate || refEodDate,
                 premarketDate: null,
                 marketOpen: marketStatus.isOpen,
                 marketTimestamp: marketStatus.timestamp,
                 reason: result.message || 'Required CSV data not available'
               },
               dataUsed: {
-                refEodDate: result.refDate || refDate,
+                refEodDate: result.refDate || refEodDate,
                 premarketDate: null,
                 mode: resolvedMode,
                 signalDate: result.signalDate || signalDate,
@@ -1023,7 +1067,10 @@ const handler = async (req, res) => {
                 rulesText: strategyMeta.rulesText
               },
               meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
-              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refDate }
+              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
+              resolvedMode: resolvedMode,
+              resolvedBy: resolvedBy,
+              computedMarketOpen: computedMarketOpen
             };
             
             // Add debug fields
@@ -1045,7 +1092,7 @@ const handler = async (req, res) => {
               requested: { date: targetDate, strategy, modeOverride },
               targetDate: result.targetDate || targetDate,
               signalDate: result.signalDate || signalDate,
-              refDate: result.refDate || refDate,
+              refDate: result.refDate || refEodDate,
               strategy: result.strategy || strategy,
               mode: result.mode || detectedMode,
               status: result.status || 'ERROR',
@@ -1057,14 +1104,14 @@ const handler = async (req, res) => {
               context: {
                 mode: result.mode || detectedMode,
                 signalDate: result.signalDate || signalDate,
-                refEodDate: result.refDate || refDate,
+                refEodDate: result.refDate || refEodDate,
                 premarketDate: null,
                 marketOpen: marketStatus.isOpen,
                 marketTimestamp: marketStatus.timestamp,
                 reason: result.message || 'Error generating signals'
               },
               dataUsed: {
-                refEodDate: result.refDate || refDate,
+                refEodDate: result.refDate || refEodDate,
                 premarketDate: null,
                 mode: result.mode || detectedMode,
                 signalDate: result.signalDate || signalDate,
@@ -1077,7 +1124,10 @@ const handler = async (req, res) => {
                 rulesText: strategyMeta.rulesText
               },
               meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
-              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refDate }
+              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
+              resolvedMode: result.mode || detectedMode,
+              resolvedBy: resolvedBy,
+              computedMarketOpen: computedMarketOpen
             });
           }
         } catch (genError) {

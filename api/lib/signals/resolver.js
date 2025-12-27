@@ -166,29 +166,14 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
   const overrideMode = userOverride.mode;
   const isAutoMode = !overrideMode || overrideMode === 'AUTO';
   
-  // AUTO mode selection - NEVER return MODE_NONE when EOD data exists
+  // AUTO mode selection - ALWAYS prioritize EOD when bhav exists for refDate
+  // Note: If we reach here, refEodDate is guaranteed to exist (early return above if not)
   if (isAutoMode) {
-    // If market is open (and not API_FORBIDDEN), use LIVE mode if PreM exists
-    if (effectiveMarketStatus.isOpen === true && hasSignalDatePreM) {
-      mode = MODE_LIVE;
-      reason = `Market open with PreM data for ${signalDate}`;
-    } else if (effectiveMarketStatus.isOpen === true && !hasSignalDatePreM) {
-      // Market open but no PreM -> EOD mode (we have EOD data)
-      mode = MODE_EOD;
-      reason = `Market open but no PreM data for ${signalDate}, using EOD mode`;
-      missingFiles.push(`premarket for ${signalDate}`);
-    } else if (hasSignalDatePreM) {
-      // PreM exists but market not open (or unknown) -> PREMARKET mode
-      mode = MODE_PREM;
-      reason = `Premarket data available for ${signalDate}`;
-    } else if (premarketDate) {
-      // PreM exists for a different date (including refDate)
-      mode = MODE_PREM;
-      reason = `Premarket data available for ${premarketDate}`;
-    } else {
-      // No PreM but we have EOD data -> EOD mode (never MODE_NONE when EOD exists)
-      mode = MODE_EOD;
-      reason = `EOD watchlist for ${signalDate} (no PreM data, but EOD available)`;
+    // KEY RULE: If bhav exists for refDate => ALWAYS use EOD (no exceptions)
+    // This is the highest priority - EOD data always takes precedence
+    mode = MODE_EOD;
+    reason = `EOD watchlist for ${signalDate} (bhav data available for ${refEodDate})`;
+    if (!premarketDate) {
       missingFiles.push(`premarket for ${signalDate}`);
     }
   } else {
