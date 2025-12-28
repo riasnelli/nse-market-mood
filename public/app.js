@@ -9371,12 +9371,15 @@ class MarketMoodApp {
         }
     }
 
-    renderSignals(signals, runId, date) {
-        // Get container element - try multiple possible IDs/classes as fallbacks
-        const signalsContainer = document.getElementById('signalsContainer') || 
-                                 document.getElementById('signalsSection') ||
-                                 document.querySelector('.signals-section') ||
-                                 document.querySelector('#signalsSection');
+    renderSignals(signals, runId, date, signalsContainerParam) {
+        // Use provided container or find it
+        let signalsContainer = signalsContainerParam;
+        if (!signalsContainer) {
+            signalsContainer = document.getElementById('signalsContainer') || 
+                             document.getElementById('signalsSection') ||
+                             document.querySelector('.signals-section') ||
+                             document.querySelector('#signalsSection');
+        }
         
         if (!signalsContainer) {
             console.error('❌ Signals container element not found in DOM');
@@ -9388,13 +9391,18 @@ class MarketMoodApp {
             throw new Error('Signals container not found. Cannot render signals.');
         }
         
-        // Check if container already has content (for append mode)
-        const hasExistingContent = signalsContainer.children.length > 0;
-        
-        // Clear existing content if starting fresh
-        if (!hasExistingContent) {
+        // Always clear container and hide loading before rendering
         signalsContainer.innerHTML = '';
+        signalsContainer.style.display = 'block';
+        
+        // Hide any loading indicators immediately
+        const signalsLoading = document.getElementById('signalsLoading');
+        if (signalsLoading) {
+            signalsLoading.style.display = 'none';
         }
+        
+        // Check if container already has content (for append mode) - now always false since we cleared
+        const hasExistingContent = false;
 
         // Create header info (only if not appending to existing content)
         if (!hasExistingContent) {
