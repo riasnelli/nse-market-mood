@@ -8671,6 +8671,33 @@ class MarketMoodApp {
             if (status === 'READY' && hasSignals) {
                 // Signals are ready - display them
                 console.log(`✅ Signals ready: ${signalsArray.length} signals for ${targetDate}`);
+                
+                // Validate signals array
+                if (!Array.isArray(signalsArray)) {
+                    throw new Error('Signals data is not an array');
+                }
+                
+                // Log sample signal structure for debugging
+                if (signalsArray.length > 0) {
+                    console.log('📊 Sample signal structure:', signalsArray[0]);
+                    console.log('📊 Signal keys:', Object.keys(signalsArray[0]));
+                }
+                
+                // Validate each signal has minimum required fields
+                const validSignals = signalsArray.filter(signal => 
+                    signal && signal.symbol && (signal.entry_price !== undefined || signal.price !== undefined)
+                );
+                
+                if (validSignals.length === 0) {
+                    throw new Error('No valid signals found in response (missing symbol or price)');
+                }
+                
+                if (validSignals.length !== signalsArray.length) {
+                    console.warn(`⚠️ Filtered ${signalsArray.length - validSignals.length} invalid signals from ${signalsArray.length} total`);
+                }
+                
+                // Use valid signals for rendering
+                signalsArray = validSignals;
             } else if (status === 'NO_MATCH') {
                 // Strategy ran but found no matches
                 console.log('ℹ️ No stocks met criteria for this date');
@@ -8881,6 +8908,14 @@ class MarketMoodApp {
             
         } catch (error) {
             console.error('❌ Error loading signals:', error);
+            console.error('Error stack:', error?.stack);
+            console.error('Error message:', error?.message);
+            console.error('Error name:', error?.name);
+            console.error('Error details:', {
+                type: typeof error,
+                constructor: error?.constructor?.name,
+                toString: String(error)
+            });
             signalsLoading.style.display = 'none';
             signalsError.style.display = 'block';
             signalsContainer.style.display = 'none';
@@ -8897,7 +8932,7 @@ class MarketMoodApp {
                 strategy: selectedStrategy
             });
             
-            let errorMessage = error.message || 'Failed to load signals. Please try again.';
+            let errorMessage = error.message || error?.toString() || 'Failed to load signals. Please try again.';
             if (error.message && error.message.includes('fetch')) {
                 errorMessage = 'Network error: Could not connect to the server. Please check your connection and try again.';
             }
@@ -9226,6 +9261,13 @@ class MarketMoodApp {
         signalsGrid.style.cssText = 'display: grid; grid-template-columns: 1fr; gap: 15px;';
 
         signals.forEach((signal, index) => {
+            try {
+                // Validate signal has required fields
+                if (!signal || !signal.symbol) {
+                    console.warn(`⚠️ Skipping signal at index ${index}: missing symbol`, signal);
+                    return;
+                }
+                
             const signalCard = document.createElement('div');
             signalCard.className = 'signal-card';
             signalCard.style.cssText = `
@@ -9282,7 +9324,16 @@ class MarketMoodApp {
                 ` : ''}
             `;
 
-            signalsGrid.appendChild(signalCard);
+                signalsGrid.appendChild(signalCard);
+            } catch (err) {
+                console.error(`❌ Failed to render signal ${index}:`, signal, err);
+                console.error('Error details:', {
+                    signal: signal,
+                    error: err?.message,
+                    stack: err?.stack
+                });
+                // Continue rendering other signals - don't break the entire list
+            }
         });
 
         signalsContainer.appendChild(signalsGrid);
@@ -9705,19 +9756,44 @@ class MarketMoodApp {
                         </div>
                     </div>
                 </div>
-                ${currentTopReasons && currentTopReasons.length > 0 && (!signals || !signals.hasSignals) ? `
+                ${(() => {
+                    // Validate and filter rejection reasons
+                    if (!currentTopReasons || !Array.isArray(currentTopReasons) || currentTopReasons.length === 0) {
+                        return '';
+                    }
+                    
+                    // Filter to only include valid rejection stats with required properties
+                    const validReasons = currentTopReasons.filter(r => 
+                        r && 
+                        (r.reason !== undefined || r.label !== undefined) && 
+                        (r.count !== undefined || r.rejectedCount !== undefined)
+                    ).slice(0, 3);
+                    
+                    if (validReasons.length === 0) {
+                        return '';
+                    }
+                    
+                    if (!signals || !signals.hasSignals) {
+                        return `
                 <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <div style="color: #6b7280; font-weight: 500; font-size: 0.85rem; margin-bottom: 4px;">Top Rejection Reasons:</div>
                     <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem;">
-                        ${currentTopReasons.slice(0, 3).map(r => `
+                                ${validReasons.map(r => {
+                                    const reason = r.reason || r.label || 'Unknown reason';
+                                    const count = r.count !== undefined ? r.count : (r.rejectedCount !== undefined ? r.rejectedCount : 0);
+                                    return `
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="color: #6b7280;">${r.reason}:</span>
-                                <span style="color: #ef4444; font-weight: 600;">${r.count}</span>
+                                        <span style="color: #6b7280;">${reason}:</span>
+                                        <span style="color: #ef4444; font-weight: 600;">${count}</span>
                             </div>
-                        `).join('')}
+                                    `;
+                                }).join('')}
                     </div>
                 </div>
-                ` : ''}
+                        `;
+                    }
+                    return '';
+                })()}
             </div>
         `;
         
