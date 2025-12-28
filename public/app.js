@@ -8520,17 +8520,17 @@ class MarketMoodApp {
                             }
 
                             // ✅ Update the status panel with CONSISTENT mode/dataUsed
-                            this.updateSignalsStatus({
-                                date: usedDates.signalDate || targetDate,
+                                this.updateSignalsStatus({
+                                    date: usedDates.signalDate || targetDate,
                                 signalsInfo: { hasSignals: false, signals: [], success: true, message: data.message },
-                                backendMessage: data.message,
+                                    backendMessage: data.message,
                                 mode: backendMode,
                                 modeDisplay,
                                 modeLabel,
                                 modeDescription: '',
                                 modeInfo: { mode: backendMode, reason: data.message },
                                 missingFiles,
-                                refDate: data.dataUsed?.refEodDate || usedDates.refDate,
+                                    refDate: data.dataUsed?.refEodDate || usedDates.refDate,
                                 usedDates: usedDates,
                                 dataUsed: data.dataUsed || {
                                     refEodDate: data.context?.refEodDate || usedDates.refDate || null,
@@ -8539,10 +8539,10 @@ class MarketMoodApp {
                                     signalDate: usedDates.signalDate || targetDate,
                                     marketOpen
                                 },
-                                strategy: selectedStrategy
-                            });
+                                    strategy: selectedStrategy
+                                });
 
-                            signalsLoading.style.display = 'none';
+                                signalsLoading.style.display = 'none';
                             return; // ✅ CRITICAL: STOP HERE
                         }
                         
@@ -8828,19 +8828,8 @@ class MarketMoodApp {
             signalsContainer.style.setProperty('display', 'block', 'important');
             signalsContainer.innerHTML = '';
             
-            // Update strategy analysis with actual stock recommendations from signals
-            if (strategyAnalysis && hasSignals && signalsArray.length > 0) {
-                // Extract top stocks from signals
-                const topStocks = signalsArray
-                    .slice(0, 5) // Top 5 stocks
-                    .map(signal => ({
-                        symbol: signal.symbol,
-                        score: signal.score,
-                        entryPrice: signal.entry_price,
-                        targetPrice: signal.target_price
-                    }));
-                strategyAnalysis.recommendedStocks = topStocks;
-            }
+            // Strategy recommendation card removed - strategy shown in selector button only
+            // Note: strategyAnalysis is no longer needed as strategy recommendation UI was removed
             
             // Update status with final signals info (including modeLabel and dataUsed)
             const usedDates = data?.usedDates || { targetDate, signalDate: data?.signalDate || targetDate, refDate: data?.refDate };
