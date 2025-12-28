@@ -634,6 +634,7 @@ header h1 {
 }
 
 .signals-status-panel {
+    padding: 0 !important;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
