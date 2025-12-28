@@ -10330,7 +10330,11 @@ class MarketMoodApp {
                 grid-template-columns: 1fr; 
                 gap: 14px; 
                 font-size: 0.9rem;
-                margin-top: 12px;
+                margin-top: 0;
+                padding: 16px;
+                padding-top: 8px;
+                background: white;
+                border-radius: 0 0 12px 12px;
                 transition: opacity 0.3s ease;
             ">
                 ${hasSignals ? `
