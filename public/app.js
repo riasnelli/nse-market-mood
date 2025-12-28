@@ -57,6 +57,85 @@ class MarketMoodApp {
         this.chartsEnabled = enabled;
     }
 
+    // Logo and ticker badge helper methods
+    cleanSymbol(symbol) {
+        return (symbol || "").toUpperCase().replace(/-EQ|-BE|-BZ/gi, "");
+    }
+
+    getCompanyDomain(symbol) {
+        const s = this.cleanSymbol(symbol);
+        const domains = {
+            TATSILV: "tata.com",
+            TATAMOTORS: "tatamotors.com",
+            RELIANCE: "ril.com",
+            INFY: "infosys.com",
+            TCS: "tcs.com",
+            HDFCBANK: "hdfcbank.com",
+            ICICIBANK: "icicibank.com",
+            SBIN: "sbi.co.in",
+            BHARTIARTL: "airtel.in",
+            ITC: "itcportal.com",
+            WIPRO: "wipro.com",
+            AXISBANK: "axisbank.com",
+            LT: "larsentoubro.com",
+        };
+        return domains[s] || "";
+    }
+
+    getTickerFontSettings(clean) {
+        const n = clean.length;
+        if (n <= 4) return { size: 12, lines: [clean] };     // 32x32
+        if (n <= 6) return { size: 10, lines: [clean] };     // 32x32
+        const mid = Math.ceil(n / 2);
+        return { size: 9, lines: [clean.slice(0, mid), clean.slice(mid)] };
+    }
+
+    createTickerBadge(symbol, size = 32) {
+        const clean = this.cleanSymbol(symbol);
+
+        // deterministic color per symbol
+        let hash = 0;
+        for (let i = 0; i < clean.length; i++) hash = (hash * 31 + clean.charCodeAt(i)) >>> 0;
+        const hue = hash % 360;
+
+        const { size: fontSize, lines } = this.getTickerFontSettings(clean);
+        const yPositions = lines.length === 1 ? [21] : [15, 26];
+
+        const textEls = lines.map((t, idx) => `
+            <text x="${size / 2}" y="${yPositions[idx]}"
+                font-family="Inter, Arial, sans-serif"
+                font-size="${fontSize}"
+                font-weight="800"
+                fill="white"
+                text-anchor="middle"
+                letter-spacing="0.2">${t}</text>
+        `).join("");
+
+        const svg = `
+            <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="g${hash}" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="hsl(${hue}, 80%, 55%)"/>
+                        <stop offset="100%" stop-color="hsl(${(hue + 40) % 360}, 80%, 45%)"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="url(#g${hash})"/>
+                ${textEls}
+            </svg>
+        `;
+
+        return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+    }
+
+    getLogoSources(symbol) {
+        const clean = this.cleanSymbol(symbol);
+        const tv = `https://s3-symbol-logo.tradingview.com/${clean.toLowerCase()}--big.svg`;
+        const domain = this.getCompanyDomain(symbol);
+        const clearbit = domain ? `https://logo.clearbit.com/${domain}` : null;
+        const badge = this.createTickerBadge(symbol, 32);
+        return [tv, clearbit, badge].filter(Boolean);
+    }
+
     updateApiUrl() {
         // Get API provider from settings
         if (window.settingsManager) {
@@ -9645,47 +9724,41 @@ class MarketMoodApp {
             const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
             const changeColor = isPositive ? '#10b981' : '#ef4444';
             
-            // Generate TradingView logo URL for stock icon
-            const getTradingViewLogoUrl = (symbol) => {
-                if (!symbol) return null;
-                // Convert symbol to lowercase for TradingView URL format
-                // NSE symbols typically work with lowercase, e.g., "TATA" -> "tata", "TATSILV" -> "tatsilv"
-                const symbolLower = symbol.toLowerCase();
-                return `https://s3-symbol-logo.tradingview.com/${symbolLower}--big.svg`;
-            };
-            
-            // Fallback: Generate ticker icon (circular with first letter)
-            const tickerIcon = signal.symbol ? signal.symbol.charAt(0).toUpperCase() : '?';
-            const tickerColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444'];
-            const tickerColorIndex = signal.symbol ? signal.symbol.charCodeAt(0) % tickerColors.length : 0;
-            const tickerColor = tickerColors[tickerColorIndex];
-            const logoUrl = getTradingViewLogoUrl(signal.symbol);
+            // Get logo sources with fallback chain
+            const sources = this.getLogoSources(signal.symbol);
+            const logoHtml = `
+                <img
+                    src="${sources[0]}"
+                    alt="${this.cleanSymbol(signal.symbol)}"
+                    style="
+                        width:32px;height:32px;border-radius:50%;
+                        object-fit:cover;background:white;padding:2px;
+                        box-shadow:0 2px 8px rgba(0,0,0,0.12);
+                    "
+                    onerror="
+                        (function(img){
+                            const srcs = ${JSON.stringify(sources)};
+                            img.dataset.idx = img.dataset.idx || '0';
+                            const next = parseInt(img.dataset.idx, 10) + 1;
+                            img.dataset.idx = String(next);
+                            if (srcs[next]) img.src = srcs[next];
+                        })(this);
+                    "
+                />
+            `;
 
             signalCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
                         <div style="
-                            width: 36px;
-                            height: 36px;
+                            width: 32px;
+                            height: 32px;
                             border-radius: 50%;
-                            background: ${tickerColor};
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            color: white;
-                            font-weight: 700;
-                            font-size: 0.95rem;
                             flex-shrink: 0;
                             overflow: hidden;
                             position: relative;
                         ">
-                            ${logoUrl ? `
-                                <img src="${logoUrl}" 
-                                     alt="${signal.symbol}" 
-                                     style="width: 100%; height: 100%; object-fit: contain; padding: 4px;"
-                                     onerror="this.style.display='none'; this.parentElement.innerHTML='${tickerIcon}'; this.parentElement.style.fontSize='1.1rem';"
-                                />
-                            ` : tickerIcon}
+                            ${logoHtml}
                         </div>
                         <div style="flex: 1;">
                             <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
