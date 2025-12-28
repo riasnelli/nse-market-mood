@@ -742,6 +742,20 @@ const handler = async (req, res) => {
         }
       }
       
+      // Get strategy meta after strategy is finalized
+      let strategyMeta;
+      try {
+        strategyMeta = getStrategyMeta(strategy);
+      } catch (error) {
+        console.warn(`[SIGNALS API] Error getting strategy meta for ${strategy}, using fallback:`, error.message);
+        strategyMeta = null;
+      }
+      const safeStrategyMeta = strategyMeta || { 
+        id: strategy, 
+        name: strategy, 
+        rulesText: { EOD: [], PREMARKET: [], LIVE: [] } 
+      };
+      
       // Resolve signals context (this determines signalDate, refEodDate, premarketDate, mode)
       const context = await resolveSignalsContext({
         targetDate,
@@ -1004,9 +1018,9 @@ const handler = async (req, res) => {
                 marketTimestamp: marketStatus.timestamp
               },
               strategyMeta: {
-                id: strategyMeta.id,
-                name: strategyMeta.name,
-                rulesText: strategyMeta.rulesText
+                id: safeStrategyMeta.id,
+                name: safeStrategyMeta.name,
+                rulesText: safeStrategyMeta.rulesText
               },
               meta: {
                 rejectStats: result.rejectStats || [],
@@ -1077,9 +1091,9 @@ const handler = async (req, res) => {
                 marketTimestamp: marketStatus.timestamp
               },
               strategyMeta: {
-                id: strategyMeta.id,
-                name: strategyMeta.name,
-                rulesText: strategyMeta.rulesText
+                id: safeStrategyMeta.id,
+                name: safeStrategyMeta.name,
+                rulesText: safeStrategyMeta.rulesText
               },
               meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
               usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
@@ -1134,9 +1148,9 @@ const handler = async (req, res) => {
                 marketTimestamp: marketStatus.timestamp
               },
               strategyMeta: {
-                id: strategyMeta.id,
-                name: strategyMeta.name,
-                rulesText: strategyMeta.rulesText
+                id: safeStrategyMeta.id,
+                name: safeStrategyMeta.name,
+                rulesText: safeStrategyMeta.rulesText
               },
               meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
               usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
@@ -1183,9 +1197,9 @@ const handler = async (req, res) => {
             marketTimestamp: marketStatus.timestamp
           },
           strategyMeta: {
-            id: strategyMeta.id,
-            name: strategyMeta.name,
-            rulesText: strategyMeta.rulesText
+            id: safeStrategyMeta.id,
+            name: safeStrategyMeta.name,
+            rulesText: safeStrategyMeta.rulesText
           },
           meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
           signal_count: 0,
@@ -1284,6 +1298,20 @@ const handler = async (req, res) => {
       
       const marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
       const userOverride = { strategy: strategy };
+      
+      // Get strategy meta after strategy is finalized
+      let strategyMeta;
+      try {
+        strategyMeta = getStrategyMeta(strategy);
+      } catch (error) {
+        console.warn(`[SIGNALS API] POST: Error getting strategy meta for ${strategy}, using fallback:`, error.message);
+        strategyMeta = null;
+      }
+      const safeStrategyMeta = strategyMeta || { 
+        id: strategy, 
+        name: strategy, 
+        rulesText: { EOD: [], PREMARKET: [], LIVE: [] } 
+      };
       
       // Resolve signals context
       const context = await resolveSignalsContext({
