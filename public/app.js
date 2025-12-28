@@ -1,3 +1,9 @@
+// Debug mode - only log in development
+const DEBUG_MODE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const debugLog = (...args) => {
+    if (DEBUG_MODE) console.log(...args);
+};
+
 class MarketMoodApp {
     constructor() {
         this.timerId = null;
@@ -6324,13 +6330,24 @@ class MarketMoodApp {
                 // If already in YYYY-MM-DD format, validate and return
                 if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
                     const [year, month, day] = dateOnly.split('-').map(Number);
-                    if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                        return dateOnly;
-                    } else {
-                        // Invalid date values (e.g., 2025-20-25) - return null to skip
-                        console.warn(`⚠️ Skipping invalid date: ${dateOnly} (year=${year}, month=${month}, day=${day})`);
+                    
+                    // Validate year is reasonable (between 2020-2030)
+                    if (year < 2020 || year > 2030) {
+                        if (DEBUG_MODE) {
+                            console.warn(`⚠️ Skipping invalid date: ${dateOnly} (year=${year} is out of range 2020-2030)`);
+                        }
                         return null;
                     }
+                    
+                    // Validate month and day
+                    if (month < 1 || month > 12 || day < 1 || day > 31) {
+                        if (DEBUG_MODE) {
+                            console.warn(`⚠️ Skipping invalid date: ${dateOnly} (month=${month}, day=${day} are invalid)`);
+                        }
+                        return null;
+                    }
+                    
+                    return dateOnly;
                 }
                 
                 // Handle 8-digit numeric strings: Use parseNseFileDateChunk helper (DDMMYYYY format)
@@ -7727,11 +7744,107 @@ class MarketMoodApp {
                 modeLabel: 'EOD (Watchlist)'
             });
             
+            // Add pull-to-refresh functionality for mobile
+            let touchStartY = 0;
+            let touchEndY = 0;
+            let pullIndicator = null;
+            
+            const setupPullToRefresh = () => {
+                if (!this.signalsPageView) return;
+                
+                // Remove existing listeners if any
+                const newPageView = this.signalsPageView.cloneNode(true);
+                this.signalsPageView.parentNode.replaceChild(newPageView, this.signalsPageView);
+                this.signalsPageView = newPageView;
+                
+                this.signalsPageView.addEventListener('touchstart', (e) => {
+                    if (window.scrollY === 0) {
+                        touchStartY = e.touches[0].clientY;
+                    }
+                }, { passive: true });
+                
+                this.signalsPageView.addEventListener('touchmove', (e) => {
+                    if (touchStartY > 0 && window.scrollY === 0) {
+                        touchEndY = e.touches[0].clientY;
+                        const pullDistance = touchEndY - touchStartY;
+                        
+                        if (pullDistance > 50 && pullDistance < 150) {
+                            // Show pull indicator
+                            if (!pullIndicator) {
+                                pullIndicator = document.createElement('div');
+                                pullIndicator.id = 'pullToRefreshIndicator';
+                                pullIndicator.style.cssText = `
+                                    position: fixed;
+                                    top: 60px;
+                                    left: 50%;
+                                    transform: translateX(-50%);
+                                    padding: 10px 20px;
+                                    background: rgba(102, 126, 234, 0.9);
+                                    color: white;
+                                    border-radius: 20px;
+                                    font-size: 0.9rem;
+                                    font-weight: 500;
+                                    z-index: 10000;
+                                    opacity: 0;
+                                    transition: opacity 0.2s ease;
+                                    pointer-events: none;
+                                `;
+                                pullIndicator.textContent = '↓ Pull to refresh';
+                                document.body.appendChild(pullIndicator);
+                            }
+                            pullIndicator.style.opacity = '1';
+                        } else if (pullDistance >= 150) {
+                            if (pullIndicator) {
+                                pullIndicator.textContent = '↑ Release to refresh';
+                            }
+                        } else {
+                            if (pullIndicator) {
+                                pullIndicator.style.opacity = '0';
+                            }
+                        }
+                    }
+                }, { passive: true });
+                
+                this.signalsPageView.addEventListener('touchend', async () => {
+                    if (touchStartY > 0 && touchEndY - touchStartY > 100 && window.scrollY === 0) {
+                        // Trigger refresh
+                        if (pullIndicator) {
+                            pullIndicator.textContent = '⟳ Refreshing...';
+                            pullIndicator.style.opacity = '1';
+                        }
+                        
+                        try {
+                            const ctx = await this.resolveSignalsContext({ strategy: this.selectedStrategy });
+                            await this.loadSignals(ctx.signalDate, ctx.strategy);
+                        } catch (error) {
+                            console.error('Error refreshing signals:', error);
+                            const today = new Date().toISOString().split('T')[0];
+                            const fallbackDate = this.getNextTradingDay(today);
+                            await this.loadSignals(fallbackDate, this.selectedStrategy || 'momentum_gap');
+                        } finally {
+                            if (pullIndicator) {
+                                setTimeout(() => {
+                                    pullIndicator.style.opacity = '0';
+                                }, 500);
+                            }
+                        }
+                    } else {
+                        if (pullIndicator) {
+                            pullIndicator.style.opacity = '0';
+                        }
+                    }
+                    touchStartY = 0;
+                    touchEndY = 0;
+                }, { passive: true });
+            };
+            
+            setupPullToRefresh();
+            
             // Resolve signals context BEFORE loading signals (never call loadSignals with null)
             requestAnimationFrame(async () => {
                 try {
                     const ctx = await this.resolveSignalsContext({ strategy: this.selectedStrategy });
-                    console.log('📊 Resolved signals context:', ctx);
+                    debugLog('📊 Resolved signals context:', ctx);
                     
                     // Now call loadSignals with resolved signalDate (never null)
                     await this.loadSignals(ctx.signalDate, ctx.strategy);
@@ -8897,9 +9010,26 @@ class MarketMoodApp {
             });
 
             // Display signals
-            console.log('📈 Rendering', signalsArray.length, 'signals');
+            debugLog('📈 Rendering', signalsArray.length, 'signals');
             const runId = data?.run_id || data?.runId || null;
             const finalSignalDate = data?.date || targetDate;
+            
+            // Show loading state while rendering
+            if (signalsContainer) {
+                signalsContainer.innerHTML = `
+                    <div style="padding: 40px 20px; text-align: center; color: #6b7280;">
+                        <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top-color: #667eea; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 15px;"></div>
+                        <p style="margin: 0; font-size: 0.95rem;">Loading ${signalsArray.length} signals...</p>
+                    </div>
+                    <style>
+                        @keyframes spin {
+                            to { transform: rotate(360deg); }
+                        }
+                    </style>
+                `;
+            }
+            
+            // Render signals (will replace loading state)
             this.renderSignals(signalsArray, runId, finalSignalDate, signalsContainer);
             
             // Strategy recommendation card removed - strategy shown in selector button only
@@ -9229,7 +9359,7 @@ class MarketMoodApp {
         
         // Clear existing content if starting fresh
         if (!hasExistingContent) {
-            signalsContainer.innerHTML = '';
+        signalsContainer.innerHTML = '';
         }
 
         // Create header info (only if not appending to existing content)
@@ -9274,6 +9404,30 @@ class MarketMoodApp {
             signalsContainer.appendChild(headerInfo);
         }
 
+        // Add signal count summary at top
+        const summary = document.createElement('div');
+        summary.style.cssText = `
+            padding: 15px;
+            margin: 0 10px 15px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 12px;
+            text-align: center;
+            color: #1e40af;
+            font-weight: 600;
+            font-size: 0.95rem;
+        `;
+        const formatDate = (dateStr) => {
+            if (!dateStr) return 'today';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+            } catch {
+                return dateStr;
+            }
+        };
+        summary.innerHTML = `📊 <strong>${signals.length}</strong> trading signals generated for ${formatDate(date)}`;
+        signalsContainer.insertBefore(summary, signalsContainer.firstChild);
+
         // Create signals grid
         const signalsGrid = document.createElement('div');
         signalsGrid.className = 'signals-grid';
@@ -9283,7 +9437,9 @@ class MarketMoodApp {
             try {
                 // Validate signal has required fields
                 if (!signal || !signal.symbol) {
-                    console.warn(`⚠️ Skipping signal at index ${index}: missing symbol`, signal);
+                    if (DEBUG_MODE) {
+                        console.warn(`⚠️ Skipping signal at index ${index}: missing symbol`, signal);
+                    }
                     return;
                 }
                 
@@ -9294,7 +9450,37 @@ class MarketMoodApp {
                 border-radius: 12px;
                 padding: 20px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                opacity: 0;
+                transform: translateY(10px);
+                transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
+                cursor: pointer;
             `;
+            
+            // Add touch feedback
+            signalCard.addEventListener('touchstart', () => {
+                signalCard.style.transform = 'translateY(10px) scale(0.98)';
+                signalCard.style.boxShadow = '0 1px 4px rgba(0,0,0,0.15)';
+            }, { passive: true });
+            
+            signalCard.addEventListener('touchend', () => {
+                signalCard.style.transform = 'translateY(0) scale(1)';
+                signalCard.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+            }, { passive: true });
+            
+            signalCard.addEventListener('mousedown', () => {
+                signalCard.style.transform = 'translateY(10px) scale(0.98)';
+                signalCard.style.boxShadow = '0 1px 4px rgba(0,0,0,0.15)';
+            });
+            
+            signalCard.addEventListener('mouseup', () => {
+                signalCard.style.transform = 'translateY(0) scale(1)';
+                signalCard.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+            });
+            
+            signalCard.addEventListener('mouseleave', () => {
+                signalCard.style.transform = 'translateY(0) scale(1)';
+                signalCard.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+            });
 
             const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
             const changeColor = isPositive ? '#10b981' : '#ef4444';
@@ -9343,19 +9529,315 @@ class MarketMoodApp {
                 ` : ''}
             `;
 
-                signalsGrid.appendChild(signalCard);
+            signalsGrid.appendChild(signalCard);
+                
+                // Trigger fade-in animation with stagger
+                setTimeout(() => {
+                    signalCard.style.opacity = '1';
+                    signalCard.style.transform = 'translateY(0)';
+                }, index * 30); // Stagger animations by 30ms per card
             } catch (err) {
-                console.error(`❌ Failed to render signal ${index}:`, signal, err);
-                console.error('Error details:', {
-                    signal: signal,
-                    error: err?.message,
-                    stack: err?.stack
-                });
-                // Continue rendering other signals - don't break the entire list
+                console.error(`❌ Failed to render signal ${index}:`, signal?.symbol || 'Unknown', err);
+                if (DEBUG_MODE) {
+                    console.error('Error details:', {
+                        signal: signal,
+                        error: err?.message,
+                        stack: err?.stack
+                    });
+                }
+                
+                // Create error card instead of breaking
+                const errorCard = document.createElement('div');
+                errorCard.style.cssText = `
+                    background: #fee2e2;
+                    border: 1px solid #fca5a5;
+                    border-radius: 12px;
+                    padding: 15px;
+                    color: #991b1b;
+                    font-size: 0.9rem;
+                `;
+                errorCard.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span>⚠️</span>
+                        <span>Failed to render signal: <strong>${signal?.symbol || 'Unknown'}</strong></span>
+                    </div>
+                `;
+                signalsGrid.appendChild(errorCard);
             }
         });
 
         signalsContainer.appendChild(signalsGrid);
+        
+        // Add back-to-top button if there are 15+ signals
+        if (signals.length >= 15) {
+            // Remove existing back-to-top button if any
+            const existingBtn = document.getElementById('backToTopBtn');
+            if (existingBtn) {
+                existingBtn.remove();
+            }
+            
+            const backToTop = document.createElement('button');
+            backToTop.id = 'backToTopBtn';
+            backToTop.innerHTML = '↑ Back to Top';
+            backToTop.style.cssText = `
+                position: fixed;
+                bottom: 80px;
+                right: 20px;
+                padding: 12px 20px;
+                background: rgba(102, 126, 234, 0.9);
+                color: white;
+                border: none;
+                border-radius: 25px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                backdrop-filter: blur(10px);
+                z-index: 1000;
+                opacity: 0;
+                transition: opacity 0.3s ease, transform 0.2s ease;
+                pointer-events: none;
+            `;
+            
+            // Show/hide button based on scroll position
+            const updateButtonVisibility = () => {
+                if (window.scrollY > 300) {
+                    backToTop.style.opacity = '1';
+                    backToTop.style.pointerEvents = 'auto';
+                } else {
+                    backToTop.style.opacity = '0';
+                    backToTop.style.pointerEvents = 'none';
+                }
+            };
+            
+            window.addEventListener('scroll', updateButtonVisibility, { passive: true });
+            
+            backToTop.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+            
+            backToTop.addEventListener('mouseenter', () => {
+                backToTop.style.transform = 'scale(1.05)';
+            });
+            
+            backToTop.addEventListener('mouseleave', () => {
+                backToTop.style.transform = 'scale(1)';
+            });
+            
+            document.body.appendChild(backToTop);
+        }
+        
+        // Add filtering and sorting UI if there are 10+ signals
+        if (signals.length >= 10) {
+            const filterControls = document.createElement('div');
+            filterControls.id = 'signalFilterControls';
+            filterControls.style.cssText = `
+                display: flex;
+                gap: 8px;
+                padding: 10px;
+                margin: 0 10px 15px;
+                overflow-x: auto;
+                background: rgba(249, 250, 251, 0.8);
+                border-radius: 12px;
+                backdrop-filter: blur(10px);
+            `;
+            
+            const buyCount = signals.filter(s => (s.side || 'BUY').toUpperCase() === 'BUY').length;
+            const sellCount = signals.filter(s => (s.side || 'BUY').toUpperCase() === 'SELL').length;
+            
+            filterControls.innerHTML = `
+                <button data-filter="all" class="signal-filter-btn active" style="
+                    padding: 8px 16px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 20px;
+                    background: white;
+                    color: #374151;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    transition: all 0.2s ease;
+                ">All (${signals.length})</button>
+                <button data-filter="buy" class="signal-filter-btn" style="
+                    padding: 8px 16px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 20px;
+                    background: white;
+                    color: #374151;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    transition: all 0.2s ease;
+                ">Buy (${buyCount})</button>
+                <button data-filter="sell" class="signal-filter-btn" style="
+                    padding: 8px 16px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 20px;
+                    background: white;
+                    color: #374151;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    transition: all 0.2s ease;
+                ">Sell (${sellCount})</button>
+                <button data-sort="score" class="signal-filter-btn" style="
+                    padding: 8px 16px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 20px;
+                    background: white;
+                    color: #374151;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    transition: all 0.2s ease;
+                ">Sort by Score</button>
+                <button data-sort="symbol" class="signal-filter-btn" style="
+                    padding: 8px 16px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 20px;
+                    background: white;
+                    color: #374151;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    transition: all 0.2s ease;
+                ">Sort by Symbol</button>
+            `;
+            
+            // Add active state styles
+            const style = document.createElement('style');
+            style.textContent = `
+                .signal-filter-btn.active {
+                    background: #667eea !important;
+                    color: white !important;
+                    border-color: #667eea !important;
+                }
+                .signal-filter-btn:hover {
+                    background: #f3f4f6 !important;
+                }
+                .signal-filter-btn.active:hover {
+                    background: #5568d3 !important;
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Store original signals for filtering
+            const originalSignals = [...signals];
+            let currentFilter = 'all';
+            let currentSort = null;
+            
+            const applyFilterAndSort = () => {
+                let filtered = [...originalSignals];
+                
+                // Apply filter
+                if (currentFilter === 'buy') {
+                    filtered = filtered.filter(s => (s.side || 'BUY').toUpperCase() === 'BUY');
+                } else if (currentFilter === 'sell') {
+                    filtered = filtered.filter(s => (s.side || 'BUY').toUpperCase() === 'SELL');
+                }
+                
+                // Apply sort
+                if (currentSort === 'score') {
+                    filtered.sort((a, b) => (b.score || 0) - (a.score || 0));
+                } else if (currentSort === 'symbol') {
+                    filtered.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
+                }
+                
+                // Re-render signals
+                signalsGrid.innerHTML = '';
+                filtered.forEach((signal, index) => {
+                    try {
+                        if (!signal || !signal.symbol) return;
+                        
+                        const signalCard = document.createElement('div');
+                        signalCard.className = 'signal-card';
+                        signalCard.style.cssText = `
+                            background: white;
+                            border-radius: 12px;
+                            padding: 20px;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                            opacity: 0;
+                            transform: translateY(10px);
+                            transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
+                            cursor: pointer;
+                        `;
+                        
+                        const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
+                        const changeColor = isPositive ? '#10b981' : '#ef4444';
+                        
+                        signalCard.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                                <div>
+                                    <h4 style="margin: 0; font-size: 1.1rem; color: #333;">${index + 1}. ${signal.symbol}</h4>
+                                    <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                                        Score: <strong style="color: #667eea;">${signal.score}/100</strong>
+                                        ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
+                                    </div>
+                                </div>
+                                <div style="background: ${isPositive ? '#d1fae5' : '#fee2e2'}; color: ${changeColor}; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">
+                                    ${signal.side || 'BUY'}
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Entry</div>
+                                    <div style="font-weight: 600; color: #333;">₹${signal.entry_price?.toFixed(2) || '-'}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Stop Loss</div>
+                                    <div style="font-weight: 600; color: #ef4444;">₹${signal.stop_loss?.toFixed(2) || '-'}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Target</div>
+                                    <div style="font-weight: 600; color: #10b981;">₹${signal.target_price?.toFixed(2) || '-'}</div>
+                                </div>
+                            </div>
+                            ${signal.feature_fields ? `
+                                <div style="padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 0.85rem;">
+                                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; color: #666;">
+                                        <div>Gap: <strong>${signal.feature_fields.gap_percent?.toFixed(2) || '-'}%</strong></div>
+                                        <div>RS20: <strong>${signal.feature_fields.rs20?.toFixed(2) || '-'}</strong></div>
+                                        <div>Vol Surge: <strong>${signal.feature_fields.vol_surge?.toFixed(2) || '-'}x</strong></div>
+                                        <div>Near High: <strong>${signal.feature_fields.near_high_flag ? 'Yes' : 'No'}</strong></div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        `;
+                        
+                        signalsGrid.appendChild(signalCard);
+                        setTimeout(() => {
+                            signalCard.style.opacity = '1';
+                            signalCard.style.transform = 'translateY(0)';
+                        }, index * 30);
+                    } catch (err) {
+                        if (DEBUG_MODE) console.error('Error rendering filtered signal:', err);
+                    }
+                });
+            };
+            
+            filterControls.querySelectorAll('.signal-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Update active state
+                    filterControls.querySelectorAll('.signal-filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    if (btn.dataset.filter) {
+                        currentFilter = btn.dataset.filter;
+                        currentSort = null;
+                    } else if (btn.dataset.sort) {
+                        currentSort = btn.dataset.sort;
+                    }
+                    
+                    applyFilterAndSort();
+                });
+            });
+            
+            signalsContainer.insertBefore(filterControls, signalsGrid);
+        }
     }
 
     async loadDataAvailability(date = null) {
