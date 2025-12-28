@@ -642,9 +642,9 @@ header h1 {
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
     position: relative;
     z-index: 2;
-    margin: -100px auto 20px auto;
-    max-width: 400px;
-    width: 100%;
+    margin: -100px 10px 20px 10px;
+    width: calc(100% - 20px);
+    max-width: calc(400px - 20px);
     box-sizing: border-box;
     visibility: visible !important;
     transition: background 0.5s ease, backdrop-filter 0.5s ease;
