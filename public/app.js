@@ -9440,6 +9440,10 @@ class MarketMoodApp {
 
         // Summary will be added to status panel, not here
         // Removed summary from signals container
+        
+        // Clear any loading state before rendering
+        signalsContainer.innerHTML = '';
+        signalsContainer.style.display = 'block';
 
         // Create signals grid - match status panel width and padding
         const statusPanel = document.getElementById('signalsStatusPanel');
