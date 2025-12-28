@@ -167,6 +167,11 @@
                 <div class="signals-section" id="signalsSection">
                     <div class="section-header" style="margin-bottom: 10px;">
                         <h3 class="section-title" style="margin: 0;">Intraday Signals</h3>
+                        <button id="signalsFilterBtn" class="filter-icon-btn" title="Filter Signals" style="display: none;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                            </svg>
+                        </button>
                     </div>
                     <div id="signalsLoading" class="loading-message" style="display: none; text-align: center; padding: 40px 20px;">
                         <div style="margin-bottom: 10px;">Loading signals...</div>
@@ -449,6 +454,26 @@
                 </button>
             </div>
             <div class="modal-body">
+                <!-- Dark Mode Toggle -->
+                <div class="settings-section">
+                    <button class="dark-mode-toggle" id="darkModeToggle">
+                        <div class="toggle-label">
+                            <svg class="toggle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                            <span>Dark Mode</span>
+                        </div>
+                        <div class="toggle-switch"></div>
+                    </button>
+                </div>
                 <!-- Uploaded Data Section (if available) -->
                 <!-- Available APIs -->
                 <div class="settings-section">
@@ -713,6 +738,69 @@
         </div>
     </div>
 
+    <!-- Signals Filter Modal -->
+    <div id="signalsFilterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                    </svg>
+                    Filter Signals
+                </h2>
+                <button class="modal-close" id="closeSignalsFilter">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>Filter by Side</h3>
+                    <div id="filterSideOptions" style="display: flex; flex-direction: column; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
+                            <input type="radio" name="signalFilter" value="all" checked style="margin: 0; cursor: pointer;">
+                            <span style="flex: 1; font-weight: 500;">All Signals</span>
+                            <span id="filterAllCount" style="font-size: 0.85rem; color: var(--text-color-secondary);">0</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
+                            <input type="radio" name="signalFilter" value="buy" style="margin: 0; cursor: pointer;">
+                            <span style="flex: 1; font-weight: 500;">Buy Only</span>
+                            <span id="filterBuyCount" style="font-size: 0.85rem; color: var(--text-color-secondary);">0</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
+                            <input type="radio" name="signalFilter" value="sell" style="margin: 0; cursor: pointer;">
+                            <span style="flex: 1; font-weight: 500;">Sell Only</span>
+                            <span id="filterSellCount" style="font-size: 0.85rem; color: var(--text-color-secondary);">0</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Sort By</h3>
+                    <div id="filterSortOptions" style="display: flex; flex-direction: column; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
+                            <input type="radio" name="signalSort" value="" checked style="margin: 0; cursor: pointer;">
+                            <span style="flex: 1; font-weight: 500;">Default Order</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
+                            <input type="radio" name="signalSort" value="score" style="margin: 0; cursor: pointer;">
+                            <span style="flex: 1; font-weight: 500;">Score (High to Low)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
+                            <input type="radio" name="signalSort" value="symbol" style="margin: 0; cursor: pointer;">
+                            <span style="flex: 1; font-weight: 500;">Symbol (A to Z)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="applySignalFilter" class="btn-primary">Apply Filter</button>
+                <button id="resetSignalFilter" class="btn-secondary">Reset</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Global error handler to suppress browser extension errors
         // This must be loaded BEFORE other scripts to catch errors early
@@ -816,6 +904,33 @@
     <script src="settings.js?v=TITLE-1764867156"></script>
     <script src="app.js?v=TITLE-1764867156"></script>
     <script>
+        // Initialize dark mode as early as possible (before other scripts)
+        (function() {
+            const darkModeKey = 'nseMarketMoodDarkMode';
+            const savedPreference = localStorage.getItem(darkModeKey);
+            const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            const shouldEnableDarkMode = savedPreference === 'true' || (savedPreference === null && systemPrefersDark);
+            
+            // Apply dark mode immediately if needed (before body is fully loaded)
+            if (shouldEnableDarkMode) {
+                if (document.body) {
+                    document.body.classList.add('dark-mode');
+                }
+            }
+            
+            // Set up observer to apply to body when it's created
+            if (!document.body) {
+                const observer = new MutationObserver(() => {
+                    if (document.body && shouldEnableDarkMode) {
+                        document.body.classList.add('dark-mode');
+                        observer.disconnect();
+                    }
+                });
+                observer.observe(document.documentElement, { childList: true });
+            }
+        })();
+        
         // Create safe area overlay immediately on page load to prevent black inset
         (function() {
             if (document.body) {

@@ -2992,6 +2992,115 @@ class MarketMoodApp {
     
     // updateSelectedStrategyText() removed - strategy selector button no longer exists
 
+    setupSignalsFilter() {
+        const filterBtn = document.getElementById('signalsFilterBtn');
+        const filterModal = document.getElementById('signalsFilterModal');
+        const closeFilter = document.getElementById('closeSignalsFilter');
+        const applyFilter = document.getElementById('applySignalFilter');
+        const resetFilter = document.getElementById('resetSignalFilter');
+        
+        if (!filterBtn || !filterModal) return;
+        
+        // Open filter modal
+        filterBtn.addEventListener('click', () => {
+            filterModal.classList.add('show');
+            this.lockBodyScroll();
+        });
+        
+        // Close filter modal
+        if (closeFilter) {
+            closeFilter.addEventListener('click', () => {
+                filterModal.classList.remove('show');
+                this.unlockBodyScroll();
+            });
+        }
+        
+        // Close modal when clicking outside
+        filterModal.addEventListener('click', (e) => {
+            if (e.target === filterModal) {
+                filterModal.classList.remove('show');
+                this.unlockBodyScroll();
+            }
+        });
+        
+        // Apply filter
+        if (applyFilter) {
+            applyFilter.addEventListener('click', () => {
+                const selectedFilter = document.querySelector('input[name="signalFilter"]:checked')?.value || 'all';
+                const selectedSort = document.querySelector('input[name="signalSort"]:checked')?.value || '';
+                
+                // Update filter state
+                if (this._signalFilterState) {
+                    this._signalFilterState.filter = selectedFilter;
+                    this._signalFilterState.sort = selectedSort || null;
+                } else {
+                    this._signalFilterState = {
+                        filter: selectedFilter,
+                        sort: selectedSort || null
+                    };
+                }
+                
+                
+                // Close modal
+                filterModal.classList.remove('show');
+                this.unlockBodyScroll();
+                
+                // Re-apply filter to current signals
+                if (this._originalSignalsForFiltering && this.renderSignals) {
+                    // Get the signals container
+                    const signalsContainer = document.getElementById('signalsContainer');
+                    if (signalsContainer) {
+                        // Re-render with filtered signals
+                        const filteredSignals = this.getFilteredSignals(this._originalSignalsForFiltering, selectedFilter, selectedSort || null);
+                        // Get runId and date from stored data or use defaults
+                        const runId = this._lastRenderRunId || null;
+                        const date = this._signalsStatusData?.date || new Date().toISOString().split('T')[0];
+                        this.renderSignals(filteredSignals, runId, date, signalsContainer);
+                    }
+                }
+            });
+        }
+        
+        // Reset filter
+        if (resetFilter) {
+            resetFilter.addEventListener('click', () => {
+                // Reset radio buttons
+                const allRadio = document.querySelector('input[name="signalFilter"][value="all"]');
+                const defaultSort = document.querySelector('input[name="signalSort"][value=""]');
+                if (allRadio) allRadio.checked = true;
+                if (defaultSort) defaultSort.checked = true;
+                
+                // Reset filter state
+                this._signalFilterState = { filter: 'all', sort: null };
+                
+                // Close modal
+                filterModal.classList.remove('show');
+                this.unlockBodyScroll();
+                
+                // Re-render with all signals (no filter)
+                if (this._originalSignalsForFiltering && this.renderSignals) {
+                    const signalsContainer = document.getElementById('signalsContainer');
+                    if (signalsContainer) {
+                        const runId = this._lastRenderRunId || null;
+                        const date = this._signalsStatusData?.date || new Date().toISOString().split('T')[0];
+                        this.renderSignals(this._originalSignalsForFiltering, runId, date, signalsContainer);
+                    }
+                }
+            });
+        }
+        
+        // Update modal state when opened (sync radio buttons with current filter state)
+        filterBtn.addEventListener('click', () => {
+            // Sync radio buttons with current filter state
+            if (this._signalFilterState) {
+                const filterRadio = document.querySelector(`input[name="signalFilter"][value="${this._signalFilterState.filter}"]`);
+                const sortRadio = document.querySelector(`input[name="signalSort"][value="${this._signalFilterState.sort || ''}"]`);
+                if (filterRadio) filterRadio.checked = true;
+                if (sortRadio) sortRadio.checked = true;
+            }
+        });
+    }
+
     setupUpload() {
         const uploadBtn = document.getElementById('uploadBtn');
         const uploadModal = document.getElementById('uploadModal');
@@ -9054,6 +9163,9 @@ class MarketMoodApp {
                 `;
             }
             
+            // Store runId for filter re-rendering
+            this._lastRenderRunId = runId;
+            
             // Render signals (will replace loading state)
             this.renderSignals(signalsArray, runId, finalSignalDate, signalsContainer);
             
@@ -9382,6 +9494,23 @@ class MarketMoodApp {
             throw new Error('Signals container not found. Cannot render signals.');
         }
         
+        // Store runId for filter re-rendering
+        this._lastRenderRunId = runId;
+        
+        // Store original signals for filtering BEFORE applying any filters
+        // Always store the original signals passed to this function (before any filtering)
+        if (signals.length >= 10) {
+            this._originalSignalsForFiltering = [...signals];
+        } else {
+            // Clear stored signals if less than 10
+            this._originalSignalsForFiltering = null;
+        }
+        
+        // Apply stored filter state if exists
+        if (this._signalFilterState && (this._signalFilterState.filter !== 'all' || this._signalFilterState.sort !== null)) {
+            signals = this.getFilteredSignals(signals, this._signalFilterState.filter, this._signalFilterState.sort);
+        }
+        
         // Always clear container and hide loading before rendering
         signalsContainer.innerHTML = '';
         signalsContainer.style.display = 'block';
@@ -9706,266 +9835,6 @@ class MarketMoodApp {
             });
             
             document.body.appendChild(backToTop);
-        }
-        
-        // Add filtering and sorting UI if there are 10+ signals
-        if (signals.length >= 10) {
-            // Filter controls with equal left and right padding matching signals grid
-            const filterControls = document.createElement('div');
-            filterControls.id = 'signalFilterControls';
-            filterControls.style.cssText = `
-                display: flex;
-                gap: 8px;
-                padding: 10px; /* Equal padding all around */
-                margin: 0 10px 15px 10px; /* Equal horizontal margins matching grid padding */
-                overflow-x: auto;
-                background: rgba(249, 250, 251, 0.8);
-                border-radius: 12px;
-                backdrop-filter: blur(10px);
-            `;
-            
-            const buyCount = signals.filter(s => (s.side || 'BUY').toUpperCase() === 'BUY').length;
-            const sellCount = signals.filter(s => (s.side || 'BUY').toUpperCase() === 'SELL').length;
-            
-            filterControls.innerHTML = `
-                <button data-filter="all" class="signal-filter-btn active" style="
-                    padding: 8px 16px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 20px;
-                    background: white;
-                    color: #374151;
-                    font-size: 0.85rem;
-                    font-weight: 500;
-                    cursor: pointer;
-                    white-space: nowrap;
-                    transition: all 0.2s ease;
-                ">All (${signals.length})</button>
-                <button data-filter="buy" class="signal-filter-btn" style="
-                    padding: 8px 16px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 20px;
-                    background: white;
-                    color: #374151;
-                    font-size: 0.85rem;
-                    font-weight: 500;
-                    cursor: pointer;
-                    white-space: nowrap;
-                    transition: all 0.2s ease;
-                ">Buy (${buyCount})</button>
-                <button data-filter="sell" class="signal-filter-btn" style="
-                    padding: 8px 16px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 20px;
-                    background: white;
-                    color: #374151;
-                    font-size: 0.85rem;
-                    font-weight: 500;
-                    cursor: pointer;
-                    white-space: nowrap;
-                    transition: all 0.2s ease;
-                ">Sell (${sellCount})</button>
-                <button data-sort="score" class="signal-filter-btn" style="
-                    padding: 8px 16px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 20px;
-                    background: white;
-                    color: #374151;
-                    font-size: 0.85rem;
-                    font-weight: 500;
-                    cursor: pointer;
-                    white-space: nowrap;
-                    transition: all 0.2s ease;
-                ">Sort by Score</button>
-                <button data-sort="symbol" class="signal-filter-btn" style="
-                    padding: 8px 16px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 20px;
-                    background: white;
-                    color: #374151;
-                    font-size: 0.85rem;
-                    font-weight: 500;
-                    cursor: pointer;
-                    white-space: nowrap;
-                    transition: all 0.2s ease;
-                ">Sort by Symbol</button>
-            `;
-            
-            // Add active state styles
-            const style = document.createElement('style');
-            style.textContent = `
-                .signal-filter-btn.active {
-                    background: #667eea !important;
-                    color: white !important;
-                    border-color: #667eea !important;
-                }
-                .signal-filter-btn:hover {
-                    background: #f3f4f6 !important;
-                }
-                .signal-filter-btn.active:hover {
-                    background: #5568d3 !important;
-                }
-            `;
-            document.head.appendChild(style);
-            
-            // Store original signals for filtering
-            const originalSignals = [...signals];
-            let currentFilter = 'all';
-            let currentSort = null;
-            
-            const applyFilterAndSort = () => {
-                let filtered = [...originalSignals];
-                
-                // Apply filter
-                if (currentFilter === 'buy') {
-                    filtered = filtered.filter(s => (s.side || 'BUY').toUpperCase() === 'BUY');
-                } else if (currentFilter === 'sell') {
-                    filtered = filtered.filter(s => (s.side || 'BUY').toUpperCase() === 'SELL');
-                }
-                
-                // Apply sort
-                if (currentSort === 'score') {
-                    filtered.sort((a, b) => (b.score || 0) - (a.score || 0));
-                } else if (currentSort === 'symbol') {
-                    filtered.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
-                }
-                
-                // Re-render signals
-                signalsGrid.innerHTML = '';
-                filtered.forEach((signal, index) => {
-                    try {
-                        if (!signal || !signal.symbol) return;
-                        
-                        const signalCard = document.createElement('div');
-                        signalCard.className = 'signal-card';
-                        // Cards are inside grid, so use 100% width for perfect alignment
-                        signalCard.style.cssText = `
-                            background: white;
-                            border-radius: 12px;
-                            padding: 20px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                            opacity: 0;
-                            transform: translateY(10px);
-                            transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
-                            cursor: pointer;
-                            width: 100%;
-                            max-width: 100%;
-                            margin: 0;
-                            box-sizing: border-box;
-                        `;
-                        
-                        const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
-                        const changeColor = isPositive ? '#10b981' : '#ef4444';
-                        
-                        // Generate TradingView logo URL for stock icon
-                        const getTradingViewLogoUrl = (symbol) => {
-                            if (!symbol) return null;
-                            // Convert symbol to lowercase for TradingView URL format
-                            // NSE symbols typically work with lowercase, e.g., "TATA" -> "tata", "TATSILV" -> "tatsilv"
-                            const symbolLower = symbol.toLowerCase();
-                            return `https://s3-symbol-logo.tradingview.com/${symbolLower}--big.svg`;
-                        };
-                        
-                        // Fallback: Generate ticker icon (circular with first letter)
-                        const tickerIcon = signal.symbol ? signal.symbol.charAt(0).toUpperCase() : '?';
-                        const tickerColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444'];
-                        const tickerColorIndex = signal.symbol ? signal.symbol.charCodeAt(0) % tickerColors.length : 0;
-                        const tickerColor = tickerColors[tickerColorIndex];
-                        const logoUrl = getTradingViewLogoUrl(signal.symbol);
-                        
-                        signalCard.innerHTML = `
-                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-                                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                                    <div style="
-                                        width: 36px;
-                                        height: 36px;
-                                        border-radius: 50%;
-                                        background: ${tickerColor};
-                                        display: flex;
-                                        align-items: center;
-                                        justify-content: center;
-                                        color: white;
-                                        font-weight: 700;
-                                        font-size: 0.95rem;
-                                        flex-shrink: 0;
-                                        overflow: hidden;
-                                        position: relative;
-                                    ">
-                                        ${logoUrl ? `
-                                            <img src="${logoUrl}" 
-                                                 alt="${signal.symbol}" 
-                                                 style="width: 100%; height: 100%; object-fit: contain; padding: 4px;"
-                                                 onerror="this.style.display='none'; this.parentElement.innerHTML='${tickerIcon}'; this.parentElement.style.fontSize='1.1rem';"
-                                            />
-                                        ` : tickerIcon}
-                                    </div>
-                                    <div style="flex: 1;">
-                                        <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
-                                        <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
-                                            Score: <strong style="color: #667eea;">${signal.score}/100</strong>
-                                            ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style="background: ${isPositive ? '#d1fae5' : '#fee2e2'}; color: ${changeColor}; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9rem; flex-shrink: 0; margin-left: 8px;">
-                                    ${signal.side || 'BUY'}
-                                </div>
-                            </div>
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
-                                <div>
-                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Entry</div>
-                                    <div style="font-weight: 600; color: #333;">₹${signal.entry_price?.toFixed(2) || '-'}</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Stop Loss</div>
-                                    <div style="font-weight: 600; color: #ef4444;">₹${signal.stop_loss?.toFixed(2) || '-'}</div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Target</div>
-                                    <div style="font-weight: 600; color: #10b981;">₹${signal.target_price?.toFixed(2) || '-'}</div>
-                                </div>
-                            </div>
-                            ${signal.feature_fields ? `
-                                <div style="padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 0.85rem;">
-                                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; color: #666;">
-                                        <div>Gap: <strong>${signal.feature_fields.gap_percent?.toFixed(2) || '-'}%</strong></div>
-                                        <div>RS20: <strong>${signal.feature_fields.rs20?.toFixed(2) || '-'}</strong></div>
-                                        <div>Vol Surge: <strong>${signal.feature_fields.vol_surge?.toFixed(2) || '-'}x</strong></div>
-                                        <div>Near High: <strong>${signal.feature_fields.near_high_flag ? 'Yes' : 'No'}</strong></div>
-                                    </div>
-                                </div>
-                            ` : ''}
-                        `;
-                        
-                        signalsGrid.appendChild(signalCard);
-                        setTimeout(() => {
-                            signalCard.style.opacity = '1';
-                            signalCard.style.transform = 'translateY(0)';
-                        }, index * 30);
-                    } catch (err) {
-                        if (DEBUG_MODE) console.error('Error rendering filtered signal:', err);
-                    }
-                });
-            };
-            
-            filterControls.querySelectorAll('.signal-filter-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    // Update active state
-                    filterControls.querySelectorAll('.signal-filter-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    
-                    if (btn.dataset.filter) {
-                        currentFilter = btn.dataset.filter;
-                        currentSort = null;
-                    } else if (btn.dataset.sort) {
-                        currentSort = btn.dataset.sort;
-                    }
-                    
-                    applyFilterAndSort();
-                });
-            });
-            
-            signalsContainer.insertBefore(filterControls, signalsGrid);
-        }
     }
 
     async loadDataAvailability(date = null) {
@@ -10294,24 +10163,45 @@ class MarketMoodApp {
                 </svg>
                         <div style="font-size: 0.9rem; font-weight: 600; color: #667eea; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
                     </div>
-                    ${hasSignals ? `
-                    <div style="
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        padding: 12px;
-                        background: rgba(102, 126, 234, 0.08);
-                        border-radius: 12px;
-                    ">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                        </svg>
-                        <div style="display: flex; flex-direction: column;">
-                            <span style="font-size: 1.5rem; font-weight: 700; color: #1e40af; line-height: 1;">${signalCount}</span>
-                            <span style="font-size: 0.85rem; color: #1e40af; font-weight: 500; margin-top: 2px;">signals</span>
-                        </div>
-                    </div>
-                    ` : ''}
+                    ${(() => {
+                        // Get strategy name for display
+                        let strategyNameForDisplay = 'selected strategy';
+                        if (strategyInfo) {
+                            let strategyId = '';
+                            if (typeof strategyInfo === 'string') {
+                                strategyId = strategyInfo;
+                            } else if (strategyInfo.strategy) {
+                                strategyId = strategyInfo.strategy;
+                            }
+                            
+                            if (strategyId) {
+                                const strategyNames = {
+                                    'momentum_gap': 'Momentum Gap',
+                                    'breakout': 'Breakout',
+                                    'mean_reversion': 'Mean Reversion',
+                                    'defensive': 'Defensive / Wait',
+                                    'volatility_play': 'Volatility Play',
+                                    'watchlist_score': 'Watchlist Score',
+                                    'eod_breakout': 'EOD Breakout'
+                                };
+                                strategyNameForDisplay = strategyNames[strategyId] || strategyId;
+                            }
+                        }
+                        
+                        if (hasSignals) {
+                            return `
+                            <div style="font-size: 0.95rem; color: #1e40af; font-weight: 600; line-height: 1.5;">
+                                <strong>${signalCount} signals</strong> using <strong>${strategyNameForDisplay}</strong> strategy
+                            </div>
+                            `;
+                        } else {
+                            return `
+                            <div style="font-size: 0.95rem; color: #6b7280; font-weight: 500; line-height: 1.5;">
+                                Using <strong>${strategyNameForDisplay}</strong> strategy
+                            </div>
+                            `;
+                        }
+                    })()}
                 </div>
                 <svg id="signalsStatusChevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="
                     transform: ${shouldStartCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};
@@ -10533,6 +10423,18 @@ class MarketMoodApp {
                         content.style.display = 'grid';
                         chevron.style.transform = 'rotate(0deg)';
                         localStorage.setItem('nsemm.signalsStatusCollapsed', 'false');
+                        
+                        // Scroll to strategy selector after a brief delay to ensure it's rendered
+                        setTimeout(() => {
+                            const strategySelector = document.getElementById('strategySelectorStatus');
+                            if (strategySelector) {
+                                strategySelector.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                // Optionally focus the selector
+                                setTimeout(() => {
+                                    strategySelector.focus();
+                                }, 300);
+                            }
+                        }, 100);
                     } else {
                         // Collapse
                         content.style.display = 'none';
