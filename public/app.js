@@ -9444,33 +9444,17 @@ class MarketMoodApp {
         signalsContainer.innerHTML = '';
         signalsContainer.style.display = 'block';
 
-        // Create signals grid - match status panel width and padding
-        const statusPanel = document.getElementById('signalsStatusPanel');
-        const statusPanelWidth = statusPanel ? statusPanel.offsetWidth : null;
-        const statusPanelComputed = statusPanel ? window.getComputedStyle(statusPanel) : null;
-        const statusPanelPadding = statusPanelComputed ? {
-            left: parseInt(statusPanelComputed.paddingLeft) || 0,
-            right: parseInt(statusPanelComputed.paddingRight) || 0
-        } : { left: 10, right: 10 };
-        
+        // Create signals grid with equal left and right padding
         const signalsGrid = document.createElement('div');
         signalsGrid.className = 'signals-grid';
-        
-        // Calculate width to match status panel inner width (excluding padding)
-        let gridWidth = '100%';
-        if (statusPanelWidth && typeof statusPanelWidth === 'number') {
-            const innerWidth = statusPanelWidth - statusPanelPadding.left - statusPanelPadding.right;
-            gridWidth = `${innerWidth}px`;
-        }
-        
         signalsGrid.style.cssText = `
             display: grid;
             grid-template-columns: 1fr;
             gap: 15px;
-            width: ${gridWidth};
+            width: 100%;
             max-width: 100%;
             margin: 0;
-            padding: 0;
+            padding: 0 10px; /* Equal padding on left and right */
             box-sizing: border-box;
         `;
 
