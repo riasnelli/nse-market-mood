@@ -9386,10 +9386,10 @@ class MarketMoodApp {
         signalsContainer.innerHTML = '';
         signalsContainer.style.display = 'block';
         
-        // Hide any loading indicators immediately
-        const signalsLoading = document.getElementById('signalsLoading');
-        if (signalsLoading) {
-            signalsLoading.style.display = 'none';
+        // Hide any loading indicators immediately (check if already declared in outer scope)
+        const loadingIndicator = document.getElementById('signalsLoading');
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
         }
         
         // Check if container already has content (for append mode) - now always false since we cleared
