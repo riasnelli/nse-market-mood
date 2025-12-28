@@ -9208,13 +9208,32 @@ class MarketMoodApp {
     }
 
     renderSignals(signals, runId, date) {
-        const signalsContainer = document.getElementById('signalsContainer');
-        if (!signalsContainer) return;
-
-        signalsContainer.innerHTML = '';
+        // Get container element - try multiple possible IDs/classes as fallbacks
+        const signalsContainer = document.getElementById('signalsContainer') || 
+                                 document.getElementById('signalsSection') ||
+                                 document.querySelector('.signals-section') ||
+                                 document.querySelector('#signalsSection');
+        
+        if (!signalsContainer) {
+            console.error('❌ Signals container element not found in DOM');
+            console.error('Available signal elements:', {
+                signalsContainer: !!document.getElementById('signalsContainer'),
+                signalsSection: !!document.getElementById('signalsSection'),
+                signalsSectionClass: !!document.querySelector('.signals-section')
+            });
+            throw new Error('Signals container not found. Cannot render signals.');
+        }
+        
+        // Check if container already has content (for append mode)
+        const hasExistingContent = signalsContainer.children.length > 0;
+        
+        // Clear existing content if starting fresh
+        if (!hasExistingContent) {
+            signalsContainer.innerHTML = '';
+        }
 
         // Create header info (only if not appending to existing content)
-        if (!container) {
+        if (!hasExistingContent) {
         const headerInfo = document.createElement('div');
         headerInfo.style.cssText = 'padding: 15px; background: #f3f4f6; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem;';
         headerInfo.innerHTML = `
