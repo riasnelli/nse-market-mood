@@ -9518,18 +9518,28 @@ class MarketMoodApp {
             const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
             const changeColor = isPositive ? '#10b981' : '#ef4444';
             
-            // Generate ticker icon (circular with first letter)
+            // Generate TradingView logo URL for stock icon
+            const getTradingViewLogoUrl = (symbol) => {
+                if (!symbol) return null;
+                // Convert symbol to lowercase for TradingView URL format
+                // NSE symbols typically work with lowercase, e.g., "TATA" -> "tata", "TATSILV" -> "tatsilv"
+                const symbolLower = symbol.toLowerCase();
+                return `https://s3-symbol-logo.tradingview.com/${symbolLower}--big.svg`;
+            };
+            
+            // Fallback: Generate ticker icon (circular with first letter)
             const tickerIcon = signal.symbol ? signal.symbol.charAt(0).toUpperCase() : '?';
             const tickerColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444'];
             const tickerColorIndex = signal.symbol ? signal.symbol.charCodeAt(0) % tickerColors.length : 0;
             const tickerColor = tickerColors[tickerColorIndex];
+            const logoUrl = getTradingViewLogoUrl(signal.symbol);
 
             signalCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
                         <div style="
-                            width: 48px;
-                            height: 48px;
+                            width: 36px;
+                            height: 36px;
                             border-radius: 50%;
                             background: ${tickerColor};
                             display: flex;
@@ -9537,9 +9547,19 @@ class MarketMoodApp {
                             justify-content: center;
                             color: white;
                             font-weight: 700;
-                            font-size: 1.2rem;
+                            font-size: 0.95rem;
                             flex-shrink: 0;
-                        ">${tickerIcon}</div>
+                            overflow: hidden;
+                            position: relative;
+                        ">
+                            ${logoUrl ? `
+                                <img src="${logoUrl}" 
+                                     alt="${signal.symbol}" 
+                                     style="width: 100%; height: 100%; object-fit: contain; padding: 4px;"
+                                     onerror="this.style.display='none'; this.parentElement.innerHTML='${tickerIcon}'; this.parentElement.style.fontSize='1.1rem';"
+                                />
+                            ` : tickerIcon}
+                        </div>
                         <div style="flex: 1;">
                             <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
                             <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
