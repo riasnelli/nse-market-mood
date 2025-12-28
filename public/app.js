@@ -9032,8 +9032,14 @@ class MarketMoodApp {
                 }
             }
             
-            // Show loading state while rendering
+            // Hide the main loading indicator
+            if (signalsLoading) {
+                signalsLoading.style.display = 'none';
+            }
+            
+            // Show loading state while rendering (temporary, will be replaced by renderSignals)
             if (signalsContainer) {
+                signalsContainer.style.display = 'block';
                 signalsContainer.innerHTML = `
                     <div style="padding: 40px 20px; text-align: center; color: #6b7280;">
                         <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top-color: #667eea; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 15px;"></div>
