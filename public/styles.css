@@ -772,7 +772,7 @@ header h1 {
     margin-bottom: 20px;
     margin-top: 30px;
     visibility: visible !important;
-    padding: 20px;
+    padding: 20px 20px 20px 0;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     backdrop-filter: blur(10px);
@@ -789,11 +789,12 @@ header h1 {
 
 .signals-section .section-header {
     margin-bottom: 20px;
+    padding-left: 10px;
 }
 
 .signals-section .section-title {
-    color: white;
-    font-size: 1.3rem;
+    color: var(--text-color) !important;
+    font-size: 1rem;
     font-weight: 600;
     margin: 0;
 }
@@ -833,29 +834,35 @@ header h1 {
 }
 
 .filter-icon-btn {
-    background: none;
+    background: transparent;
     border: none;
-    color: var(--text-color-secondary);
+    color: var(--text-color);
     cursor: pointer;
-    padding-right: 15px;
-    padding-top: 15px;
-    border-radius: 8px;
+    padding: 6px;
+    border-radius: 6px;
     transition: all 0.2s ease;
     opacity: 0.8;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 28px;
+    height: 28px;
 }
 
 .filter-icon-btn:hover {
     opacity: 1;
-    background: rgba(0, 0, 0, 0.05);
+    background: transparent;
     color: var(--text-color);
 }
 
 body.dark-mode .filter-icon-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: transparent;
+}
+
+.filter-icon-btn svg {
+    width: 18px;
+    height: 18px;
 }
 
 .filter-icon-btn svg {

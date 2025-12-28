@@ -3098,11 +3098,20 @@ class MarketMoodApp {
         const applyFilter = document.getElementById('applySignalFilter');
         const resetFilter = document.getElementById('resetSignalFilter');
         
-        if (!filterBtn || !filterModal) return;
+        if (!filterBtn || !filterModal) {
+            console.warn('Filter button or modal not found:', { filterBtn: !!filterBtn, filterModal: !!filterModal });
+            return;
+        }
+        
+        // Use the modal reference
+        const actualFilterModal = filterModal;
         
         // Open filter modal and update counts
-        filterBtn.addEventListener('click', () => {
-            filterModal.classList.add('show');
+        filterBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Filter button clicked, opening modal');
+            actualFilterModal.classList.add('show');
             this.lockBodyScroll();
             
             // Sync radio buttons with current filter state
@@ -3131,19 +3140,31 @@ class MarketMoodApp {
         
         // Close filter modal
         if (closeFilter) {
-            closeFilter.addEventListener('click', () => {
-                filterModal.classList.remove('show');
+            closeFilter.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                actualFilterModal.classList.remove('show');
                 this.unlockBodyScroll();
             });
         }
         
         // Close modal when clicking outside
-        filterModal.addEventListener('click', (e) => {
-            if (e.target === filterModal) {
-                filterModal.classList.remove('show');
+        actualFilterModal.addEventListener('click', (e) => {
+            if (e.target === actualFilterModal) {
+                e.preventDefault();
+                e.stopPropagation();
+                actualFilterModal.classList.remove('show');
                 this.unlockBodyScroll();
             }
         });
+        
+        // Prevent clicks inside modal content from closing it
+        const modalContent = actualFilterModal.querySelector('.filter-modal-content');
+        if (modalContent) {
+            modalContent.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
         
         // Apply filter
         if (applyFilter) {
@@ -3164,7 +3185,10 @@ class MarketMoodApp {
                 
                 
                 // Close modal
-                filterModal.classList.remove('show');
+                const modal = document.getElementById('signalsFilterModal');
+                if (modal) {
+                    modal.classList.remove('show');
+                }
                 this.unlockBodyScroll();
                 
                 // Re-apply filter to current signals
@@ -3196,7 +3220,10 @@ class MarketMoodApp {
                 this._signalFilterState = { filter: 'all', sort: null };
                 
                 // Close modal
-                filterModal.classList.remove('show');
+                const modal = document.getElementById('signalsFilterModal');
+                if (modal) {
+                    modal.classList.remove('show');
+                }
                 this.unlockBodyScroll();
                 
                 // Re-render with all signals (no filter)
@@ -9767,31 +9794,30 @@ class MarketMoodApp {
             const symbolName = signal.name || signal.company_name || cleanSymbol;
 
             signalCard.innerHTML = `
+                <a href="${tradingViewLink}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit; display: block;">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                        <div style="
-                            width: 32px;
-                            height: 32px;
-                            border-radius: 50%;
-                            flex-shrink: 0;
-                            overflow: hidden;
-                            position: relative;
-                        ">
-                            <img
-                                src="${sources[0]}"
-                                alt="${cleanSymbol}"
-                                data-sources="${sourcesEscaped}"
-                                style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:white;padding:2px;box-shadow:0 2px 8px rgba(0,0,0,0.12);"
-                                onerror="(function(img){const srcs=img.getAttribute('data-sources').split('|');const idx=parseInt(img.dataset.idx||'0',10)+1;img.dataset.idx=String(idx);if(srcs[idx])img.src=srcs[idx];})(this);"
-                            />
-                        </div>
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">
-                                <a href="${tradingViewLink}" target="_blank" rel="noopener noreferrer" style="color: #333; text-decoration: none; transition: color 0.2s ease;" onmouseover="this.style.color='#667eea';" onmouseout="this.style.color='#333';">${signal.symbol}</a>
-                            </h4>
-                            <div style="font-size: 0.85rem; color: #666; margin-top: 2px;">
-                                <a href="${googleSearchLink}" target="_blank" rel="noopener noreferrer" style="color: #666; text-decoration: none; transition: color 0.2s ease;" onmouseover="this.style.color='#667eea';" onmouseout="this.style.color='#666';">${symbolName}</a>
+                        <a href="${googleSearchLink}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="text-decoration: none; flex-shrink: 0;">
+                            <div style="
+                                width: 32px;
+                                height: 32px;
+                                border-radius: 50%;
+                                flex-shrink: 0;
+                                overflow: hidden;
+                                position: relative;
+                            ">
+                                <img
+                                    src="${sources[0]}"
+                                    alt="${cleanSymbol}"
+                                    data-sources="${sourcesEscaped}"
+                                    style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:white;padding:2px;box-shadow:0 2px 8px rgba(0,0,0,0.12);"
+                                    onerror="(function(img){const srcs=img.getAttribute('data-sources').split('|');const idx=parseInt(img.dataset.idx||'0',10)+1;img.dataset.idx=String(idx);if(srcs[idx])img.src=srcs[idx];})(this);"
+                                />
                             </div>
+                        </a>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
+                            <div style="font-size: 0.85rem; color: #666; margin-top: 2px;">${symbolName}</div>
                         <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">
                             Score: <strong style="color: #667eea;">${signal.score}/100</strong>
                             ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
@@ -9831,6 +9857,7 @@ class MarketMoodApp {
                         ${signal.ai_explanation}
                     </div>
                 ` : ''}
+                </a>
             `;
 
             signalsGrid.appendChild(signalCard);
