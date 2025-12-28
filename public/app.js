@@ -9513,9 +9513,8 @@ class MarketMoodApp {
                 
             const signalCard = document.createElement('div');
             signalCard.className = 'signal-card';
-            // Match status panel width
-            const statusPanelForCard = document.getElementById('signalsStatusPanel');
-            const cardWidth = statusPanelForCard ? statusPanelForCard.offsetWidth : '100%';
+            // Match status panel inner width (excluding padding) - reuse calculated gridWidth
+            // The grid already has the correct width, so cards should be 100% of grid
             signalCard.style.cssText = `
                 background: white;
                 border-radius: 12px;
@@ -9525,8 +9524,9 @@ class MarketMoodApp {
                 transform: translateY(10px);
                 transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
                 cursor: pointer;
-                width: ${typeof cardWidth === 'number' ? cardWidth + 'px' : cardWidth};
+                width: 100%;
                 max-width: 100%;
+                margin: 0;
                 box-sizing: border-box;
             `;
             
