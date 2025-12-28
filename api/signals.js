@@ -32,6 +32,25 @@ try {
 }
 
 /**
+ * Sanitize mode - returns fallback (or MODE_EOD) when mode is MODE_NONE/'MODE_NONE'/null/undefined/''
+ */
+function sanitizeMode(mode, fallback = MODE_EOD) {
+  if (!mode || mode === MODE_NONE || mode === 'MODE_NONE' || mode === '') {
+    return fallback;
+  }
+  return mode;
+}
+
+/**
+ * Assert that mode is not MODE_NONE - throws if mode is MODE_NONE or 'MODE_NONE'
+ */
+function assertNoModeNone(mode, where) {
+  if (mode === MODE_NONE || mode === 'MODE_NONE') {
+    throw new Error(`[SIGNALS API] MODE_NONE detected in ${where} - this should be impossible. mode: ${mode}`);
+  }
+}
+
+/**
  * Get yesterday's date (skip weekends)
  */
 function getYesterdayDate(todayDate) {
@@ -756,7 +775,7 @@ const handler = async (req, res) => {
           signals: [],
           meta: {
             reason: context.reason || 'Insufficient data available',
-            mode: detectedMode
+            mode: null  // Don't return detectedMode which could be MODE_NONE
           }
         });
       }
@@ -778,7 +797,7 @@ const handler = async (req, res) => {
           signals: [],
           meta: {
             reason: 'MongoDB not configured. Signals cannot be generated.',
-            mode: detectedMode
+            mode: null  // Don't return detectedMode which could be MODE_NONE
           }
         });
       }
@@ -825,32 +844,20 @@ const handler = async (req, res) => {
       try {
         // Read from signals_store collection (new unified store)
         const signalsStoreCollection = await getSignalsStoreCollection();
-        // First try to find with final mode, then fallback to any mode for this date+strategy
+        // Only query with finalMode - never use fallback query that could return MODE_NONE/legacy docs
         let storedDoc = await signalsStoreCollection.findOne({ 
           date: signalDate,
           strategy: strategy || 'momentum_gap',
           mode: finalMode
         });
         
-        // If not found with new mode, try to find any document for this date+strategy (might be legacy)
-        if (!storedDoc) {
-          storedDoc = await signalsStoreCollection.findOne({ 
-            date: signalDate,
-            strategy: strategy || 'momentum_gap'
-          });
-        }
-        
-        // Check if stored doc has legacy mode - if so, skip it and regenerate
-        if (storedDoc) {
-          const storedMode = storedDoc.mode;
-          if (storedMode === 'PLAYBOOK' || !storedMode || (!storedMode.startsWith('MODE_') && storedMode !== 'EOD' && storedMode !== 'PREMARKET' && storedMode !== 'LIVE')) {
-            // Legacy mode or invalid mode - skip stored doc and regenerate
-            if (DEBUG) console.log(`[SIGNALS API] Stored document has legacy/invalid mode "${storedMode}", skipping and regenerating...`);
-            storedDoc = null; // Force regeneration
-          }
-        }
+        // Note: MongoDB query guarantees storedDoc.mode === finalMode if document exists
+        // No need to validate mode here since query already filters for finalMode
         
         if (storedDoc) {
+          // Assert that stored doc mode is not MODE_NONE (query guarantees it matches finalMode, but double-check)
+          assertNoModeNone(storedDoc.mode, 'storedDoc.mode from signals_store');
+          
           // Return stored document with status
           const transformedSignals = Array.isArray(storedDoc.signals) ? storedDoc.signals.map(signal => ({
             symbol: signal.symbol,
@@ -868,16 +875,15 @@ const handler = async (req, res) => {
             console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}, mode=${storedDoc.mode}`);
           }
 
-          // Get mode display info (single badge, no duplicates)
-          const storedMode = storedDoc.mode;
-          const modeDisplay = storedMode ? getModeDisplayName(storedMode) : 'EOD';
-          const modeLabel = storedMode ? getModeLabel(storedMode) : 'EOD (Watchlist)';
+          // Use finalMode directly - MongoDB query guarantees storedDoc.mode === finalMode
+          const modeDisplay = getModeDisplayName(finalMode);
+          const modeLabel = getModeLabel(finalMode);
           
           // Get dataUsed from storedDoc or construct from available fields
           const dataUsed = storedDoc.dataUsed || {
             refEodDate: storedDoc.refDate || refEodDate,
             premarketDate: storedDoc.modeInfo?.usedDates?.preMDate || premarketDate,
-            mode: storedMode || finalMode,
+            mode: finalMode,
             signalDate: storedDoc.date || signalDate,
             marketOpen: marketStatus.isOpen,
             marketTimestamp: marketStatus.timestamp
@@ -888,7 +894,7 @@ const handler = async (req, res) => {
             signalDate: storedDoc.date || signalDate,
             refDate: storedDoc.refDate || refEodDate,
             strategy: storedDoc.strategy,
-            mode: storedMode,
+            mode: finalMode,  // Use finalMode directly (query guarantees storedDoc.mode === finalMode)
             modeDisplay,
             modeLabel,
             status: storedDoc.status, // READY | NO_MATCH | INSUFFICIENT_DATA | ERROR
@@ -909,7 +915,7 @@ const handler = async (req, res) => {
               eodDate: dataUsed.refEodDate,
               preMDate: dataUsed.premarketDate
             },
-            resolvedMode: storedMode,
+            resolvedMode: finalMode,  // Use finalMode directly (query guarantees storedDoc.mode === finalMode)
             resolvedBy: overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto',
             computedMarketOpen: computedMarketOpen
           };
@@ -926,11 +932,18 @@ const handler = async (req, res) => {
         if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store, attempting auto-generation...`);
         
         // Always try to auto-generate signals if data is available
-        if (DEBUG) console.log(`[SIGNALS API] Attempting to auto-generate signals with strategy: ${strategy}, marketStatus: ${marketStatus.isOpen}`);
+        if (DEBUG) console.log(`[SIGNALS API] Attempting to auto-generate signals with strategy: ${strategy}, finalMode: ${finalMode}, marketStatus: ${marketStatus.isOpen}`);
+        
+        // Hard assert: finalMode must never be MODE_NONE at this point
+        if (finalMode === MODE_NONE) {
+          throw new Error(`[SIGNALS API] finalMode is MODE_NONE after guard — this should be impossible. refEodDate: ${refEodDate}, detectedMode: ${detectedMode}`);
+        }
+        
         try {
           const result = await generateSignalsForDate(targetDate, strategy, 'PLAYBOOK', {
             marketStatus,
-            userOverride
+            userOverride,
+            resolvedMode: finalMode  // Pass finalMode to avoid resolver returning MODE_NONE
           });
           
           // Update signalDate and refDate from result (resolver may have adjusted them)
@@ -952,7 +965,8 @@ const handler = async (req, res) => {
             })) : [];
             
         // Use resolvedBy from earlier guard (already computed)
-        const resolvedMode = result.mode || finalMode;
+        // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
+        const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
         
         const response = {
               success: true,
@@ -1026,7 +1040,8 @@ const handler = async (req, res) => {
             return res.status(200).json(response);
           } else if (result.status === 'INSUFFICIENT_DATA') {
             // Data not available - return INSUFFICIENT_DATA status
-            const resolvedMode = result.mode || finalMode;
+            // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
+            const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
             const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
             
             const response = {
@@ -1094,7 +1109,7 @@ const handler = async (req, res) => {
               signalDate: result.signalDate || signalDate,
               refDate: result.refDate || refEodDate,
               strategy: result.strategy || strategy,
-              mode: result.mode || finalMode,
+              mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
               status: result.status || 'ERROR',
               signal_count: 0,
               signals: [],
@@ -1102,7 +1117,7 @@ const handler = async (req, res) => {
               message: result.message || 'Error generating signals. Please check logs.',
               missingFiles: result.missingFiles || null,
               context: {
-                mode: result.mode || finalMode,
+                mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
                 signalDate: result.signalDate || signalDate,
                 refEodDate: result.refDate || refEodDate,
                 premarketDate: null,
@@ -1113,7 +1128,7 @@ const handler = async (req, res) => {
               dataUsed: {
                 refEodDate: result.refDate || refEodDate,
                 premarketDate: null,
-                mode: result.mode || finalMode,
+                mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
                 signalDate: result.signalDate || signalDate,
                 marketOpen: marketStatus.isOpen,
                 marketTimestamp: marketStatus.timestamp
@@ -1125,7 +1140,7 @@ const handler = async (req, res) => {
               },
               meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
               usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
-              resolvedMode: result.mode || finalMode,
+              resolvedMode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
               resolvedBy: resolvedBy,
               computedMarketOpen: computedMarketOpen
             });
@@ -1191,14 +1206,14 @@ const handler = async (req, res) => {
           signalDate: null,
           refDate: null,
           strategy,
-          mode: 'MODE_NONE',
+          mode: null,  // Error case - don't return MODE_NONE
           status: 'ERROR',
           signal_count: 0,
           signals: [],
           hasSignals: false,
           message: `Error retrieving signals: ${error.message}`,
           context: {
-            mode: 'MODE_NONE',
+            mode: null,  // Error case - don't return MODE_NONE
             signalDate: null,
             refEodDate: null,
             premarketDate: null,
@@ -1209,7 +1224,7 @@ const handler = async (req, res) => {
           dataUsed: {
             refEodDate: null,
             premarketDate: null,
-            mode: 'MODE_NONE',
+            mode: null,  // Error case - don't return MODE_NONE
             signalDate: null,
             marketOpen: false,
             marketTimestamp: null
@@ -1253,8 +1268,82 @@ const handler = async (req, res) => {
         });
       }
 
-      // Generate signals using the new module
-      const result = await generateSignalsForDate(date, strategy);
+      // Apply same resolver/guard logic as GET handler - do NOT bypass
+      const today = getTodayIST();
+      const computedMarketOpen = isTradingDay(today) && (() => {
+        const ist = new Date();
+        const utc = ist.getTime() + (ist.getTimezoneOffset() * 60000);
+        const istOffset = 5.5 * 60 * 60000;
+        const istTime = new Date(utc + istOffset);
+        const hours = istTime.getHours();
+        const minutes = istTime.getMinutes();
+        const timeMinutes = hours * 60 + minutes;
+        // Market hours: 9:15 AM - 3:30 PM IST (555-930 minutes)
+        return timeMinutes >= 555 && timeMinutes < 930;
+      })();
+      
+      const marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
+      const userOverride = { strategy: strategy };
+      
+      // Resolve signals context
+      const context = await resolveSignalsContext({
+        targetDate: date,
+        today,
+        marketStatus,
+        userOverride
+      });
+      
+      const signalDate = context.signalDate;
+      const refEodDate = context.refEodDate;
+      const premarketDate = context.premarketDate;
+      const detectedMode = context.mode;
+      
+      // Apply same guard logic as GET handler
+      let finalMode = detectedMode;
+      if (finalMode === MODE_NONE && refEodDate) {
+        console.warn(`⚠️ [SIGNALS API] POST: MODE_NONE detected but EOD data exists (refEodDate: ${refEodDate}), forcing MODE_EOD`);
+        finalMode = MODE_EOD;
+      } else if (finalMode === MODE_NONE) {
+        // No data available - return INSUFFICIENT_DATA with mode:null and DO NOT write to DB
+        return res.status(200).json({
+          success: true,
+          engineStatus: 'insufficient_data',
+          requested: { date, strategy },
+          context: {
+            signalDate: signalDate || null,
+            refEodDate: refEodDate || null,
+            premarketDate: premarketDate || null,
+            hasBhav: !!refEodDate,
+            hasPremarket: !!premarketDate,
+            missingFiles: context.missingFiles || []
+          },
+          signals: [],
+          meta: {
+            reason: context.reason || 'Insufficient data available for signal generation',
+            mode: null  // Don't return MODE_NONE
+          },
+          resolvedMode: null,
+          resolvedBy: 'auto',
+          computedMarketOpen: computedMarketOpen
+        });
+      }
+      
+      // Verify mode is one of the supported modes
+      const supportedModeConstants = [MODE_EOD, MODE_PREM, MODE_LIVE];
+      if (!supportedModeConstants.includes(finalMode)) {
+        console.error(`❌ [SIGNALS API] POST: Invalid mode detected: ${finalMode}, forcing MODE_EOD`);
+        finalMode = MODE_EOD;
+      }
+      
+      // Hard assert before calling generateSignalsForDate
+      assertNoModeNone(finalMode, 'POST handler finalMode before generateSignalsForDate');
+
+      // Generate signals using the new module with resolvedMode
+      const result = await generateSignalsForDate(date, strategy, 'PLAYBOOK', {
+        marketStatus,
+        userOverride,
+        resolvedMode: finalMode  // Pass finalMode to avoid resolver returning MODE_NONE
+      });
       
       if (DEBUG) {
         console.log(`[SIGNALS API] Generated signals: status=${result.status}, count=${result.signal_count || 0}`);
@@ -1285,14 +1374,14 @@ const handler = async (req, res) => {
         signalDate: null,
         refDate: null,
         strategy,
-        mode: 'MODE_NONE',
+        mode: null,  // Method not allowed - don't return MODE_NONE
         status: 'ERROR',
         signal_count: 0,
         signals: [],
         hasSignals: false,
         message: `Method ${req.method} is not supported. Allowed: GET, POST`,
         context: {
-          mode: 'MODE_NONE',
+          mode: null,  // Method not allowed - don't return MODE_NONE
           signalDate: null,
           refEodDate: null,
           premarketDate: null,
@@ -1303,7 +1392,7 @@ const handler = async (req, res) => {
         dataUsed: {
           refEodDate: null,
           premarketDate: null,
-          mode: 'MODE_NONE',
+          mode: null,  // Method not allowed - don't return MODE_NONE
           signalDate: null,
           marketOpen: false,
           marketTimestamp: null
@@ -1331,14 +1420,14 @@ const handler = async (req, res) => {
       signalDate: null,
       refDate: null,
       strategy,
-      mode: 'MODE_NONE',
+      mode: null,  // Error case - don't return MODE_NONE
       status: 'ERROR',
       signal_count: 0,
       signals: [],
       hasSignals: false,
       message: `Error: ${error.message || 'Internal server error'}`,
       context: {
-        mode: 'MODE_NONE',
+        mode: null,  // Error case - don't return MODE_NONE
         signalDate: null,
         refEodDate: null,
         premarketDate: null,
@@ -1349,7 +1438,7 @@ const handler = async (req, res) => {
       dataUsed: {
         refEodDate: null,
         premarketDate: null,
-        mode: 'MODE_NONE',
+        mode: null,  // Error case - don't return MODE_NONE
         signalDate: null,
         marketOpen: false,
         marketTimestamp: null

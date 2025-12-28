@@ -1341,7 +1341,7 @@ async function checkDataAvailability(targetDate, mode = 'PLAYBOOK') {
  * @param {string} targetDate - Target date in YYYY-MM-DD format
  * @param {string} strategy - Strategy name (default: 'momentum_gap')
  * @param {string} legacyMode - Legacy mode parameter (ignored, mode is auto-detected)
- * @param {Object} options - { marketStatus, userOverride }
+ * @param {Object} options - { marketStatus, userOverride, resolvedMode? }
  * @returns {Promise<Object>} - { status, targetDate, signalDate, refDate, strategy, mode, signal_count, signals, message, missingFiles?, diagnostics?, modeInfo?, dataUsed? }
  */
 async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', legacyMode = 'PLAYBOOK', options = {}) {
@@ -1354,18 +1354,33 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     const userOverride = options.userOverride || {};
     const today = getTodayIST();
     
-    // Resolve signals context using new resolver
-    const context = await resolveSignalsContext({
-      targetDate,
-      today,
-      marketStatus,
-      userOverride
-    });
+    // If resolvedMode is provided in options, use it instead of calling resolver
+    // This prevents resolver from returning MODE_NONE when we already have a sanitized mode
+    let context;
+    let detectedMode;
+    if (options.resolvedMode) {
+      // Use provided resolvedMode, but still need context for dates
+      context = await resolveSignalsContext({
+        targetDate,
+        today,
+        marketStatus,
+        userOverride
+      });
+      detectedMode = options.resolvedMode;  // Use provided sanitized mode instead of context.mode
+    } else {
+      // Resolve signals context using new resolver
+      context = await resolveSignalsContext({
+        targetDate,
+        today,
+        marketStatus,
+        userOverride
+      });
+      detectedMode = context.mode;
+    }
     
     const signalDate = context.signalDate;
     const refEodDate = context.refEodDate;
     const premarketDate = context.premarketDate;
-    const detectedMode = context.mode;
     const modeDisplay = getModeDisplayName(detectedMode);
     const modeLabel = getModeLabel(detectedMode);
     
@@ -1539,7 +1554,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     
     // Get mood score for LIVE mode
     let moodScore = null;
-    if (detectedMode === MODE_LIVE) {
+    if (finalMode === MODE_LIVE) {  // Use finalMode (sanitized) instead of detectedMode
       const mood = await getCurrentMood();
       moodScore = mood?.score || 50; // Default to neutral
     }
@@ -1549,7 +1564,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     
     const result = await strategyDef.run({
       date: signalDate,
-      mode: detectedMode,
+      mode: finalMode,  // Use finalMode (sanitized) instead of detectedMode
       eodDate: refEodDate,
       preMDate: premarketDate,
       moodScore,
@@ -1591,7 +1606,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
       date: signalDate,
       refDate: refEodDate,
       strategy,
-      mode: detectedMode,
+      mode: finalMode,  // Use finalMode (sanitized) instead of detectedMode
       status,
       signal_count: signalsArray.length,
       signals: signalsArray,
@@ -1603,7 +1618,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
       dataUsed: {
         refEodDate,
         premarketDate,
-        mode: detectedMode,
+        mode: finalMode,  // Use finalMode (sanitized) instead of detectedMode
         signalDate,
         marketOpen: marketStatus.isOpen,
         marketTimestamp: marketStatus.timestamp
@@ -1614,7 +1629,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
     
     // Upsert (update if exists, insert if not)
     await signalsStoreCollection.updateOne(
-      { date: signalDate, strategy, mode: detectedMode },
+      { date: signalDate, strategy, mode: finalMode },  // Use finalMode (sanitized) instead of detectedMode
       { $set: storeDoc },
       { upsert: true }
     );
@@ -1627,7 +1642,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
       signalDate,
       refDate: refEodDate,
       strategy,
-      mode: detectedMode,
+      mode: finalMode,  // Use finalMode (sanitized) instead of detectedMode
       modeDisplay,
       modeLabel,
       signal_count: signalsArray.length,
@@ -1640,7 +1655,7 @@ async function generateSignalsForDate(targetDate, strategy = 'momentum_gap', leg
       dataUsed: {
         refEodDate,
         premarketDate,
-        mode: detectedMode,
+        mode: finalMode,  // Use finalMode (sanitized) instead of detectedMode
         signalDate,
         marketOpen: marketStatus.isOpen,
         marketTimestamp: marketStatus.timestamp
