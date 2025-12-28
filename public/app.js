@@ -9726,27 +9726,8 @@ class MarketMoodApp {
             
             // Get logo sources with fallback chain
             const sources = this.getLogoSources(signal.symbol);
-            const logoHtml = `
-                <img
-                    src="${sources[0]}"
-                    alt="${this.cleanSymbol(signal.symbol)}"
-                    style="
-                        width:32px;height:32px;border-radius:50%;
-                        object-fit:cover;background:white;padding:2px;
-                        box-shadow:0 2px 8px rgba(0,0,0,0.12);
-                    "
-                    onerror="
-                        (function(img){
-                            const srcs = ${JSON.stringify(sources)};
-                            img.dataset.idx = img.dataset.idx || '0';
-                            const next = parseInt(img.dataset.idx, 10) + 1;
-                            img.dataset.idx = String(next);
-                            if (srcs[next]) img.src = srcs[next];
-                        })(this);
-                    "
-                />
-            `;
-
+            const sourcesEscaped = sources.map(s => s.replace(/"/g, '&quot;').replace(/'/g, '&#39;')).join('|');
+            
             signalCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
@@ -9758,7 +9739,13 @@ class MarketMoodApp {
                             overflow: hidden;
                             position: relative;
                         ">
-                            ${logoHtml}
+                            <img
+                                src="${sources[0]}"
+                                alt="${this.cleanSymbol(signal.symbol)}"
+                                data-sources="${sourcesEscaped}"
+                                style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:white;padding:2px;box-shadow:0 2px 8px rgba(0,0,0,0.12);"
+                                onerror="(function(img){const srcs=img.getAttribute('data-sources').split('|');const idx=parseInt(img.dataset.idx||'0',10)+1;img.dataset.idx=String(idx);if(srcs[idx])img.src=srcs[idx];})(this);"
+                            />
                         </div>
                         <div style="flex: 1;">
                             <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
