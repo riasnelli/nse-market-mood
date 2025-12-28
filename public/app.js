@@ -7710,14 +7710,24 @@ class MarketMoodApp {
             // Show and style the signals section
         if (signalsSection) {
             signalsSection.style.display = 'block';
-                signalsSection.style.padding = '0 10px';
+                signalsSection.style.padding = '0';
+                signalsSection.style.margin = '0';
                 signalsSection.style.minHeight = 'auto';
             }
             
-            // Show the container (will be populated by loadSignals)
+            // Show the container (will be populated by loadSignals) - match status panel padding
             if (signalsContainer) {
                 signalsContainer.style.display = 'block';
-                signalsContainer.style.padding = '20px 10px';
+                // Match status panel padding for perfect alignment
+                const statusPanelPadding = document.getElementById('signalsStatusPanel');
+                if (statusPanelPadding) {
+                    const computed = window.getComputedStyle(statusPanelPadding);
+                    const paddingLeft = computed.paddingLeft || '10px';
+                    const paddingRight = computed.paddingRight || '10px';
+                    signalsContainer.style.padding = `20px ${paddingRight} 20px ${paddingLeft}`;
+                } else {
+                    signalsContainer.style.padding = '20px 10px';
+                }
             }
             
             // Show loading initially
@@ -9452,18 +9462,33 @@ class MarketMoodApp {
         summary.innerHTML = `📊 <strong>${signals.length}</strong> trading signals generated for ${formatDate(date)}`;
         signalsContainer.insertBefore(summary, signalsContainer.firstChild);
 
-        // Create signals grid - match status panel width
+        // Create signals grid - match status panel width and padding
         const statusPanel = document.getElementById('signalsStatusPanel');
-        const statusPanelWidth = statusPanel ? statusPanel.offsetWidth : '100%';
+        const statusPanelWidth = statusPanel ? statusPanel.offsetWidth : null;
+        const statusPanelComputed = statusPanel ? window.getComputedStyle(statusPanel) : null;
+        const statusPanelPadding = statusPanelComputed ? {
+            left: parseInt(statusPanelComputed.paddingLeft) || 0,
+            right: parseInt(statusPanelComputed.paddingRight) || 0
+        } : { left: 10, right: 10 };
+        
         const signalsGrid = document.createElement('div');
         signalsGrid.className = 'signals-grid';
+        
+        // Calculate width to match status panel inner width (excluding padding)
+        let gridWidth = '100%';
+        if (statusPanelWidth && typeof statusPanelWidth === 'number') {
+            const innerWidth = statusPanelWidth - statusPanelPadding.left - statusPanelPadding.right;
+            gridWidth = `${innerWidth}px`;
+        }
+        
         signalsGrid.style.cssText = `
             display: grid;
             grid-template-columns: 1fr;
             gap: 15px;
-            width: ${typeof statusPanelWidth === 'number' ? statusPanelWidth + 'px' : statusPanelWidth};
+            width: ${gridWidth};
             max-width: 100%;
-            margin: 0 auto;
+            margin: 0;
+            padding: 0;
             box-sizing: border-box;
         `;
 
@@ -9719,13 +9744,23 @@ class MarketMoodApp {
         
         // Add filtering and sorting UI if there are 10+ signals
         if (signals.length >= 10) {
+            // Match status panel padding for filter controls
+            const statusPanelForFilters = document.getElementById('signalsStatusPanel');
+            let filterPadding = '0 10px';
+            if (statusPanelForFilters) {
+                const computed = window.getComputedStyle(statusPanelForFilters);
+                const paddingLeft = computed.paddingLeft || '10px';
+                const paddingRight = computed.paddingRight || '10px';
+                filterPadding = `10px ${paddingRight} 10px ${paddingLeft}`;
+            }
+            
             const filterControls = document.createElement('div');
             filterControls.id = 'signalFilterControls';
             filterControls.style.cssText = `
                 display: flex;
                 gap: 8px;
-                padding: 10px;
-                margin: 0 10px 15px;
+                padding: ${filterPadding};
+                margin: 0 0 15px 0;
                 overflow-x: auto;
                 background: rgba(249, 250, 251, 0.8);
                 border-radius: 12px;
