@@ -643,7 +643,6 @@ header h1 {
     position: relative;
     z-index: 2;
     margin: -100px auto 20px auto;
-    padding: 20px;
     max-width: 400px;
     width: 100%;
     box-sizing: border-box;
