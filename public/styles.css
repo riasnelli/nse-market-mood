@@ -307,25 +307,13 @@ header {
     padding-left: 10px;
     padding-right: 10px;
     box-sizing: border-box;
+    position: relative;
 }
 
-.mood-greeting-area .notification-bell {
+.greeting-text .notification-bell {
     position: absolute;
-    /* Align with right edge of card/greeting text container */
-    /* Card has: margin: 10px, max-width: calc(400px - 20px) = 380px, centered */
-    /* On smaller screens: right edge is at 100vw - 10px */
-    /* On larger screens (>= 400px): card is 380px, centered, right edge is at 50vw + 190px */
     right: 10px;
     top: calc(env(safe-area-inset-top, 0px) + 20px);
-}
-
-@media (min-width: 400px) {
-    .mood-greeting-area .notification-bell {
-        /* On wider screens, card is 380px wide and centered */
-        /* Card right edge: 50vw + 190px, but we need position from greeting area right edge */
-        /* Greeting area is 100vw, so: 100vw - (50vw + 190px) = 50vw - 190px */
-        right: calc(50vw - 190px);
-    }
 }
 
 .greeting-time {

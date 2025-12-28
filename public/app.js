@@ -3103,6 +3103,12 @@ class MarketMoodApp {
             return;
         }
         
+        // Prevent duplicate event listeners by checking if already set up
+        if (filterBtn.dataset.filterSetup === 'true') {
+            return;
+        }
+        filterBtn.dataset.filterSetup = 'true';
+        
         // Open filter modal and update counts
         filterBtn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -9766,7 +9772,7 @@ class MarketMoodApp {
             const googleSearchLink = `https://www.google.com/search?q=${encodeURIComponent(cleanSymbol)}+share+price+today`;
 
             signalCard.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
                         <a href="${googleSearchLink}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; flex-shrink: 0; cursor: pointer;">
                             <div style="
@@ -9800,7 +9806,7 @@ class MarketMoodApp {
                         ${signal.side || 'BUY'}
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
                     <div>
                         <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Entry</div>
                         <div style="font-weight: 600; color: #333;">₹${signal.entry_price?.toFixed(2) || '-'}</div>
