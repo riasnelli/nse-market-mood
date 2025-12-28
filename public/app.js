@@ -9710,23 +9710,14 @@ class MarketMoodApp {
         
         // Add filtering and sorting UI if there are 10+ signals
         if (signals.length >= 10) {
-            // Match status panel padding for filter controls
-            const statusPanelForFilters = document.getElementById('signalsStatusPanel');
-            let filterPadding = '0 10px';
-            if (statusPanelForFilters) {
-                const computed = window.getComputedStyle(statusPanelForFilters);
-                const paddingLeft = computed.paddingLeft || '10px';
-                const paddingRight = computed.paddingRight || '10px';
-                filterPadding = `10px ${paddingRight} 10px ${paddingLeft}`;
-            }
-            
+            // Filter controls with equal left and right padding matching signals grid
             const filterControls = document.createElement('div');
             filterControls.id = 'signalFilterControls';
             filterControls.style.cssText = `
                 display: flex;
                 gap: 8px;
-                padding: ${filterPadding};
-                margin: 0 0 15px 0;
+                padding: 10px; /* Equal padding all around */
+                margin: 0 10px 15px 10px; /* Equal horizontal margins matching grid padding */
                 overflow-x: auto;
                 background: rgba(249, 250, 251, 0.8);
                 border-radius: 12px;
