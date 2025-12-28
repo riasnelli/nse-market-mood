@@ -7715,19 +7715,10 @@ class MarketMoodApp {
                 signalsSection.style.minHeight = 'auto';
             }
             
-            // Show the container (will be populated by loadSignals) - match status panel padding
+            // Show the container (will be populated by loadSignals) - no padding needed
             if (signalsContainer) {
                 signalsContainer.style.display = 'block';
-                // Match status panel padding for perfect alignment
-                const statusPanelPadding = document.getElementById('signalsStatusPanel');
-                if (statusPanelPadding) {
-                    const computed = window.getComputedStyle(statusPanelPadding);
-                    const paddingLeft = computed.paddingLeft || '10px';
-                    const paddingRight = computed.paddingRight || '10px';
-                    signalsContainer.style.padding = `20px ${paddingRight} 20px ${paddingLeft}`;
-                } else {
-                signalsContainer.style.padding = '20px 10px';
-                }
+                signalsContainer.style.padding = '0';
             }
             
             // Show loading initially
