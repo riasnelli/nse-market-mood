@@ -9805,11 +9805,11 @@ class MarketMoodApp {
                         <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Entry</div>
                         <div style="font-weight: 600; color: #333;">₹${signal.entry_price?.toFixed(2) || '-'}</div>
                     </div>
-                    <div>
+                    <div style="text-align: center;">
                         <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Stop Loss</div>
                         <div style="font-weight: 600; color: #ef4444;">₹${signal.stop_loss?.toFixed(2) || '-'}</div>
                     </div>
-                    <div>
+                    <div style="text-align: right;">
                         <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Target</div>
                         <div style="font-weight: 600; color: #10b981;">₹${signal.target_price?.toFixed(2) || '-'}</div>
                     </div>
