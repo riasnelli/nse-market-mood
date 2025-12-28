@@ -10456,24 +10456,35 @@ class MarketMoodApp {
         `;
         
         // Style the panel
-        statusPanel.style.background = `rgba(255, 255, 255, 0.95)`;
+        statusPanel.style.background = 'transparent';
         statusPanel.style.display = 'block';
+        statusPanel.style.padding = '10px';
+        statusPanel.style.marginBottom = '0';
         
-        // Collapse panel if signals are displayed
-        if (signals && signals.hasSignals && signals.signals && signals.signals.length > 0) {
-            statusPanel.style.maxHeight = '0';
-            statusPanel.style.overflow = 'hidden';
-            statusPanel.style.opacity = '0';
-            statusPanel.style.marginBottom = '0';
-            statusPanel.style.paddingBottom = '0';
-            statusPanel.style.transition = 'max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease';
-        } else {
-            statusPanel.style.maxHeight = 'none';
-            statusPanel.style.overflow = 'visible';
-            statusPanel.style.opacity = '1';
-            statusPanel.style.marginBottom = '0';
-            statusPanel.style.paddingBottom = '10px';
-        }
+        // Add toggle functionality to header
+        setTimeout(() => {
+            const header = document.getElementById('signalsStatusHeader');
+            const content = document.getElementById('signalsStatusContent');
+            const chevron = document.getElementById('signalsStatusChevron');
+            
+            if (header && content && chevron) {
+                header.addEventListener('click', () => {
+                    const isCollapsed = content.style.display === 'none';
+                    
+                    if (isCollapsed) {
+                        // Expand
+                        content.style.display = 'grid';
+                        chevron.style.transform = 'rotate(0deg)';
+                        localStorage.setItem('nsemm.signalsStatusCollapsed', 'false');
+                    } else {
+                        // Collapse
+                        content.style.display = 'none';
+                        chevron.style.transform = 'rotate(-90deg)';
+                        localStorage.setItem('nsemm.signalsStatusCollapsed', 'true');
+                    }
+                });
+            }
+        }, 100);
         
         // Add event listener for "Try other Strategies" link (after innerHTML is set)
         setTimeout(() => {
