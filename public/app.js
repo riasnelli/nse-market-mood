@@ -9517,17 +9517,38 @@ class MarketMoodApp {
 
             const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
             const changeColor = isPositive ? '#10b981' : '#ef4444';
+            
+            // Generate ticker icon (circular with first letter)
+            const tickerIcon = signal.symbol ? signal.symbol.charAt(0).toUpperCase() : '?';
+            const tickerColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444'];
+            const tickerColorIndex = signal.symbol ? signal.symbol.charCodeAt(0) % tickerColors.length : 0;
+            const tickerColor = tickerColors[tickerColorIndex];
 
             signalCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-                    <div>
-                        <h4 style="margin: 0; font-size: 1.1rem; color: #333;">${index + 1}. ${signal.symbol}</h4>
-                        <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
-                            Score: <strong style="color: #667eea;">${signal.score}/100</strong>
-                            ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                        <div style="
+                            width: 48px;
+                            height: 48px;
+                            border-radius: 50%;
+                            background: ${tickerColor};
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-weight: 700;
+                            font-size: 1.2rem;
+                            flex-shrink: 0;
+                        ">${tickerIcon}</div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
+                            <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                                Score: <strong style="color: #667eea;">${signal.score}/100</strong>
+                                ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
+                            </div>
                         </div>
                     </div>
-                    <div style="background: ${isPositive ? '#d1fae5' : '#fee2e2'}; color: ${changeColor}; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">
+                    <div style="background: ${isPositive ? '#d1fae5' : '#fee2e2'}; color: ${changeColor}; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9rem; flex-shrink: 0; margin-left: 8px;">
                         ${signal.side || 'BUY'}
                     </div>
                 </div>
