@@ -7702,7 +7702,9 @@ class MarketMoodApp {
             // Show and style the status panel
             if (signalsStatusPanel) {
                 signalsStatusPanel.style.display = 'block';
-                signalsStatusPanel.style.padding = '10px 10px 0 10px';
+                signalsStatusPanel.style.padding = '10px';
+                signalsStatusPanel.style.marginBottom = '0';
+                signalsStatusPanel.style.paddingBottom = '0';
             }
             
             // Show and style the signals section
@@ -9014,6 +9016,21 @@ class MarketMoodApp {
             const runId = data?.run_id || data?.runId || null;
             const finalSignalDate = data?.date || targetDate;
             
+            // Collapse status panel when signals are displayed
+            const statusPanel = document.getElementById('signalsStatusPanel');
+            if (statusPanel && hasSignals && signalsArray.length > 0) {
+                statusPanel.style.maxHeight = '0';
+                statusPanel.style.overflow = 'hidden';
+                statusPanel.style.opacity = '0';
+                statusPanel.style.marginBottom = '0';
+                statusPanel.style.paddingBottom = '0';
+                statusPanel.style.transition = 'max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease';
+            } else if (statusPanel) {
+                statusPanel.style.maxHeight = 'none';
+                statusPanel.style.overflow = 'visible';
+                statusPanel.style.opacity = '1';
+            }
+            
             // Show loading state while rendering
             if (signalsContainer) {
                 signalsContainer.innerHTML = `
@@ -9428,10 +9445,20 @@ class MarketMoodApp {
         summary.innerHTML = `📊 <strong>${signals.length}</strong> trading signals generated for ${formatDate(date)}`;
         signalsContainer.insertBefore(summary, signalsContainer.firstChild);
 
-        // Create signals grid
+        // Create signals grid - match status panel width
+        const statusPanel = document.getElementById('signalsStatusPanel');
+        const statusPanelWidth = statusPanel ? statusPanel.offsetWidth : '100%';
         const signalsGrid = document.createElement('div');
         signalsGrid.className = 'signals-grid';
-        signalsGrid.style.cssText = 'display: grid; grid-template-columns: 1fr; gap: 15px;';
+        signalsGrid.style.cssText = `
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            width: ${typeof statusPanelWidth === 'number' ? statusPanelWidth + 'px' : statusPanelWidth};
+            max-width: 100%;
+            margin: 0 auto;
+            box-sizing: border-box;
+        `;
 
         signals.forEach((signal, index) => {
             try {
@@ -9445,6 +9472,9 @@ class MarketMoodApp {
                 
             const signalCard = document.createElement('div');
             signalCard.className = 'signal-card';
+            // Match status panel width
+            const statusPanelForCard = document.getElementById('signalsStatusPanel');
+            const cardWidth = statusPanelForCard ? statusPanelForCard.offsetWidth : '100%';
             signalCard.style.cssText = `
                 background: white;
                 border-radius: 12px;
@@ -9454,6 +9484,9 @@ class MarketMoodApp {
                 transform: translateY(10px);
                 transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
                 cursor: pointer;
+                width: ${typeof cardWidth === 'number' ? cardWidth + 'px' : cardWidth};
+                max-width: 100%;
+                box-sizing: border-box;
             `;
             
             // Add touch feedback
@@ -9755,6 +9788,9 @@ class MarketMoodApp {
                         
                         const signalCard = document.createElement('div');
                         signalCard.className = 'signal-card';
+                        // Match status panel width
+                        const statusPanelForFiltered = document.getElementById('signalsStatusPanel');
+                        const filteredCardWidth = statusPanelForFiltered ? statusPanelForFiltered.offsetWidth : '100%';
                         signalCard.style.cssText = `
                             background: white;
                             border-radius: 12px;
@@ -9764,6 +9800,9 @@ class MarketMoodApp {
                             transform: translateY(10px);
                             transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
                             cursor: pointer;
+                            width: ${typeof filteredCardWidth === 'number' ? filteredCardWidth + 'px' : filteredCardWidth};
+                            max-width: 100%;
+                            box-sizing: border-box;
                         `;
                         
                         const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
@@ -10155,23 +10194,24 @@ class MarketMoodApp {
                 </div>
                 ` : ''}
                 ${(eodDate || preMDate || currentDataUsed) ? `
-                <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <div style="color: #6b7280; font-weight: 500; font-size: 0.85rem; margin-bottom: 4px;">Data Used:</div>
-                    <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="color: #6b7280; min-width: 100px;">EOD Data (Bhav):</span>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                    <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Data Used:</span>
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1; font-size: 0.85rem;">
+                        <span style="color: #6b7280;">EOD:</span>
                             <span style="color: ${eodDate ? '#10b981' : '#ef4444'}; font-weight: 600;">${eodDate || 'Missing'}</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="color: #6b7280; min-width: 100px;">PreM Data:</span>
-                            <span style="color: ${preMDate ? '#10b981' : '#6b7280'}; font-weight: 600;">${preMDate || 'Not uploaded'}</span>
-                        </div>
+                        <span style="color: #d1d5db; margin: 0 4px;">•</span>
+                        <span style="color: #6b7280;">PreM:</span>
+                        <span style="color: ${preMDate ? '#10b981' : '#6b7280'}; font-weight: 600;">${preMDate || 'N/A'}</span>
                         ${currentDataUsed?.marketOpen ? `
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="color: #6b7280; min-width: 100px;">Live:</span>
+                        <span style="color: #d1d5db; margin: 0 4px;">•</span>
+                        <span style="color: #6b7280;">Live:</span>
                             <span style="color: #10b981; font-weight: 600;">ON</span>
-                            ${currentDataUsed.marketTimestamp ? `<span style="color: #6b7280; font-size: 0.8rem; margin-left: 8px;">(${new Date(currentDataUsed.marketTimestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })})</span>` : ''}
-                        </div>
+                        ${currentDataUsed.marketTimestamp ? `<span style="color: #6b7280; font-size: 0.75rem; margin-left: 4px;">(${new Date(currentDataUsed.marketTimestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })})</span>` : ''}
                         ` : ''}
                     </div>
                 </div>
@@ -10228,31 +10268,33 @@ class MarketMoodApp {
                                 <option value="LIVE" ${localStorage.getItem('nsemm.modeOverride') === 'LIVE' ? 'selected' : ''}>LIVE</option>
                             </select>
                         </div>
-                        <div style="display: flex; gap: 8px; margin-top: 4px;">
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
                             <button id="applyStrategyModeBtn" style="
-                                flex: 1;
-                                padding: 6px 12px;
+                                width: 100%;
+                                padding: 10px 16px;
                                 background: ${moodColor};
                                 color: white;
                                 border: none;
-                                border-radius: 6px;
-                                font-size: 0.85rem;
-                                font-weight: 500;
+                                border-radius: 8px;
+                                font-size: 0.9rem;
+                                font-weight: 600;
                                 cursor: pointer;
-                                transition: opacity 0.2s;
-                            " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Apply</button>
+                                transition: all 0.2s ease;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                            " onmouseover="this.style.opacity='0.9'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.opacity='1'; this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">Apply</button>
                             ${localStorage.getItem('nsemm.modeOverride') && localStorage.getItem('nsemm.modeOverride') !== 'AUTO' ? `
                             <button id="resetModeBtn" style="
-                                padding: 6px 12px;
+                                width: 100%;
+                                padding: 8px 16px;
                                 background: #f3f4f6;
                                 color: #6b7280;
                                 border: 1px solid #d1d5db;
-                                border-radius: 6px;
+                                border-radius: 8px;
                                 font-size: 0.85rem;
                                 font-weight: 500;
                                 cursor: pointer;
-                                transition: opacity 0.2s;
-                            " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Reset to Auto</button>
+                                transition: all 0.2s ease;
+                            " onmouseover="this.style.opacity='0.8'; this.style.background='#e5e7eb'" onmouseout="this.style.opacity='1'; this.style.background='#f3f4f6'">Reset to Auto</button>
                             ` : ''}
                         </div>
                     </div>
@@ -10301,6 +10343,22 @@ class MarketMoodApp {
         // Style the panel
         statusPanel.style.background = `rgba(255, 255, 255, 0.95)`;
         statusPanel.style.display = 'block';
+        
+        // Collapse panel if signals are displayed
+        if (signals && signals.hasSignals && signals.signals && signals.signals.length > 0) {
+            statusPanel.style.maxHeight = '0';
+            statusPanel.style.overflow = 'hidden';
+            statusPanel.style.opacity = '0';
+            statusPanel.style.marginBottom = '0';
+            statusPanel.style.paddingBottom = '0';
+            statusPanel.style.transition = 'max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease';
+        } else {
+            statusPanel.style.maxHeight = 'none';
+            statusPanel.style.overflow = 'visible';
+            statusPanel.style.opacity = '1';
+            statusPanel.style.marginBottom = '0';
+            statusPanel.style.paddingBottom = '10px';
+        }
         
         // Add event listener for "Try other Strategies" link (after innerHTML is set)
         setTimeout(() => {
