@@ -7726,7 +7726,7 @@ class MarketMoodApp {
                     const paddingRight = computed.paddingRight || '10px';
                     signalsContainer.style.padding = `20px ${paddingRight} 20px ${paddingLeft}`;
                 } else {
-                    signalsContainer.style.padding = '20px 10px';
+                signalsContainer.style.padding = '20px 10px';
                 }
             }
             
@@ -9603,11 +9603,11 @@ class MarketMoodApp {
                         </div>
                         <div style="flex: 1;">
                             <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
-                            <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
-                                Score: <strong style="color: #667eea;">${signal.score}/100</strong>
-                                ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
-                            </div>
+                        <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                            Score: <strong style="color: #667eea;">${signal.score}/100</strong>
+                            ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
                         </div>
+                    </div>
                     </div>
                     <div style="background: ${isPositive ? '#d1fae5' : '#fee2e2'}; color: ${changeColor}; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.9rem; flex-shrink: 0; margin-left: 8px;">
                         ${signal.side || 'BUY'}
@@ -9889,9 +9889,17 @@ class MarketMoodApp {
                         
                         const signalCard = document.createElement('div');
                         signalCard.className = 'signal-card';
-                        // Match status panel width
+                        // Match status panel inner width (excluding padding)
                         const statusPanelForFiltered = document.getElementById('signalsStatusPanel');
-                        const filteredCardWidth = statusPanelForFiltered ? statusPanelForFiltered.offsetWidth : '100%';
+                        let filteredCardWidth = '100%';
+                        if (statusPanelForFiltered) {
+                            const panelWidth = statusPanelForFiltered.offsetWidth;
+                            const panelComputed = window.getComputedStyle(statusPanelForFiltered);
+                            const panelPaddingLeft = parseInt(panelComputed.paddingLeft) || 0;
+                            const panelPaddingRight = parseInt(panelComputed.paddingRight) || 0;
+                            const innerWidth = panelWidth - panelPaddingLeft - panelPaddingRight;
+                            filteredCardWidth = `${innerWidth}px`;
+                        }
                         signalCard.style.cssText = `
                             background: white;
                             border-radius: 12px;
@@ -9901,8 +9909,9 @@ class MarketMoodApp {
                             transform: translateY(10px);
                             transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
                             cursor: pointer;
-                            width: ${typeof filteredCardWidth === 'number' ? filteredCardWidth + 'px' : filteredCardWidth};
+                            width: ${filteredCardWidth};
                             max-width: 100%;
+                            margin: 0;
                             box-sizing: border-box;
                         `;
                         
@@ -10325,11 +10334,11 @@ class MarketMoodApp {
                 user-select: none;
             " onmouseover="this.style.background='rgba(255, 255, 255, 1)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.95)'">
                 <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                    </svg>
-                    <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
-                </div>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+                    </div>
                 <svg id="signalsStatusChevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="
                     transform: ${shouldStartCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};
                     transition: transform 0.3s ease;
