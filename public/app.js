@@ -7960,6 +7960,11 @@ class MarketMoodApp {
                 signalsSection.style.padding = '0';
                 signalsSection.style.margin = '0';
                 signalsSection.style.minHeight = 'auto';
+                // Hide section header initially - will be shown when signals are rendered
+                const sectionHeader = signalsSection.querySelector('.section-header');
+                if (sectionHeader) {
+                    sectionHeader.style.display = 'none';
+                }
             }
             
             // Show the container (will be populated by loadSignals) - no padding needed
@@ -9794,7 +9799,7 @@ class MarketMoodApp {
                             <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">
                                 <a href="${tradingViewLink}" target="_blank" rel="noopener noreferrer" style="color: #333; text-decoration: none; transition: color 0.2s ease; cursor: pointer;" onmouseover="this.style.color='#667eea';" onmouseout="this.style.color='#333';">${signal.symbol}</a>
                             </h4>
-                        <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">
+                        <div style="font-size: 0.85rem; color: #666;">
                             Score: <strong style="color: #667eea;">${signal.score}/100</strong>
                             ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
                         </div>
@@ -9881,6 +9886,15 @@ class MarketMoodApp {
         const loadingIndicatorEl = document.getElementById('signalsLoading');
         if (loadingIndicatorEl) {
             loadingIndicatorEl.style.display = 'none';
+        }
+        
+        // Show the section header now that signals are rendered
+        const signalsSectionEl = document.getElementById('signalsSection');
+        if (signalsSectionEl) {
+            const sectionHeader = signalsSectionEl.querySelector('.section-header');
+            if (sectionHeader) {
+                sectionHeader.style.display = '';
+            }
         }
         
         // Add back-to-top button if there are 15+ signals

@@ -730,7 +730,6 @@ header h1 {
 
 .signals-status-panel {
     padding: 0 !important;
-    padding-bottom: 20px !important;
     background: var(--section-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -797,6 +796,8 @@ header h1 {
     font-size: 1rem;
     font-weight: 600;
     margin: 0;
+    padding-left: 10px;
+    padding-top: 15px;
 }
 
 .signals-container {
