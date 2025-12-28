@@ -7699,12 +7699,15 @@ class MarketMoodApp {
             const signalsContainer = document.getElementById('signalsContainer');
             const signalsLoading = document.getElementById('signalsLoading');
             
-            // Show and style the status panel
+            // Show and style the status panel - no padding, white box will fill it
             if (signalsStatusPanel) {
                 signalsStatusPanel.style.display = 'block';
-                signalsStatusPanel.style.padding = '10px';
+                signalsStatusPanel.style.padding = '0';
+                signalsStatusPanel.style.marginTop = '-20px';
                 signalsStatusPanel.style.marginBottom = '0';
-                signalsStatusPanel.style.paddingBottom = '0';
+                signalsStatusPanel.style.background = 'transparent';
+                signalsStatusPanel.style.position = 'relative';
+                signalsStatusPanel.style.zIndex = '10';
             }
             
             // Show and style the signals section
@@ -10272,7 +10275,7 @@ class MarketMoodApp {
             }
         };
         
-        // Render status panel with collapsible header - extended design
+        // Render status panel with collapsible header - fills panel container
         statusPanel.innerHTML = `
             <div id="signalsStatusHeader" style="
                 display: flex; 
@@ -10281,20 +10284,16 @@ class MarketMoodApp {
                 gap: 15px; 
                 padding: 16px;
                 background: white;
-                border-radius: 20px 20px 12px 12px;
+                border-radius: 20px 20px 0 0;
                 cursor: pointer;
                 transition: background 0.2s ease;
                 user-select: none;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                margin-top: -20px;
-                position: relative;
-                z-index: 10;
             " onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='white'">
                 <div style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                        </svg>
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
                         <div style="font-size: 0.9rem; font-weight: 600; color: #667eea; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
                     </div>
                     ${hasSignals ? `
@@ -10334,7 +10333,7 @@ class MarketMoodApp {
                 padding: 16px;
                 padding-top: 8px;
                 background: white;
-                border-radius: 0 0 12px 12px;
+                border-radius: 0 0 20px 20px;
                 transition: opacity 0.3s ease;
             ">
                 ${hasSignals ? `
