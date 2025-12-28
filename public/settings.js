@@ -1,3 +1,103 @@
+// Dark Mode Management
+class DarkModeManager {
+    static storageKey = 'nseMarketMoodDarkMode';
+    
+    static init() {
+        // Check for saved preference or use system preference
+        const savedPreference = localStorage.getItem(this.storageKey);
+        const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        if (savedPreference === null) {
+            // No saved preference, use system preference
+            if (systemPrefersDark) {
+                this.enable();
+            } else {
+                this.disable();
+            }
+        } else {
+            // Use saved preference
+            if (savedPreference === 'true') {
+                this.enable();
+            } else {
+                this.disable();
+            }
+        }
+        
+        // Listen for system preference changes (only if user hasn't set a preference)
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                // Only auto-switch if user hasn't manually set a preference
+                if (localStorage.getItem(this.storageKey) === null) {
+                    if (e.matches) {
+                        this.enable();
+                    } else {
+                        this.disable();
+                    }
+                }
+            });
+        }
+        
+        // Update toggle button state
+        this.updateToggleState();
+    }
+    
+    static enable() {
+        document.body.classList.add('dark-mode');
+        localStorage.setItem(this.storageKey, 'true');
+        this.updateToggleState();
+    }
+    
+    static disable() {
+        document.body.classList.remove('dark-mode');
+        localStorage.setItem(this.storageKey, 'false');
+        this.updateToggleState();
+    }
+    
+    static toggle() {
+        if (document.body.classList.contains('dark-mode')) {
+            this.disable();
+        } else {
+            this.enable();
+        }
+    }
+    
+    static updateToggleState() {
+        const toggle = document.getElementById('darkModeToggle');
+        if (toggle) {
+            const isDark = document.body.classList.contains('dark-mode');
+            // Toggle switch state is handled by CSS based on body.dark-mode class
+            // Update icon if needed (optional - currently using sun icon as theme icon)
+            const icon = toggle.querySelector('.toggle-icon');
+            if (icon) {
+                // Icon can be updated here if we want to switch between sun/moon
+                // For now, keeping it as sun icon (theme icon)
+            }
+        }
+    }
+    
+    static isEnabled() {
+        return document.body.classList.contains('dark-mode');
+    }
+}
+
+// Initialize dark mode as early as possible
+(function() {
+    function initDarkMode() {
+        if (document.body) {
+            DarkModeManager.init();
+        } else {
+            // If body doesn't exist yet, try again on DOMContentLoaded
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initDarkMode);
+            } else {
+                // DOMContentLoaded already fired, try immediately
+                setTimeout(initDarkMode, 0);
+            }
+        }
+    }
+    initDarkMode();
+})();
+
 // Settings Management
 class SettingsManager {
     constructor() {
@@ -620,9 +720,12 @@ class SettingsManager {
             if (settingsModal) {
                 settingsModal.classList.add('show');
                 this.lockBodyScroll();
+                // Update dark mode toggle state
+                DarkModeManager.updateToggleState();
                 // Use setTimeout to ensure modal is visible before updating content
                 setTimeout(() => {
                     // Refresh settings in modal when opened
+                    DarkModeManager.updateToggleState();
                     try {
                         this.updateApiList();
                         this.updateActiveApiDisplay();
@@ -648,6 +751,7 @@ class SettingsManager {
                 // Use setTimeout to ensure modal is visible before updating content
                 setTimeout(() => {
                     // Refresh settings in modal when opened
+                    DarkModeManager.updateToggleState();
                     try {
                         this.updateApiList();
                         this.updateActiveApiDisplay();
@@ -694,6 +798,14 @@ class SettingsManager {
         if (saveSettings) {
             saveSettings.addEventListener('click', () => {
                 this.saveCurrentSettings();
+            });
+        }
+
+        // Dark mode toggle
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        if (darkModeToggle) {
+            darkModeToggle.addEventListener('click', () => {
+                DarkModeManager.toggle();
             });
         }
 

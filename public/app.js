@@ -699,6 +699,9 @@ class MarketMoodApp {
 
         // Setup upload functionality
         this.setupUpload();
+        
+        // Setup signals filter
+        this.setupSignalsFilter();
 
         // Visibility change is handled by polling manager
         // No separate handler needed here
@@ -3071,6 +3074,26 @@ class MarketMoodApp {
     
     // updateSelectedStrategyText() removed - strategy selector button no longer exists
 
+    getFilteredSignals(signals, filter, sort) {
+        let filtered = [...signals];
+        
+        // Apply filter
+        if (filter === 'buy') {
+            filtered = filtered.filter(s => (s.side || 'BUY').toUpperCase() === 'BUY');
+        } else if (filter === 'sell') {
+            filtered = filtered.filter(s => (s.side || 'BUY').toUpperCase() === 'SELL');
+        }
+        
+        // Apply sort
+        if (sort === 'score') {
+            filtered.sort((a, b) => (b.score || 0) - (a.score || 0));
+        } else if (sort === 'symbol') {
+            filtered.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
+        }
+        
+        return filtered;
+    }
+
     setupSignalsFilter() {
         const filterBtn = document.getElementById('signalsFilterBtn');
         const filterModal = document.getElementById('signalsFilterModal');
@@ -3080,10 +3103,33 @@ class MarketMoodApp {
         
         if (!filterBtn || !filterModal) return;
         
-        // Open filter modal
+        // Open filter modal and update counts
         filterBtn.addEventListener('click', () => {
             filterModal.classList.add('show');
             this.lockBodyScroll();
+            
+            // Sync radio buttons with current filter state
+            if (this._signalFilterState) {
+                const filterRadio = document.querySelector(`input[name="signalFilter"][value="${this._signalFilterState.filter}"]`);
+                const sortRadio = document.querySelector(`input[name="signalSort"][value="${this._signalFilterState.sort || ''}"]`);
+                if (filterRadio) filterRadio.checked = true;
+                if (sortRadio) sortRadio.checked = true;
+            }
+            
+            // Update filter counts
+            if (this._originalSignalsForFiltering) {
+                const allCount = this._originalSignalsForFiltering.length;
+                const buyCount = this._originalSignalsForFiltering.filter(s => (s.side || 'BUY').toUpperCase() === 'BUY').length;
+                const sellCount = this._originalSignalsForFiltering.filter(s => (s.side || 'BUY').toUpperCase() === 'SELL').length;
+                
+                const allCountEl = document.getElementById('filterAllCount');
+                const buyCountEl = document.getElementById('filterBuyCount');
+                const sellCountEl = document.getElementById('filterSellCount');
+                
+                if (allCountEl) allCountEl.textContent = allCount;
+                if (buyCountEl) buyCountEl.textContent = buyCount;
+                if (sellCountEl) sellCountEl.textContent = sellCount;
+            }
         });
         
         // Close filter modal
@@ -3167,17 +3213,6 @@ class MarketMoodApp {
                 }
             });
         }
-        
-        // Update modal state when opened (sync radio buttons with current filter state)
-        filterBtn.addEventListener('click', () => {
-            // Sync radio buttons with current filter state
-            if (this._signalFilterState) {
-                const filterRadio = document.querySelector(`input[name="signalFilter"][value="${this._signalFilterState.filter}"]`);
-                const sortRadio = document.querySelector(`input[name="signalSort"][value="${this._signalFilterState.sort || ''}"]`);
-                if (filterRadio) filterRadio.checked = true;
-                if (sortRadio) sortRadio.checked = true;
-            }
-        });
     }
 
     setupUpload() {
@@ -9727,7 +9762,7 @@ class MarketMoodApp {
             // Get logo sources with fallback chain
             const sources = this.getLogoSources(signal.symbol);
             const sourcesEscaped = sources.map(s => s.replace(/"/g, '&quot;').replace(/'/g, '&#39;')).join('|');
-            
+
             signalCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
@@ -9749,7 +9784,7 @@ class MarketMoodApp {
                         </div>
                         <div style="flex: 1;">
                             <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
-                        <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                        <div style="font-size: 0.85rem; color: #666;">
                             Score: <strong style="color: #667eea;">${signal.score}/100</strong>
                             ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
                         </div>

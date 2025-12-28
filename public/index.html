@@ -167,11 +167,13 @@
                 <div class="signals-section" id="signalsSection">
                     <div class="section-header" style="margin-bottom: 10px;">
                         <h3 class="section-title" style="margin: 0;">Intraday Signals</h3>
-                        <button id="signalsFilterBtn" class="filter-icon-btn" title="Filter Signals" style="display: none;">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                            </svg>
-                        </button>
+                        <div class="section-icons-group">
+                            <button id="signalsFilterBtn" class="filter-icon-btn" title="Filter Signals">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div id="signalsLoading" class="loading-message" style="display: none; text-align: center; padding: 40px 20px;">
                         <div style="margin-bottom: 10px;">Loading signals...</div>
@@ -739,63 +741,49 @@
     </div>
 
     <!-- Signals Filter Modal -->
-    <div id="signalsFilterModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
-                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                    </svg>
-                    Filter Signals
-                </h2>
-                <button class="modal-close" id="closeSignalsFilter">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
+    <div id="signalsFilterModal" class="filter-modal">
+        <div class="filter-modal-content">
+            <div class="filter-modal-header">
+                <h3>Filter & Sort Signals</h3>
+                <button class="close-btn" id="closeSignalsFilter">&times;</button>
             </div>
-            <div class="modal-body">
-                <div class="settings-section">
-                    <h3>Filter by Side</h3>
-                    <div id="filterSideOptions" style="display: flex; flex-direction: column; gap: 10px;">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
-                            <input type="radio" name="signalFilter" value="all" checked style="margin: 0; cursor: pointer;">
-                            <span style="flex: 1; font-weight: 500;">All Signals</span>
-                            <span id="filterAllCount" style="font-size: 0.85rem; color: var(--text-color-secondary);">0</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
-                            <input type="radio" name="signalFilter" value="buy" style="margin: 0; cursor: pointer;">
-                            <span style="flex: 1; font-weight: 500;">Buy Only</span>
-                            <span id="filterBuyCount" style="font-size: 0.85rem; color: var(--text-color-secondary);">0</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
-                            <input type="radio" name="signalFilter" value="sell" style="margin: 0; cursor: pointer;">
-                            <span style="flex: 1; font-weight: 500;">Sell Only</span>
-                            <span id="filterSellCount" style="font-size: 0.85rem; color: var(--text-color-secondary);">0</span>
-                        </label>
-                    </div>
+            <div class="filter-modal-body">
+                <div class="filter-options-group">
+                    <label>Filter by Side:</label>
+                    <label class="filter-option-radio">
+                        <input type="radio" name="signalFilter" value="all" checked>
+                        <span>All Signals</span>
+                        <span class="count" id="filterAllCount">0</span>
+                    </label>
+                    <label class="filter-option-radio">
+                        <input type="radio" name="signalFilter" value="buy">
+                        <span>Buy Only</span>
+                        <span class="count" id="filterBuyCount">0</span>
+                    </label>
+                    <label class="filter-option-radio">
+                        <input type="radio" name="signalFilter" value="sell">
+                        <span>Sell Only</span>
+                        <span class="count" id="filterSellCount">0</span>
+                    </label>
                 </div>
-                <div class="settings-section">
-                    <h3>Sort By</h3>
-                    <div id="filterSortOptions" style="display: flex; flex-direction: column; gap: 10px;">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
-                            <input type="radio" name="signalSort" value="" checked style="margin: 0; cursor: pointer;">
-                            <span style="flex: 1; font-weight: 500;">Default Order</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
-                            <input type="radio" name="signalSort" value="score" style="margin: 0; cursor: pointer;">
-                            <span style="flex: 1; font-weight: 500;">Score (High to Low)</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 8px; border: 2px solid var(--input-border); transition: all 0.2s ease;">
-                            <input type="radio" name="signalSort" value="symbol" style="margin: 0; cursor: pointer;">
-                            <span style="flex: 1; font-weight: 500;">Symbol (A to Z)</span>
-                        </label>
-                    </div>
+                <div class="filter-options-group">
+                    <label>Sort By:</label>
+                    <label class="filter-option-radio">
+                        <input type="radio" name="signalSort" value="" checked>
+                        <span>Default Order</span>
+                    </label>
+                    <label class="filter-option-radio">
+                        <input type="radio" name="signalSort" value="score">
+                        <span>Score (High to Low)</span>
+                    </label>
+                    <label class="filter-option-radio">
+                        <input type="radio" name="signalSort" value="symbol">
+                        <span>Symbol (A to Z)</span>
+                    </label>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button id="applySignalFilter" class="btn-primary">Apply Filter</button>
+            <div class="filter-modal-footer">
+                <button id="applySignalFilter" class="btn-primary">Apply Filters</button>
                 <button id="resetSignalFilter" class="btn-secondary">Reset</button>
             </div>
         </div>

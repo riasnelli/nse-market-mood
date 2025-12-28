@@ -639,6 +639,12 @@ header h1 {
     margin-bottom: 20px;
 }
 
+/* Add padding to mood page data-grid only */
+#mainIndicesGrid {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
 /* Page Views */
 .page-view {
     width: 100%;
@@ -844,6 +850,168 @@ body.dark-mode .filter-icon-btn:hover {
 
 .filter-icon-btn svg {
     display: block;
+}
+
+/* Filter Modal - Slide-up style */
+.filter-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--modal-overlay);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.filter-modal.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.filter-modal-content {
+    background: var(--modal-bg);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-modal.show .filter-modal-content {
+    transform: translateY(0);
+}
+
+.filter-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.filter-modal-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-color);
+}
+
+.filter-modal-header .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-color-secondary);
+    padding: 5px;
+    line-height: 1;
+    transition: color 0.2s ease;
+}
+
+.filter-modal-header .close-btn:hover {
+    color: var(--text-color);
+}
+
+.filter-modal-body {
+    padding: 20px;
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.filter-options-group {
+    margin-bottom: 20px;
+}
+
+.filter-options-group > label {
+    display: block;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+}
+
+.filter-option-radio {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    cursor: pointer;
+    padding: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.filter-option-radio:hover {
+    background: var(--table-row-hover);
+    border-color: var(--primary-color, #667eea);
+}
+
+.filter-option-radio input[type="radio"] {
+    margin-right: 10px;
+    accent-color: var(--primary-color, #667eea);
+    cursor: pointer;
+}
+
+.filter-option-radio span {
+    flex-grow: 1;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.filter-option-radio .count {
+    font-weight: 600;
+    color: var(--text-color-secondary);
+    font-size: 0.85rem;
+    margin-left: 8px;
+}
+
+.filter-modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.filter-modal-footer button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+.filter-modal-footer .btn-primary {
+    background: var(--primary-color, #667eea);
+    color: white;
+}
+
+.filter-modal-footer .btn-primary:hover {
+    opacity: 0.9;
+}
+
+.filter-modal-footer .btn-secondary {
+    background: var(--input-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.filter-modal-footer .btn-secondary:hover {
+    background: var(--table-row-hover);
 }
 
 .section-title {
