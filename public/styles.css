@@ -313,7 +313,7 @@ header {
 .greeting-text .notification-bell {
     position: absolute;
     right: 10px;
-    top: calc(env(safe-area-inset-top, 0px) + 20px);
+    top: calc(env(safe-area-inset-top, 0px) + 40px);
 }
 
 .greeting-time {

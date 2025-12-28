@@ -9806,7 +9806,7 @@ class MarketMoodApp {
                         ${signal.side || 'BUY'}
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; padding-top: 15px;">
                     <div>
                         <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Entry</div>
                         <div style="font-weight: 600; color: #333;">₹${signal.entry_price?.toFixed(2) || '-'}</div>
