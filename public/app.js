@@ -9762,6 +9762,12 @@ class MarketMoodApp {
             // Get logo sources with fallback chain
             const sources = this.getLogoSources(signal.symbol);
             const sourcesEscaped = sources.map(s => s.replace(/"/g, '&quot;').replace(/'/g, '&#39;')).join('|');
+            
+            // Generate links
+            const cleanSymbol = this.cleanSymbol(signal.symbol);
+            const tradingViewLink = `https://in.tradingview.com/symbols/NSE-${cleanSymbol}/`;
+            const googleSearchLink = `https://www.google.com/search?q=${encodeURIComponent(cleanSymbol)}`;
+            const symbolName = signal.name || signal.company_name || cleanSymbol;
 
             signalCard.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
@@ -9776,15 +9782,20 @@ class MarketMoodApp {
                         ">
                             <img
                                 src="${sources[0]}"
-                                alt="${this.cleanSymbol(signal.symbol)}"
+                                alt="${cleanSymbol}"
                                 data-sources="${sourcesEscaped}"
                                 style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:white;padding:2px;box-shadow:0 2px 8px rgba(0,0,0,0.12);"
                                 onerror="(function(img){const srcs=img.getAttribute('data-sources').split('|');const idx=parseInt(img.dataset.idx||'0',10)+1;img.dataset.idx=String(idx);if(srcs[idx])img.src=srcs[idx];})(this);"
                             />
                         </div>
                         <div style="flex: 1;">
-                            <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
-                        <div style="font-size: 0.85rem; color: #666;">
+                            <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">
+                                <a href="${tradingViewLink}" target="_blank" rel="noopener noreferrer" style="color: #333; text-decoration: none; transition: color 0.2s ease;" onmouseover="this.style.color='#667eea';" onmouseout="this.style.color='#333';">${signal.symbol}</a>
+                            </h4>
+                            <div style="font-size: 0.85rem; color: #666; margin-top: 2px;">
+                                <a href="${googleSearchLink}" target="_blank" rel="noopener noreferrer" style="color: #666; text-decoration: none; transition: color 0.2s ease;" onmouseover="this.style.color='#667eea';" onmouseout="this.style.color='#666';">${symbolName}</a>
+                            </div>
+                        <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">
                             Score: <strong style="color: #667eea;">${signal.score}/100</strong>
                             ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
                         </div>
