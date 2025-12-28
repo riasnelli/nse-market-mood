@@ -730,6 +730,7 @@ header h1 {
 
 .signals-status-panel {
     padding: 0 !important;
+    padding-bottom: 20px !important;
     background: var(--section-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -772,7 +773,7 @@ header h1 {
     margin-bottom: 20px;
     margin-top: 30px;
     visibility: visible !important;
-    padding: 20px 20px 20px 0;
+    padding: 20px;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     backdrop-filter: blur(10px);
@@ -789,7 +790,6 @@ header h1 {
 
 .signals-section .section-header {
     margin-bottom: 20px;
-    padding-left: 10px;
 }
 
 .signals-section .section-title {
@@ -838,16 +838,15 @@ header h1 {
     border: none;
     color: var(--text-color);
     cursor: pointer;
-    padding: 6px;
-    border-radius: 6px;
+    padding-right: 15px;
+    padding-top: 15px;
+    border-radius: 8px;
     transition: all 0.2s ease;
     opacity: 0.8;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
 }
 
 .filter-icon-btn:hover {
@@ -861,8 +860,9 @@ body.dark-mode .filter-icon-btn:hover {
 }
 
 .filter-icon-btn svg {
-    width: 18px;
-    height: 18px;
+    display: block;
+    width: 20px;
+    height: 20px;
 }
 
 .filter-icon-btn svg {

@@ -9747,38 +9747,15 @@ class MarketMoodApp {
                 opacity: 0;
                 transform: translateY(10px);
                 transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
-                cursor: pointer;
+                cursor: default;
                 width: 100%;
                 max-width: 100%;
                 margin: 0;
                 box-sizing: border-box;
             `;
             
-            // Add touch feedback
-            signalCard.addEventListener('touchstart', () => {
-                signalCard.style.transform = 'translateY(10px) scale(0.98)';
-                signalCard.style.boxShadow = '0 1px 4px rgba(0,0,0,0.15)';
-            }, { passive: true });
-            
-            signalCard.addEventListener('touchend', () => {
-                signalCard.style.transform = 'translateY(0) scale(1)';
-                signalCard.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-            }, { passive: true });
-            
-            signalCard.addEventListener('mousedown', () => {
-                signalCard.style.transform = 'translateY(10px) scale(0.98)';
-                signalCard.style.boxShadow = '0 1px 4px rgba(0,0,0,0.15)';
-            });
-            
-            signalCard.addEventListener('mouseup', () => {
-                signalCard.style.transform = 'translateY(0) scale(1)';
-                signalCard.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-            });
-            
-            signalCard.addEventListener('mouseleave', () => {
-                signalCard.style.transform = 'translateY(0) scale(1)';
-                signalCard.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-            });
+            // Remove touch/mouse feedback since card is no longer clickable
+            // Only icon and stock name links are clickable
 
             const isPositive = signal.entry_price && signal.target_price && signal.target_price > signal.entry_price;
             const changeColor = isPositive ? '#10b981' : '#ef4444';
@@ -9790,14 +9767,12 @@ class MarketMoodApp {
             // Generate links
             const cleanSymbol = this.cleanSymbol(signal.symbol);
             const tradingViewLink = `https://in.tradingview.com/symbols/NSE-${cleanSymbol}/`;
-            const googleSearchLink = `https://www.google.com/search?q=${encodeURIComponent(cleanSymbol)}`;
-            const symbolName = signal.name || signal.company_name || cleanSymbol;
+            const googleSearchLink = `https://www.google.com/search?q=${encodeURIComponent(cleanSymbol)}+share+price+today`;
 
             signalCard.innerHTML = `
-                <a href="${tradingViewLink}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit; display: block;">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                        <a href="${googleSearchLink}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="text-decoration: none; flex-shrink: 0;">
+                        <a href="${googleSearchLink}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; flex-shrink: 0; cursor: pointer;">
                             <div style="
                                 width: 32px;
                                 height: 32px;
@@ -9816,8 +9791,9 @@ class MarketMoodApp {
                             </div>
                         </a>
                         <div style="flex: 1;">
-                            <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">${signal.symbol}</h4>
-                            <div style="font-size: 0.85rem; color: #666; margin-top: 2px;">${symbolName}</div>
+                            <h4 style="margin: 0; font-size: 1.1rem; color: #333; font-weight: 600; text-transform: uppercase;">
+                                <a href="${tradingViewLink}" target="_blank" rel="noopener noreferrer" style="color: #333; text-decoration: none; transition: color 0.2s ease; cursor: pointer;" onmouseover="this.style.color='#667eea';" onmouseout="this.style.color='#333';">${signal.symbol}</a>
+                            </h4>
                         <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">
                             Score: <strong style="color: #667eea;">${signal.score}/100</strong>
                             ${signal.confidence_score ? `• Confidence: ${(signal.confidence_score * 100).toFixed(0)}%` : ''}
@@ -9857,7 +9833,6 @@ class MarketMoodApp {
                         ${signal.ai_explanation}
                     </div>
                 ` : ''}
-                </a>
             `;
 
             signalsGrid.appendChild(signalCard);
