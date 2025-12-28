@@ -7703,11 +7703,8 @@ class MarketMoodApp {
             if (signalsStatusPanel) {
                 signalsStatusPanel.style.display = 'block';
                 signalsStatusPanel.style.padding = '0';
-                signalsStatusPanel.style.marginTop = '-20px';
                 signalsStatusPanel.style.marginBottom = '0';
-                signalsStatusPanel.style.background = 'transparent';
-                signalsStatusPanel.style.position = 'relative';
-                signalsStatusPanel.style.zIndex = '10';
+                signalsStatusPanel.style.paddingBottom = '0';
             }
             
             // Show and style the signals section
