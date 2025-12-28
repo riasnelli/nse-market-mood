@@ -9649,6 +9649,15 @@ class MarketMoodApp {
 
         signalsContainer.appendChild(signalsGrid);
         
+        // Ensure loading spinner is completely removed and container is visible
+        signalsContainer.style.display = 'block';
+        
+        // Hide any remaining loading indicators
+        const signalsLoading = document.getElementById('signalsLoading');
+        if (signalsLoading) {
+            signalsLoading.style.display = 'none';
+        }
+        
         // Add back-to-top button if there are 15+ signals
         if (signals.length >= 15) {
             // Remove existing back-to-top button if any
