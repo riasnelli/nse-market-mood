@@ -9895,6 +9895,7 @@ class MarketMoodApp {
             });
             
             document.body.appendChild(backToTop);
+        }
     }
 
     async loadDataAvailability(date = null) {
