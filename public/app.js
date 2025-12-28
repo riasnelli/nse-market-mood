@@ -9016,19 +9016,20 @@ class MarketMoodApp {
             const runId = data?.run_id || data?.runId || null;
             const finalSignalDate = data?.date || targetDate;
             
-            // Collapse status panel when signals are displayed
+            // Collapse status panel when signals are displayed (but allow user to expand)
             const statusPanel = document.getElementById('signalsStatusPanel');
+            const statusContent = document.getElementById('signalsStatusContent');
+            const statusChevron = document.getElementById('signalsStatusChevron');
+            
             if (statusPanel && hasSignals && signalsArray.length > 0) {
-                statusPanel.style.maxHeight = '0';
-                statusPanel.style.overflow = 'hidden';
-                statusPanel.style.opacity = '0';
-                statusPanel.style.marginBottom = '0';
-                statusPanel.style.paddingBottom = '0';
-                statusPanel.style.transition = 'max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease';
-            } else if (statusPanel) {
-                statusPanel.style.maxHeight = 'none';
-                statusPanel.style.overflow = 'visible';
-                statusPanel.style.opacity = '1';
+                // Auto-collapse if user hasn't set a preference
+                const storedCollapsedState = localStorage.getItem('nsemm.signalsStatusCollapsed');
+                if (storedCollapsedState === null) {
+                    // First time - auto-collapse when signals are shown
+                    if (statusContent) statusContent.style.display = 'none';
+                    if (statusChevron) statusChevron.style.transform = 'rotate(-90deg)';
+                    localStorage.setItem('nsemm.signalsStatusCollapsed', 'true');
+                }
             }
             
             // Show loading state while rendering
@@ -10245,15 +10246,47 @@ class MarketMoodApp {
         };
         const modeBadge = currentModeDisplay ? getModeBadgeColor(currentModeDisplay) : null;
 
-        // Render status panel
+        // Determine if panel should start collapsed (when signals are displayed)
+        const hasSignalsToShow = signals && signals.hasSignals && signals.signals && signals.signals.length > 0;
+        const storedCollapsedState = localStorage.getItem('nsemm.signalsStatusCollapsed');
+        const shouldStartCollapsed = storedCollapsedState !== null ? storedCollapsedState === 'true' : hasSignalsToShow;
+        
+        // Render status panel with collapsible header
         statusPanel.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            <div id="signalsStatusHeader" style="
+                display: flex; 
+                align-items: center; 
+                justify-content: space-between;
+                gap: 10px; 
+                padding: 12px;
+                background: rgba(255, 255, 255, 0.95);
+                border-radius: 12px;
+                cursor: pointer;
+                transition: background 0.2s ease;
+                user-select: none;
+            " onmouseover="this.style.background='rgba(255, 255, 255, 1)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.95)'">
+                <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                    <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+                </div>
+                <svg id="signalsStatusChevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="
+                    transform: ${shouldStartCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};
+                    transition: transform 0.3s ease;
+                    flex-shrink: 0;
+                ">
+                    <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
-                <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
-                    </div>
-            <div style="display: grid; grid-template-columns: 1fr; gap: 14px; font-size: 0.9rem;">
+            </div>
+            <div id="signalsStatusContent" style="
+                display: ${shouldStartCollapsed ? 'none' : 'grid'}; 
+                grid-template-columns: 1fr; 
+                gap: 14px; 
+                font-size: 0.9rem;
+                margin-top: 12px;
+                transition: opacity 0.3s ease;
+            ">
                 <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
