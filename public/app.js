@@ -10272,43 +10272,47 @@ class MarketMoodApp {
             }
         };
         
-        // Render status panel with collapsible header
+        // Render status panel with collapsible header - extended design
         statusPanel.innerHTML = `
             <div id="signalsStatusHeader" style="
                 display: flex; 
-                align-items: center; 
+                align-items: flex-start; 
                 justify-content: space-between;
-                gap: 10px; 
-                padding: 12px;
-                background: rgba(255, 255, 255, 0.95);
-                border-radius: 12px;
+                gap: 15px; 
+                padding: 16px;
+                background: white;
+                border-radius: 20px 20px 12px 12px;
                 cursor: pointer;
                 transition: background 0.2s ease;
                 user-select: none;
-            " onmouseover="this.style.background='rgba(255, 255, 255, 1)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.95)'">
-                <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                </svg>
-                <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                margin-top: -20px;
+                position: relative;
+                z-index: 10;
+            " onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='white'">
+                <div style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        </svg>
+                        <div style="font-size: 0.9rem; font-weight: 600; color: #667eea; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+                    </div>
                     ${hasSignals ? `
                     <div style="
                         display: flex;
                         align-items: center;
-                        gap: 6px;
-                        padding: 4px 10px;
-                        background: rgba(102, 126, 234, 0.1);
+                        gap: 10px;
+                        padding: 12px;
+                        background: rgba(102, 126, 234, 0.08);
                         border-radius: 12px;
-                        font-size: 0.85rem;
-                        color: #1e40af;
-                        font-weight: 600;
-                        margin-left: auto;
-                        margin-right: 8px;
                     ">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                         </svg>
-                        <span>${signalCount} signals</span>
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-size: 1.5rem; font-weight: 700; color: #1e40af; line-height: 1;">${signalCount}</span>
+                            <span style="font-size: 0.85rem; color: #1e40af; font-weight: 500; margin-top: 2px;">signals</span>
+                        </div>
                     </div>
                     ` : ''}
                 </div>
@@ -10316,6 +10320,7 @@ class MarketMoodApp {
                     transform: ${shouldStartCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};
                     transition: transform 0.3s ease;
                     flex-shrink: 0;
+                    margin-top: 4px;
                 ">
                     <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
