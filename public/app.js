@@ -9438,11 +9438,20 @@ class MarketMoodApp {
             signalsContainer.appendChild(headerInfo);
         }
 
-        // Add signal count summary at top
+        // Add signal count summary at top - match status panel padding
+        const statusPanelForSummary = document.getElementById('signalsStatusPanel');
+        let summaryPadding = '15px 10px';
+        if (statusPanelForSummary) {
+            const computed = window.getComputedStyle(statusPanelForSummary);
+            const paddingLeft = computed.paddingLeft || '10px';
+            const paddingRight = computed.paddingRight || '10px';
+            summaryPadding = `15px ${paddingRight} 15px ${paddingLeft}`;
+        }
+        
         const summary = document.createElement('div');
         summary.style.cssText = `
-            padding: 15px;
-            margin: 0 10px 15px;
+            padding: ${summaryPadding};
+            margin: 0 0 15px 0;
             background: rgba(102, 126, 234, 0.1);
             border-radius: 12px;
             text-align: center;
