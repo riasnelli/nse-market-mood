@@ -9438,38 +9438,8 @@ class MarketMoodApp {
             signalsContainer.appendChild(headerInfo);
         }
 
-        // Add signal count summary at top - match status panel padding
-        const statusPanelForSummary = document.getElementById('signalsStatusPanel');
-        let summaryPadding = '15px 10px';
-        if (statusPanelForSummary) {
-            const computed = window.getComputedStyle(statusPanelForSummary);
-            const paddingLeft = computed.paddingLeft || '10px';
-            const paddingRight = computed.paddingRight || '10px';
-            summaryPadding = `15px ${paddingRight} 15px ${paddingLeft}`;
-        }
-        
-        const summary = document.createElement('div');
-        summary.style.cssText = `
-            padding: ${summaryPadding};
-            margin: 0 0 15px 0;
-            background: rgba(102, 126, 234, 0.1);
-            border-radius: 12px;
-            text-align: center;
-            color: #1e40af;
-            font-weight: 600;
-            font-size: 0.95rem;
-        `;
-        const formatDate = (dateStr) => {
-            if (!dateStr) return 'today';
-            try {
-                const date = new Date(dateStr);
-                return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-            } catch {
-                return dateStr;
-            }
-        };
-        summary.innerHTML = `📊 <strong>${signals.length}</strong> trading signals generated for ${formatDate(date)}`;
-        signalsContainer.insertBefore(summary, signalsContainer.firstChild);
+        // Summary will be added to status panel, not here
+        // Removed summary from signals container
 
         // Create signals grid - match status panel width and padding
         const statusPanel = document.getElementById('signalsStatusPanel');
