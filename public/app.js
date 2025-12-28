@@ -10275,7 +10275,7 @@ class MarketMoodApp {
             }
         };
         
-        // Render status panel with collapsible header - fills panel container
+        // Render status panel with collapsible header
         statusPanel.innerHTML = `
             <div id="signalsStatusHeader" style="
                 display: flex; 
@@ -10284,10 +10284,11 @@ class MarketMoodApp {
                 gap: 15px; 
                 padding: 16px;
                 background: white;
-                border-radius: 20px 20px 0 0;
+                border-radius: 12px;
                 cursor: pointer;
                 transition: background 0.2s ease;
                 user-select: none;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             " onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='white'">
                 <div style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
                     <div style="display: flex; align-items: center; gap: 10px;">
