@@ -10279,6 +10279,21 @@ class MarketMoodApp {
         const storedCollapsedState = localStorage.getItem('nsemm.signalsStatusCollapsed');
         const shouldStartCollapsed = storedCollapsedState !== null ? storedCollapsedState === 'true' : hasSignalsToShow;
         
+        // Get signal count for summary
+        const signalCount = signals?.signals ? signals.signals.length : 0;
+        const hasSignals = signals?.hasSignals === true && signalCount > 0;
+        
+        // Format date for summary
+        const formatDateForSummary = (dateStr) => {
+            if (!dateStr) return 'today';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+            } catch {
+                return dateStr;
+            }
+        };
+        
         // Render status panel with collapsible header
         statusPanel.innerHTML = `
             <div id="signalsStatusHeader" style="
@@ -10298,7 +10313,27 @@ class MarketMoodApp {
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                 </svg>
                 <div style="font-size: 0.9rem; font-weight: 600; color: ${moodColor}; text-transform: uppercase; letter-spacing: 0.5px;">Signals Status</div>
+                    ${hasSignals ? `
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 4px 10px;
+                        background: rgba(102, 126, 234, 0.1);
+                        border-radius: 12px;
+                        font-size: 0.85rem;
+                        color: #1e40af;
+                        font-weight: 600;
+                        margin-left: auto;
+                        margin-right: 8px;
+                    ">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        </svg>
+                        <span>${signalCount} signals</span>
                     </div>
+                    ` : ''}
+                </div>
                 <svg id="signalsStatusChevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="
                     transform: ${shouldStartCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};
                     transition: transform 0.3s ease;
@@ -10315,6 +10350,16 @@ class MarketMoodApp {
                 margin-top: 12px;
                 transition: opacity 0.3s ease;
             ">
+                ${hasSignals ? `
+                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                    <span style="color: #1e40af; font-weight: 600; font-size: 0.9rem;">
+                        <strong>${signalCount}</strong> trading signals generated for ${formatDateForSummary(targetDate)}
+                    </span>
+                </div>
+                ` : ''}
                 <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
