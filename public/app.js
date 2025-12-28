@@ -3103,15 +3103,12 @@ class MarketMoodApp {
             return;
         }
         
-        // Use the modal reference
-        const actualFilterModal = filterModal;
-        
         // Open filter modal and update counts
         filterBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             console.log('Filter button clicked, opening modal');
-            actualFilterModal.classList.add('show');
+            filterModal.classList.add('show');
             this.lockBodyScroll();
             
             // Sync radio buttons with current filter state
@@ -3143,23 +3140,23 @@ class MarketMoodApp {
             closeFilter.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                actualFilterModal.classList.remove('show');
+                filterModal.classList.remove('show');
                 this.unlockBodyScroll();
             });
         }
         
         // Close modal when clicking outside
-        actualFilterModal.addEventListener('click', (e) => {
-            if (e.target === actualFilterModal) {
+        filterModal.addEventListener('click', (e) => {
+            if (e.target === filterModal) {
                 e.preventDefault();
                 e.stopPropagation();
-                actualFilterModal.classList.remove('show');
+                filterModal.classList.remove('show');
                 this.unlockBodyScroll();
             }
         });
         
         // Prevent clicks inside modal content from closing it
-        const modalContent = actualFilterModal.querySelector('.filter-modal-content');
+        const modalContent = filterModal.querySelector('.filter-modal-content');
         if (modalContent) {
             modalContent.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -3185,10 +3182,7 @@ class MarketMoodApp {
                 
                 
                 // Close modal
-                const modal = document.getElementById('signalsFilterModal');
-                if (modal) {
-                    modal.classList.remove('show');
-                }
+                filterModal.classList.remove('show');
                 this.unlockBodyScroll();
                 
                 // Re-apply filter to current signals
@@ -3220,10 +3214,7 @@ class MarketMoodApp {
                 this._signalFilterState = { filter: 'all', sort: null };
                 
                 // Close modal
-                const modal = document.getElementById('signalsFilterModal');
-                if (modal) {
-                    modal.classList.remove('show');
-                }
+                filterModal.classList.remove('show');
                 this.unlockBodyScroll();
                 
                 // Re-render with all signals (no filter)

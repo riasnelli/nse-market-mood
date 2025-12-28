@@ -301,6 +301,18 @@ header {
     flex: 1;
     padding-top: 15px;
     padding-bottom: 15px;
+    max-width: calc(400px - 20px);
+    width: calc(100% - 20px);
+    margin: 0 auto;
+    padding-left: 10px;
+    padding-right: 10px;
+    box-sizing: border-box;
+}
+
+.mood-greeting-area .notification-bell {
+    position: absolute;
+    right: 10px;
+    top: calc(env(safe-area-inset-top, 0px) + 20px);
 }
 
 .greeting-time {
@@ -357,6 +369,15 @@ header {
     background-size: cover;
     background-position: center top;
     background-repeat: no-repeat;
+}
+
+.signals-greeting-area .greeting-text {
+    max-width: calc(400px - 20px);
+    width: calc(100% - 20px);
+    margin: 0 auto;
+    padding-left: 10px;
+    padding-right: 10px;
+    box-sizing: border-box;
 }
 
 .notification-bell {
@@ -773,9 +794,7 @@ header h1 {
     margin-top: 30px;
     visibility: visible !important;
     padding: 20px;
-    background: rgba(255, 255, 255, 0.1);
     border-radius: 16px;
-    backdrop-filter: blur(10px);
     transition: background-color 0.3s ease;
 }
 
