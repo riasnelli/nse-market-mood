@@ -10334,7 +10334,7 @@ class MarketMoodApp {
                 padding: 16px;
                 padding-top: 8px;
                 background: white;
-                border-radius: 0 0 20px 20px;
+                border-radius: 0 0 12px 12px;
                 transition: opacity 0.3s ease;
             ">
                 ${hasSignals ? `
