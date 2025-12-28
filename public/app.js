@@ -2846,11 +2846,8 @@ class MarketMoodApp {
         // Use black-translucent for iOS PWA to show the theme color through
         appleStatusBar.setAttribute('content', 'black-translucent');
         
-        // Keep html and body background white (mood color is only on greeting area)
-        const html = document.documentElement;
-        const body = document.body;
-        html.style.setProperty('background-color', '#ffffff', 'important');
-        body.style.setProperty('background-color', '#ffffff', 'important');
+        // Let CSS variables handle background color (supports dark mode)
+        // Don't set inline styles - CSS will handle it via var(--bg-color)
         
         // Note: Safe area overlay styling is handled by CSS variable --mood-bg
         // The ensureSafeAreaOverlay() is called from updateBackgroundColor() when needed
@@ -7703,7 +7700,7 @@ class MarketMoodApp {
             signalsPageView.style.setProperty('display', 'block', 'important');
             moodPageView.style.setProperty('visibility', 'hidden', 'important');
             signalsPageView.style.setProperty('visibility', 'visible', 'important');
-            signalsPageView.style.setProperty('background', '#ffffff', 'important');
+            // Remove background override - let CSS variables handle it (supports dark mode)
 
             signalsBtn && signalsBtn.classList.add('active');
             moodBtn && moodBtn.classList.remove('active');
@@ -7897,7 +7894,7 @@ class MarketMoodApp {
             
             signalsPageView.style.setProperty('display', 'block', 'important');
             signalsPageView.style.setProperty('visibility', 'visible', 'important');
-            signalsPageView.style.setProperty('background', '#ffffff', 'important');
+            // Remove background override - let CSS variables handle it (supports dark mode)
             signalsPageView.classList.remove('hidden');
         
             // Force reflow

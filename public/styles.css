@@ -83,7 +83,7 @@ body.dark-mode {
 
 html {
     background: var(--bg-color);
-    background-color: var(--bg-color);
+    background-color: var(--bg-color) !important;
     min-height: 100vh;
     min-height: -webkit-fill-available; /* For iOS Safari */
     background-attachment: fixed;
@@ -658,13 +658,15 @@ header h1 {
     padding-top: 0 !important;
     margin-top: 0 !important;
     padding-bottom: calc(120px + env(safe-area-inset-bottom));
-    background: var(--bg-color);
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
     min-height: 100vh;
     transition: background-color 0.3s ease;
 }
 
 #signalsPageView {
-    background: var(--bg-color);
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
     min-height: 100vh;
     transition: background-color 0.3s ease;
 }
@@ -868,7 +870,7 @@ body.dark-mode .filter-icon-btn:hover {
     width: 100%;
     height: 100%;
     background: var(--modal-overlay);
-    display: flex;
+    display: none;
     align-items: flex-end;
     justify-content: center;
     z-index: 10000;
@@ -878,6 +880,7 @@ body.dark-mode .filter-icon-btn:hover {
 }
 
 .filter-modal.show {
+    display: flex;
     opacity: 1;
     visibility: visible;
 }
