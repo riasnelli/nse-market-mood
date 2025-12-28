@@ -9889,17 +9889,7 @@ class MarketMoodApp {
                         
                         const signalCard = document.createElement('div');
                         signalCard.className = 'signal-card';
-                        // Match status panel inner width (excluding padding)
-                        const statusPanelForFiltered = document.getElementById('signalsStatusPanel');
-                        let filteredCardWidth = '100%';
-                        if (statusPanelForFiltered) {
-                            const panelWidth = statusPanelForFiltered.offsetWidth;
-                            const panelComputed = window.getComputedStyle(statusPanelForFiltered);
-                            const panelPaddingLeft = parseInt(panelComputed.paddingLeft) || 0;
-                            const panelPaddingRight = parseInt(panelComputed.paddingRight) || 0;
-                            const innerWidth = panelWidth - panelPaddingLeft - panelPaddingRight;
-                            filteredCardWidth = `${innerWidth}px`;
-                        }
+                        // Cards are inside grid, so use 100% width for perfect alignment
                         signalCard.style.cssText = `
                             background: white;
                             border-radius: 12px;
@@ -9909,7 +9899,7 @@ class MarketMoodApp {
                             transform: translateY(10px);
                             transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.2s ease;
                             cursor: pointer;
-                            width: ${filteredCardWidth};
+                            width: 100%;
                             max-width: 100%;
                             margin: 0;
                             box-sizing: border-box;
