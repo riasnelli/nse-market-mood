@@ -1019,12 +1019,13 @@ body.dark-mode .filter-icon-btn:hover {
     padding: 15px 20px;
     border-top: 1px solid var(--border-color);
     display: flex;
+    flex-direction: column;
     gap: 10px;
     flex-shrink: 0;
 }
 
 .filter-modal-footer button {
-    flex: 1;
+    width: 100%;
     padding: 12px;
     border-radius: 10px;
     font-size: 1rem;

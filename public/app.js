@@ -10336,7 +10336,7 @@ class MarketMoodApp {
                         if (hasSignals) {
                             return `
                             <div style="font-size: 0.95rem; color: #1e40af; font-weight: 600; line-height: 1.5;">
-                                <strong>${signalCount} signals</strong> using <strong>${strategyNameForDisplay}</strong> strategy
+                                <strong>${signalCount} signals</strong> using <strong>${strategyNameForDisplay}</strong> strategy - <strong>${signalCount}</strong> trading signals generated for ${formatDateForSummary(targetDate)}
                             </div>
                             `;
                         } else {
@@ -10369,68 +10369,70 @@ class MarketMoodApp {
                 border-radius: 0 0 12px 12px;
                 transition: opacity 0.3s ease;
             ">
-                ${hasSignals ? `
-                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                    </svg>
-                    <span style="color: #1e40af; font-weight: 600; font-size: 0.9rem;">
-                        <strong>${signalCount}</strong> trading signals generated for ${formatDateForSummary(targetDate)}
-                    </span>
-                </div>
-                ` : ''}
-                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                    </svg>
-                    <span style="color: #6b7280; font-weight: 500; min-width: 50px;">Date:</span>
-                    <span style="color: #111827; font-weight: 600;">${dateDisplay}</span>
+                <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        <span style="color: #6b7280; font-weight: 500; font-size: 0.85rem;">Date</span>
                     </div>
+                    <span style="color: #111827; font-weight: 600; font-size: 0.95rem; margin-left: 26px;">${dateDisplay}</span>
+                </div>
                 ${currentModeDisplay ? `
-                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="2" x2="12" y2="6"></line>
-                        <line x1="12" y1="18" x2="12" y2="22"></line>
-                    </svg>
-                    <span style="color: #6b7280; font-weight: 500; min-width: 60px;">Mode:</span>
-                    <span style="padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; background: ${modeBadge.bg}; color: ${modeBadge.text};">${currentModeLabel || currentModeDisplay}</span>
+                <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="2" x2="12" y2="6"></line>
+                            <line x1="12" y1="18" x2="12" y2="22"></line>
+                        </svg>
+                        <span style="color: #6b7280; font-weight: 500; font-size: 0.85rem;">Mode</span>
+                    </div>
+                    <span style="padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; background: ${modeBadge.bg}; color: ${modeBadge.text}; margin-left: 26px; display: inline-block; width: fit-content;">${currentModeLabel || currentModeDisplay}</span>
                 </div>
                 ` : ''}
                 ${(eodDate || preMDate || currentDataUsed) ? `
-                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                    </svg>
-                    <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Data Used:</span>
-                    <div style="display: flex; align-items: center; gap: 12px; flex: 1; font-size: 0.85rem;">
-                        <span style="color: #6b7280;">EOD:</span>
+                <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                        <span style="color: #6b7280; font-weight: 500; font-size: 0.85rem;">Data Used</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-left: 26px; font-size: 0.85rem;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #6b7280;">EOD:</span>
                             <span style="color: ${eodDate ? '#10b981' : '#ef4444'}; font-weight: 600;">${eodDate || 'Missing'}</span>
-                        <span style="color: #d1d5db; margin: 0 4px;">•</span>
-                        <span style="color: #6b7280;">PreM:</span>
-                        <span style="color: ${preMDate ? '#10b981' : '#6b7280'}; font-weight: 600;">${preMDate || 'N/A'}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #6b7280;">PreM:</span>
+                            <span style="color: ${preMDate ? '#10b981' : '#6b7280'}; font-weight: 600;">${preMDate || 'N/A'}</span>
+                        </div>
                         ${currentDataUsed?.marketOpen ? `
-                        <span style="color: #d1d5db; margin: 0 4px;">•</span>
-                        <span style="color: #6b7280;">Live:</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #6b7280;">Live:</span>
                             <span style="color: #10b981; font-weight: 600;">ON</span>
-                        ${currentDataUsed.marketTimestamp ? `<span style="color: #6b7280; font-size: 0.75rem; margin-left: 4px;">(${new Date(currentDataUsed.marketTimestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })})</span>` : ''}
+                            ${currentDataUsed.marketTimestamp ? `<span style="color: #6b7280; font-size: 0.75rem; margin-left: 4px;">(${new Date(currentDataUsed.marketTimestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })})</span>` : ''}
+                        </div>
                         ` : ''}
                     </div>
                 </div>
                 ` : ''}
-                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                    <span style="color: #6b7280; font-weight: 500; min-width: 70px;">Engine:</span>
-                    <span style="color: ${engineStatusColor}; font-weight: 600; flex: 1; line-height: 1.4;">${engineStatus}</span>
+                <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span style="color: #6b7280; font-weight: 500; font-size: 0.85rem;">Engine</span>
                     </div>
+                    <span style="color: ${engineStatusColor}; font-weight: 600; font-size: 0.95rem; margin-left: 26px; line-height: 1.4;">${engineStatus}</span>
+                </div>
                 <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
