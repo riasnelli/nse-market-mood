@@ -130,10 +130,8 @@ class MarketMoodApp {
     getLogoSources(symbol) {
         const clean = this.cleanSymbol(symbol);
         const tv = `https://s3-symbol-logo.tradingview.com/${clean.toLowerCase()}--big.svg`;
-        const domain = this.getCompanyDomain(symbol);
-        const clearbit = domain ? `https://logo.clearbit.com/${domain}` : null;
         const badge = this.createTickerBadge(symbol, 32);
-        return [tv, clearbit, badge].filter(Boolean);
+        return [tv, badge].filter(Boolean);
     }
 
     updateApiUrl() {
@@ -3099,22 +3097,42 @@ class MarketMoodApp {
         const resetFilter = document.getElementById('resetSignalFilter');
         
         if (!filterBtn || !filterModal) {
-            console.warn('Filter button or modal not found:', { filterBtn: !!filterBtn, filterModal: !!filterModal });
+            console.warn('⚠️ Filter button or modal not found:', { filterBtn: !!filterBtn, filterModal: !!filterModal });
             return;
         }
         
-        // Prevent duplicate event listeners by checking if already set up
+        // Remove old event listeners by cloning the button
         if (filterBtn.dataset.filterSetup === 'true') {
+            const newFilterBtn = filterBtn.cloneNode(true);
+            filterBtn.parentNode.replaceChild(newFilterBtn, filterBtn);
+            // Re-get the button after cloning
+            const updatedFilterBtn = document.getElementById('signalsFilterBtn');
+            if (updatedFilterBtn) {
+                updatedFilterBtn.dataset.filterSetup = 'false';
+            }
+        }
+        
+        // Re-get elements after potential cloning
+        const finalFilterBtn = document.getElementById('signalsFilterBtn');
+        const finalFilterModal = document.getElementById('signalsFilterModal');
+        const finalCloseFilter = document.getElementById('closeSignalsFilter');
+        const finalApplyFilter = document.getElementById('applySignalFilter');
+        const finalResetFilter = document.getElementById('resetSignalFilter');
+        
+        if (!finalFilterBtn || !finalFilterModal) {
+            console.warn('⚠️ Filter elements not found after setup');
             return;
         }
-        filterBtn.dataset.filterSetup = 'true';
+        
+        finalFilterBtn.dataset.filterSetup = 'true';
+        console.log('✅ Setting up filter controls');
         
         // Open filter modal and update counts
-        filterBtn.addEventListener('click', (e) => {
+        finalFilterBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('Filter button clicked, opening modal');
-            filterModal.classList.add('show');
+            console.log('🔍 Filter button clicked, opening modal');
+            finalFilterModal.classList.add('show');
             this.lockBodyScroll();
             
             // Sync radio buttons with current filter state
@@ -3142,27 +3160,29 @@ class MarketMoodApp {
         });
         
         // Close filter modal
-        if (closeFilter) {
-            closeFilter.addEventListener('click', (e) => {
+        if (finalCloseFilter) {
+            finalCloseFilter.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                filterModal.classList.remove('show');
+                console.log('❌ Closing filter modal');
+                finalFilterModal.classList.remove('show');
                 this.unlockBodyScroll();
             });
         }
         
         // Close modal when clicking outside
-        filterModal.addEventListener('click', (e) => {
-            if (e.target === filterModal) {
+        finalFilterModal.addEventListener('click', (e) => {
+            if (e.target === finalFilterModal) {
                 e.preventDefault();
                 e.stopPropagation();
-                filterModal.classList.remove('show');
+                console.log('❌ Closing filter modal (clicked outside)');
+                finalFilterModal.classList.remove('show');
                 this.unlockBodyScroll();
             }
         });
         
         // Prevent clicks inside modal content from closing it
-        const modalContent = filterModal.querySelector('.filter-modal-content');
+        const modalContent = finalFilterModal.querySelector('.filter-modal-content');
         if (modalContent) {
             modalContent.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -3170,10 +3190,12 @@ class MarketMoodApp {
         }
         
         // Apply filter
-        if (applyFilter) {
-            applyFilter.addEventListener('click', () => {
+        if (finalApplyFilter) {
+            finalApplyFilter.addEventListener('click', () => {
                 const selectedFilter = document.querySelector('input[name="signalFilter"]:checked')?.value || 'all';
                 const selectedSort = document.querySelector('input[name="signalSort"]:checked')?.value || '';
+                
+                console.log('✅ Applying filters:', { filter: selectedFilter, sort: selectedSort });
                 
                 // Update filter state
                 if (this._signalFilterState) {
@@ -3188,7 +3210,7 @@ class MarketMoodApp {
                 
                 
                 // Close modal
-                filterModal.classList.remove('show');
+                finalFilterModal.classList.remove('show');
                 this.unlockBodyScroll();
                 
                 // Re-apply filter to current signals
@@ -3208,8 +3230,9 @@ class MarketMoodApp {
         }
         
         // Reset filter
-        if (resetFilter) {
-            resetFilter.addEventListener('click', () => {
+        if (finalResetFilter) {
+            finalResetFilter.addEventListener('click', () => {
+                console.log('🔄 Resetting filters');
                 // Reset radio buttons
                 const allRadio = document.querySelector('input[name="signalFilter"][value="all"]');
                 const defaultSort = document.querySelector('input[name="signalSort"][value=""]');
@@ -3220,7 +3243,7 @@ class MarketMoodApp {
                 this._signalFilterState = { filter: 'all', sort: null };
                 
                 // Close modal
-                filterModal.classList.remove('show');
+                finalFilterModal.classList.remove('show');
                 this.unlockBodyScroll();
                 
                 // Re-render with all signals (no filter)
@@ -9309,6 +9332,11 @@ class MarketMoodApp {
             // Render signals (will replace loading state)
             this.renderSignals(signalsArray, runId, finalSignalDate, signalsContainer);
             
+            // Ensure filter controls are set up after signals are rendered
+            setTimeout(() => {
+                this.setupSignalsFilter();
+            }, 100);
+            
             // Strategy recommendation card removed - strategy shown in selector button only
             
             // Debug panel removed - debug info available via API with debug=1 parameter
@@ -10526,19 +10554,39 @@ class MarketMoodApp {
         statusPanel.style.marginBottom = '0';
         
         // Add toggle functionality to header
-        setTimeout(() => {
+        // Use a more robust approach - remove old listeners and re-attach
+        const setupStatusPanelToggle = () => {
             const header = document.getElementById('signalsStatusHeader');
             const content = document.getElementById('signalsStatusContent');
             const chevron = document.getElementById('signalsStatusChevron');
             
-            if (header && content && chevron) {
-                header.addEventListener('click', () => {
-                    const isCollapsed = content.style.display === 'none';
+            if (!header || !content || !chevron) {
+                console.warn('⚠️ Status panel elements not found, retrying...');
+                setTimeout(setupStatusPanelToggle, 200);
+                return;
+            }
+            
+            // Remove any existing listeners by cloning the header
+            const newHeader = header.cloneNode(true);
+            header.parentNode.replaceChild(newHeader, header);
+            
+            // Re-get elements after cloning
+            const newContent = document.getElementById('signalsStatusContent');
+            const newChevron = document.getElementById('signalsStatusChevron');
+            
+            if (newHeader && newContent && newChevron) {
+                console.log('✅ Setting up status panel toggle');
+                newHeader.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const isCollapsed = newContent.style.display === 'none';
+                    
+                    console.log('📊 Status panel clicked, isCollapsed:', isCollapsed);
                     
                     if (isCollapsed) {
                         // Expand
-                        content.style.display = 'grid';
-                        chevron.style.transform = 'rotate(0deg)';
+                        newContent.style.display = 'grid';
+                        newChevron.style.transform = 'rotate(0deg)';
                         localStorage.setItem('nsemm.signalsStatusCollapsed', 'false');
                         
                         // Scroll to strategy selector after a brief delay to ensure it's rendered
@@ -10554,13 +10602,19 @@ class MarketMoodApp {
                         }, 100);
                     } else {
                         // Collapse
-                        content.style.display = 'none';
-                        chevron.style.transform = 'rotate(-90deg)';
+                        newContent.style.display = 'none';
+                        newChevron.style.transform = 'rotate(-90deg)';
                         localStorage.setItem('nsemm.signalsStatusCollapsed', 'true');
                     }
                 });
+                
+                // Make it visually clear it's clickable
+                newHeader.style.cursor = 'pointer';
             }
-        }, 100);
+        };
+        
+        // Try immediately, then retry if needed
+        setupStatusPanelToggle();
         
         // Add event listener for "Try other Strategies" link (after innerHTML is set)
         setTimeout(() => {
