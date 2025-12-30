@@ -101,6 +101,24 @@ async function getAllUploadedDataCollections() {
 }
 
 /**
+ * Get signal candidates collection
+ * Stores candidates generated in Phase 1 (after market close)
+ */
+async function getSignalCandidatesCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('signal_candidates');
+}
+
+/**
+ * Get active signals collection
+ * Stores activated signals from Phase 2 (after premarket confirmation)
+ */
+async function getActiveSignalsCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('active_signals');
+}
+
+/**
  * Get daily indices collection
  */
 async function getDailyIndicesCollection() {
@@ -159,5 +177,7 @@ module.exports = {
   getSignalCollection,
   getSignalRunCollection,
   getSignalsStoreCollection,
+  getSignalCandidatesCollection,
+  getActiveSignalsCollection,
 };
 
