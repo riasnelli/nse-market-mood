@@ -10336,7 +10336,7 @@ class MarketMoodApp {
                         if (hasSignals) {
                             return `
                             <div style="font-size: 0.95rem; color: #1e40af; font-weight: 600; line-height: 1.5;">
-                                <strong>${signalCount} signals</strong> using <strong>${strategyNameForDisplay}</strong> strategy - <strong>${signalCount}</strong> trading signals generated for ${formatDateForSummary(targetDate)}
+                                <strong>${signalCount} signals</strong> using <strong>${strategyNameForDisplay}</strong> strategy
                             </div>
                             `;
                         } else {
@@ -10371,24 +10371,24 @@ class MarketMoodApp {
             ">
                 <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="16" y1="2" x2="16" y2="6"></line>
-                            <line x1="8" y1="2" x2="8" y2="6"></line>
-                            <line x1="3" y1="10" x2="21" y2="10"></line>
-                        </svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
                         <span style="color: #6b7280; font-weight: 500; font-size: 0.85rem;">Date</span>
                     </div>
                     <span style="color: #111827; font-weight: 600; font-size: 0.95rem; margin-left: 26px;">${dateDisplay}</span>
-                </div>
+                    </div>
                 ${currentModeDisplay ? `
                 <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" y1="2" x2="12" y2="6"></line>
-                            <line x1="12" y1="18" x2="12" y2="22"></line>
-                        </svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="2" x2="12" y2="6"></line>
+                        <line x1="12" y1="18" x2="12" y2="22"></line>
+                    </svg>
                         <span style="color: #6b7280; font-weight: 500; font-size: 0.85rem;">Mode</span>
                     </div>
                     <span style="padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; background: ${modeBadge.bg}; color: ${modeBadge.text}; margin-left: 26px; display: inline-block; width: fit-content;">${currentModeLabel || currentModeDisplay}</span>
@@ -10396,7 +10396,7 @@ class MarketMoodApp {
                 ` : ''}
                 ${(eodDate || preMDate || currentDataUsed) ? `
                 <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
-                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
@@ -10425,14 +10425,14 @@ class MarketMoodApp {
                 ` : ''}
                 <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${engineStatusColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
                         <span style="color: #6b7280; font-weight: 500; font-size: 0.85rem;">Engine</span>
                     </div>
                     <span style="color: ${engineStatusColor}; font-weight: 600; font-size: 0.95rem; margin-left: 26px; line-height: 1.4;">${engineStatus}</span>
-                </div>
+                    </div>
                 <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${moodColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
