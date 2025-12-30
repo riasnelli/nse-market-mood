@@ -10204,8 +10204,28 @@ class MarketMoodApp {
         // Display date with refDate info
         const dataUsedInfo = currentDataUsed || {};
         const eodDate = dataUsedInfo.refEodDate || currentUsedDates?.eodDate || refDateValue;
-        const preMDate = dataUsedInfo.premarketDate || currentUsedDates?.preMDate;
+        const rawPreMDate = dataUsedInfo.premarketDate || currentUsedDates?.preMDate;
         const signalDateDisplay = dataUsedInfo.signalDate || targetDate;
+        
+        // Only show premarket date if it's actually used (not stale)
+        // CRITICAL: In EOD mode, we generate signals for tomorrow using ONLY today's EOD.
+        // Today's premarket is STALE and must NEVER be shown for tomorrow's signals.
+        // Only show premarket if:
+        // 1. Mode is PREMARKET or LIVE (premarket is actually used in these modes)
+        // 2. AND premarket date matches signal date (ensures it's the correct premarket, not stale)
+        let preMDate = null;
+        if (rawPreMDate) {
+            const isPremarketMode = currentModeDisplay === 'PREMARKET' || currentModeDisplay === 'LIVE';
+            const premarketMatchesSignalDate = rawPreMDate === signalDateDisplay;
+            
+            // In EOD mode: Never show premarket (we only use EOD data)
+            // In PREMARKET/LIVE mode: Only show if premarket date matches signal date
+            if (isPremarketMode && premarketMatchesSignalDate) {
+                preMDate = rawPreMDate;
+            }
+            // If mode is EOD, preMDate stays null (correct - we don't use premarket in EOD mode)
+        }
+        
         // Show signal date clearly
         const dateDisplay = signalDateDisplay;
 
@@ -10287,6 +10307,15 @@ class MarketMoodApp {
         };
         
         // Render status panel with collapsible header
+        // Apply box-shadow to container when collapsed, remove from header when expanded
+        if (statusPanel) {
+            if (shouldStartCollapsed) {
+                statusPanel.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+            } else {
+                statusPanel.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+            }
+        }
+        
         statusPanel.innerHTML = `
             <div id="signalsStatusHeader" style="
                 display: flex; 
@@ -10295,11 +10324,11 @@ class MarketMoodApp {
                 gap: 15px; 
                 padding: 16px;
                 background: white;
-                border-radius: 12px;
+                border-radius: ${shouldStartCollapsed ? '12px' : '12px 12px 0 0'};
                 cursor: pointer;
-                transition: background 0.2s ease;
+                transition: background 0.2s ease, border-radius 0.3s ease;
                 user-select: none;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                margin: 0;
             " onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='white'">
                 <div style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
                     <div style="display: flex; align-items: center; gap: 10px;">
@@ -10362,12 +10391,14 @@ class MarketMoodApp {
                 grid-template-columns: 1fr; 
                 gap: 14px; 
                 font-size: 0.9rem;
+                margin: 0;
                 margin-top: 0;
                 padding: 16px;
                 padding-top: 8px;
                 background: white;
                 border-radius: 0 0 12px 12px;
                 transition: opacity 0.3s ease;
+                border-top: none;
             ">
                 <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: rgba(255, 255, 255, 0.6); border-radius: 8px; backdrop-filter: blur(10px);">
                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -10576,7 +10607,7 @@ class MarketMoodApp {
             const newContent = document.getElementById('signalsStatusContent');
             const newChevron = document.getElementById('signalsStatusChevron');
             
-            if (newHeader && newContent && newChevron) {
+                if (newHeader && newContent && newChevron) {
                 console.log('✅ Setting up status panel toggle');
                 newHeader.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -10589,6 +10620,14 @@ class MarketMoodApp {
                         // Expand
                         newContent.style.display = 'grid';
                         newChevron.style.transform = 'rotate(0deg)';
+                        newHeader.style.borderRadius = '12px 12px 0 0';
+                        newHeader.style.boxShadow = 'none';
+                        newHeader.style.margin = '0';
+                        // Ensure container maintains shadow
+                        const panel = document.getElementById('signalsStatusPanel');
+                        if (panel) {
+                            panel.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                        }
                         localStorage.setItem('nsemm.signalsStatusCollapsed', 'false');
                         
                         // Scroll to strategy selector after a brief delay to ensure it's rendered
@@ -10606,6 +10645,14 @@ class MarketMoodApp {
                         // Collapse
                         newContent.style.display = 'none';
                         newChevron.style.transform = 'rotate(-90deg)';
+                        newHeader.style.borderRadius = '12px';
+                        newHeader.style.boxShadow = 'none';
+                        newHeader.style.margin = '0';
+                        // Ensure container maintains shadow
+                        const panel = document.getElementById('signalsStatusPanel');
+                        if (panel) {
+                            panel.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                        }
                         localStorage.setItem('nsemm.signalsStatusCollapsed', 'true');
                     }
                 });
