@@ -119,6 +119,16 @@ async function getActiveSignalsCollection() {
 }
 
 /**
+ * Get EOD candidates collection
+ * Stores EOD watchlist candidates for future premarket validation
+ * Used as a cache to avoid regenerating candidates every time
+ */
+async function getEODCandidatesCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('eod_candidates');
+}
+
+/**
  * Get daily indices collection
  */
 async function getDailyIndicesCollection() {
@@ -179,5 +189,6 @@ module.exports = {
   getSignalsStoreCollection,
   getSignalCandidatesCollection,
   getActiveSignalsCollection,
+  getEODCandidatesCollection,
 };
 
