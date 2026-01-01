@@ -1,0 +1,20 @@
+# Fix: Pass finalMode to generateSignalsForDate and remove unsafe fallback query
+
+## Issue 1: generateSignalsForDate doesn't receive finalMode
+**File:** `api/signals.js:933`  
+**Problem:** `generateSignalsForDate` is called without `finalMode`, causing it to resolve mode again (potentially getting MODE_NONE)
+
+**Solution:** Pass `finalMode` through options and modify `generateSignalsForDate` to use it if provided
+
+## Issue 2: Unsafe fallback query returns any mode document
+**File:** `api/signals.js:836-841`  
+**Problem:** Fallback query returns ANY document for date+strategy, even with MODE_NONE or legacy modes
+
+**Solution:** Remove the fallback query entirely - only query with finalMode
+
+## Issue 3: Need to modify generateSignalsForDate to accept resolvedMode
+**File:** `api/lib/signals/generateSignals.js:1347, 1358-1368`  
+**Problem:** Function doesn't accept a pre-resolved mode, always calls resolver internally
+
+**Solution:** Add `options.resolvedMode` and use it instead of calling resolver if provided
+

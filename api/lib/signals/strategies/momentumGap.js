@@ -272,15 +272,42 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
   const watchlistCandidates = [];
   
   for (const stock of bhavcopyData) {
-    const symbol = stock.symbol || stock.SYMBOL;
+    // Support both OLD FORMAT and NEW UDIFF FORMAT (CM segment)
+    // OLD: SYMBOL, SERIES, CLOSE, OPEN, HIGH, LOW, TOTTRDQTY
+    // NEW UDIFF: TckrSymb, SctySrs, ClsPric, OpnPric, HghPric, LwPric, TtlTradgVol
+    const symbol = stock.symbol || stock.SYMBOL || stock.TckrSymb || stock.tckrSymb || stock.TCKRSYMB;
     if (!symbol) continue;
     
-    const close = parseFloat(stock.close || stock.CLOSE || stock.lastPrice || stock.LAST_PRICE || 0);
-    const open = parseFloat(stock.open || stock.OPEN || stock.PREV_CLOSE || stock.prevClose || close);
-    const high = parseFloat(stock.high || stock.HIGH || close);
-    const low = parseFloat(stock.LOW || stock.low || close);
-    // Try multiple volume field names (NSE CSV uses TOTTRDQTY)
+    const close = parseFloat(
+      // New UDIFF format (CM)
+      stock.ClsPric || stock.clsPric || stock.CLSPRIC ||
+      // Old format variations
+      stock.close || stock.CLOSE || stock.lastPrice || stock.LAST_PRICE ||
+      stock.LastPric || stock.lastPric || stock.LASTPRIC || 0
+    );
+    const open = parseFloat(
+      // New UDIFF format (CM)
+      stock.OpnPric || stock.opnPric || stock.OPNPRIC ||
+      // Old format variations
+      stock.open || stock.OPEN || stock.PREV_CLOSE || stock.prevClose || close
+    );
+    const high = parseFloat(
+      // New UDIFF format (CM)
+      stock.HghPric || stock.hghPric || stock.HGHPRIC ||
+      // Old format variations
+      stock.high || stock.HIGH || close
+    );
+    const low = parseFloat(
+      // New UDIFF format (CM)
+      stock.LwPric || stock.lwPric || stock.LWPRIC ||
+      // Old format variations
+      stock.LOW || stock.low || close
+    );
+    // Try multiple volume field names (NSE CSV uses TOTTRDQTY, new format uses TtlTradgVol)
     const volume = parseFloat(
+      // New UDIFF format (CM)
+      stock.TtlTradgVol || stock.ttlTradgVol || stock.TTLTRADGVOL ||
+      // Old format variations
       stock.volume || 
       stock.VOLUME || 
       stock.totalTradedVolume || 
@@ -300,7 +327,8 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
     );
     
     // Series filter
-    const series = stock.series || stock.SERIES || 'EQ';
+    // Support both OLD FORMAT (SERIES) and NEW UDIFF FORMAT (SctySrs)
+    const series = stock.series || stock.SERIES || stock.SctySrs || stock.sctySrs || stock.SCTYSRS || 'EQ';
     if (series !== 'EQ') {
       diagnostics[REJECTION_REASONS.NOT_EQ]++;
       continue;

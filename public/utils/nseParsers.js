@@ -429,8 +429,11 @@ function parseBhavcopyCsv(text) {
         if (!line) continue; // Skip empty lines
         
         const lineUpper = line.toUpperCase();
-        // Look for header with SYMBOL and SERIES (most reliable indicator)
-        if (lineUpper.includes('SYMBOL') && (lineUpper.includes('SERIES') || lineUpper.includes('OPEN'))) {
+        // Look for header with SYMBOL/SERIES (old format) or TckrSymb/SctySrs (new UDIFF format)
+        const hasSymbolHeader = lineUpper.includes('SYMBOL') || lineUpper.includes('TCKRSYMB');
+        const hasSeriesHeader = lineUpper.includes('SERIES') || lineUpper.includes('SCTYSRS');
+        const hasPriceHeader = lineUpper.includes('OPEN') || lineUpper.includes('OPNPRIC');
+        if (hasSymbolHeader && (hasSeriesHeader || hasPriceHeader)) {
             // Parse CSV line (handles spaces after commas and quoted fields)
             headers = parseCSVLine(line).map(cleanHeader);
             headerRowIndex = i;
@@ -472,8 +475,11 @@ function parseBhavcopyCsv(text) {
             }
         });
         
-        const symbol = (row.SYMBOL || '').trim();
-        const series = (row.SERIES || '').trim().toUpperCase();
+        // Support both old format (SYMBOL, SERIES) and new UDIFF format (TckrSymb, SctySrs)
+        const symbol = (row.TckrSymb || row.tckrSymb || row.TCKRSYMB || // New UDIFF format
+                        row.SYMBOL || '').trim();
+        const series = (row.SctySrs || row.sctySrs || row.SCTYSRS || // New UDIFF format
+                        row.SERIES || '').trim().toUpperCase();
         
         // Skip header-like rows
         if (!symbol || symbol === 'SYMBOL') {
@@ -489,33 +495,53 @@ function parseBhavcopyCsv(text) {
         }
         
         // Extract prices - handle various field name formats
-        // Real format uses: CLOSE_PRICE, OPEN_PRICE, HIGH_PRICE, LOW_PRICE, PREV_CLOSE, TTL_TRD_QNTY, DELIV_QTY, DELIV_PER
+        // OLD FORMAT: CLOSE_PRICE, OPEN_PRICE, HIGH_PRICE, LOW_PRICE, PREV_CLOSE, TTL_TRD_QNTY, TOTTRDQTY
+        // NEW UDIFF FORMAT (CM segment): ClsPric, OpnPric, HghPric, LwPric, PrvsClsgPric, TtlTradgVol
         const close = cleanNumber(
+            // New UDIFF format (CM)
+            row.ClsPric || row.clsPric || row.CLSPRIC ||
+            // Old format variations
             row.CLOSE_PRICE || 
             row.CLOSE || 
             row['CLOSE_PRIC'] || 
             row['LAST_PRICE'] || 
+            row.LastPric || row.lastPric || row.LASTPRIC || // New format LAST
             row.LAST ||
             row.LAST_PRICE
         );
         const open = cleanNumber(
+            // New UDIFF format (CM)
+            row.OpnPric || row.opnPric || row.OPNPRIC ||
+            // Old format variations
             row.OPEN_PRICE || 
             row.OPEN
         );
         const high = cleanNumber(
+            // New UDIFF format (CM)
+            row.HghPric || row.hghPric || row.HGHPRIC ||
+            // Old format variations
             row.HIGH_PRICE || 
             row.HIGH
         );
         const low = cleanNumber(
+            // New UDIFF format (CM)
+            row.LwPric || row.lwPric || row.LWPRIC ||
+            // Old format variations
             row.LOW_PRICE || 
             row.LOW
         );
         const prevClose = cleanNumber(
+            // New UDIFF format (CM)
+            row.PrvsClsgPric || row.prvsClsgPric || row.PRVSCLSGPRIC ||
+            // Old format variations
             row.PREV_CLOSE || 
             row.PREVCLOSE || 
             row['PREVCLOSE_PRICE']
         );
         const volume = cleanNumber(
+            // New UDIFF format (CM)
+            row.TtlTradgVol || row.ttlTradgVol || row.TTLTRADGVOL ||
+            // Old format variations
             row.TTL_TRD_QNTY ||
             row.TOTTRDQTY || 
             row['TTL_TRD_QN'] || 

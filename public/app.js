@@ -4728,12 +4728,23 @@ class MarketMoodApp {
                 if (!row) return;
 
                 // CSV bhavcopy uses standard field names: SYMBOL, SERIES, OPEN, HIGH, LOW, CLOSE, etc.
+                // NEW UDIFF FORMAT: TckrSymb, SctySrs, OpnPric, HghPric, LwPric, ClsPric, PrvsClsgPric, TtlTradgVol
                 // Normalize field names (handle both uppercase and lowercase, and variations)
-                const symbol = (row.SYMBOL || row.symbol || row.Symbol || row['SYMBOL'] || '').trim();
+                const symbol = (
+                    // New UDIFF format (CM)
+                    row.TckrSymb || row.tckrSymb || row.TCKRSYMB ||
+                    // Old format
+                    row.SYMBOL || row.symbol || row.Symbol || row['SYMBOL'] || ''
+                ).trim();
                 
                 // Try multiple variations of SERIES column name
-                const series = (row.SERIES || row.series || row.Series || row.SERIES1 || row.SERIES2 || 
-                               row.SERIES_CODE || row.SERIESCODE || row['SERIES'] || '').trim();
+                const series = (
+                    // New UDIFF format (CM)
+                    row.SctySrs || row.sctySrs || row.SCTYSRS ||
+                    // Old format
+                    row.SERIES || row.series || row.Series || row.SERIES1 || row.SERIES2 || 
+                    row.SERIES_CODE || row.SERIESCODE || row['SERIES'] || ''
+                ).trim();
                 
                 const name = (row.NAME || row.name || row.Name || symbol || '').trim(); // Optional name field
                 const market = (row.MARKET || row.market || row.Market || '').trim(); // Optional market field
@@ -4804,20 +4815,26 @@ class MarketMoodApp {
                 }
 
                 // 3) Price parsing: prefer CLOSE, fall back to LAST
-                // Normalize field names (handle both uppercase and lowercase from CSV)
-                // Support multiple column name variations:
-                // - CLOSE, CLOSE_PRIC, CLOSE_PRICE, LAST_PRICE, LAST
-                // - OPEN, OPEN_PRICE
-                // - HIGH, HIGH_PRICE
-                // - LOW, LOW_PRICE
-                // - PREVCLOSE, PREV_CLOSE, PREVCLOSE_PRICE
+                // Support both OLD FORMAT and NEW UDIFF FORMAT (CM segment)
+                // OLD: CLOSE, CLOSE_PRIC, CLOSE_PRICE, LAST_PRICE, LAST, OPEN, HIGH, LOW, PREVCLOSE, PREV_CLOSE
+                // NEW UDIFF: ClsPric, LastPric, OpnPric, HghPric, LwPric, PrvsClsgPric
                 const closeStr =
+                    // New UDIFF format (CM)
+                    (row.ClsPric && String(row.ClsPric).trim()) ||
+                    (row.clsPric && String(row.clsPric).trim()) ||
+                    (row.CLSPRIC && String(row.CLSPRIC).trim()) ||
+                    // Old format variations
                     (row.CLOSE && String(row.CLOSE).trim()) ||
                     (row.close && String(row.close).trim()) ||
                     (row.CLOSE_PRIC && String(row.CLOSE_PRIC).trim()) || // Truncated version from NSE
                     (row.CLOSE_PRICE && String(row.CLOSE_PRICE).trim()) ||
                     (row.close_price && String(row.close_price).trim()) ||
                     (row.close_pric && String(row.close_pric).trim()) || // Lowercase truncated
+                    // New format LAST
+                    (row.LastPric && String(row.LastPric).trim()) ||
+                    (row.lastPric && String(row.lastPric).trim()) ||
+                    (row.LASTPRIC && String(row.LASTPRIC).trim()) ||
+                    // Old format LAST
                     (row.LAST_PRICE && String(row.LAST_PRICE).trim()) ||
                     (row.last_price && String(row.last_price).trim()) ||
                     (row.LAST && String(row.LAST).trim()) ||
@@ -4825,18 +4842,33 @@ class MarketMoodApp {
                     '';
 
                 const openStr = 
+                    // New UDIFF format (CM)
+                    (row.OpnPric && String(row.OpnPric).trim()) ||
+                    (row.opnPric && String(row.opnPric).trim()) ||
+                    (row.OPNPRIC && String(row.OPNPRIC).trim()) ||
+                    // Old format variations
                     (row.OPEN && String(row.OPEN).trim()) || 
                     (row.open && String(row.open).trim()) || 
                     (row.OPEN_PRICE && String(row.OPEN_PRICE).trim()) ||
                     (row.open_price && String(row.open_price).trim()) ||
                     '';
                 const highStr = 
+                    // New UDIFF format (CM)
+                    (row.HghPric && String(row.HghPric).trim()) ||
+                    (row.hghPric && String(row.hghPric).trim()) ||
+                    (row.HGHPRIC && String(row.HGHPRIC).trim()) ||
+                    // Old format variations
                     (row.HIGH && String(row.HIGH).trim()) || 
                     (row.high && String(row.high).trim()) || 
                     (row.HIGH_PRICE && String(row.HIGH_PRICE).trim()) ||
                     (row.high_price && String(row.high_price).trim()) ||
                     '';
                 const lowStr = 
+                    // New UDIFF format (CM)
+                    (row.LwPric && String(row.LwPric).trim()) ||
+                    (row.lwPric && String(row.lwPric).trim()) ||
+                    (row.LWPRIC && String(row.LWPRIC).trim()) ||
+                    // Old format variations
                     (row.LOW && String(row.LOW).trim()) || 
                     (row.low && String(row.low).trim()) || 
                     (row.LOW_PRICE && String(row.LOW_PRICE).trim()) ||
@@ -4844,6 +4876,11 @@ class MarketMoodApp {
                     '';
 
                 const prevCloseStr =
+                    // New UDIFF format (CM)
+                    (row.PrvsClsgPric && String(row.PrvsClsgPric).trim()) ||
+                    (row.prvsClsgPric && String(row.prvsClsgPric).trim()) ||
+                    (row.PRVSCLSGPRIC && String(row.PRVSCLSGPRIC).trim()) ||
+                    // Old format variations
                     (row.PREVCLOSE && String(row.PREVCLOSE).trim()) ||
                     (row.prevClose && String(row.prevClose).trim()) ||
                     (row.PREV_CLOSE && String(row.PREV_CLOSE).trim()) ||
@@ -4864,7 +4901,13 @@ class MarketMoodApp {
                 }
 
                 // Extract volume and delivery data if available
-                const volume = this.cleanPrice(row.TTL_TRD_QN || row.TOTTRDQTY || row.VOLUME || row.volume || row.tottrdqty || '');
+                // Support both OLD FORMAT (TOTTRDQTY) and NEW UDIFF FORMAT (TtlTradgVol)
+                const volume = this.cleanPrice(
+                    // New UDIFF format (CM)
+                    row.TtlTradgVol || row.ttlTradgVol || row.TTLTRADGVOL ||
+                    // Old format variations
+                    row.TTL_TRD_QN || row.TOTTRDQTY || row.VOLUME || row.volume || row.tottrdqty || ''
+                );
                 const delivery = this.cleanPrice(row.DELIV_QTY || row.DELIVERY || row.delivery || row.deliveryqty || '');
                 const deliveryPercent = this.cleanPrice(row.DELIV_PER || row.DELIVERY_PER || row.delivery_percent || row.delivery_per || '');
 
