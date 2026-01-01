@@ -491,6 +491,9 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
   const config = { ...DEFAULTS, ...params };
   const diagnostics = {};
   
+  console.log('📊 ====== PREMARKET MODE ACTIVATED ======');
+  console.log('📅 Target date (today):', date);
+  
   // Initialize diagnostics
   Object.values(REJECTION_REASONS).forEach(reason => {
     diagnostics[reason] = 0;
@@ -501,6 +504,7 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
   if (!refEodDate) {
     refEodDate = await findMostRecentEODDate(date);
     if (!refEodDate) {
+      console.error('❌ No EOD data found before', date);
       return {
         success: false,
         signals: [],
@@ -511,18 +515,22 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
     console.log(`✅ [MomentumGap PREM] Auto-detected EOD date: ${refEodDate} for premarket date: ${date}`);
   }
   
+  console.log('✅ Reference date (yesterday):', refEodDate);
+  
   // Try to load cached EOD candidates first
   let eodCandidates = await loadEODCandidates(refEodDate, 'momentum_gap');
   
   // If no cached candidates, generate them (will cache automatically)
   if (!eodCandidates || eodCandidates.length === 0) {
-    console.log(`⚠️ [MomentumGap PREM] No cached candidates found, generating from bhavcopy...`);
+    console.log(`⚠️ No stored candidates, generating from bhavcopy...`);
     const eodResult = await runMomentumGapEOD(date, refEodDate, params);
     if (!eodResult.success) {
       return eodResult;
     }
     eodCandidates = eodResult.signals;
   }
+  
+  console.log('📊 EOD candidates from', refEodDate, ':', eodCandidates.length);
   
   if (!eodCandidates || eodCandidates.length === 0) {
     return {
@@ -533,46 +541,63 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
     };
   }
   
-  // Get premarket data
+  // Step 3: Get TODAY's premarket data
+  console.log('📊 Getting premarket data for', date);
   const premarketCollection = await getPreMarketDataCollection();
   const uploadedPreMCollection = await getUploadedDataCollection('premarket');
   
-  let premarketData = new Map();
+  // Create premarket lookup map: symbol -> { iep, volume, change }
+  const premarketMap = new Map();
   try {
+    // Try premarket_data collection first
     const preMDocs = await premarketCollection.find({ date: date }).toArray();
     for (const doc of preMDocs) {
-      if (doc.indices && Array.isArray(doc.indices)) {
-        for (const item of doc.indices) {
-          if (item.symbol) {
-            premarketData.set(item.symbol, {
-              gapPercent: item.gapPercent || item.gap_percent || item.GAP_PERCENT || 0,
-              preMVolume: item.preMVolume || item.prem_volume || item.PREM_VOLUME || item.volume || 0,
-              preMPrice: item.preMPrice || item.prem_price || item.PREM_PRICE || item.lastPrice || 0
-            });
-          }
-        }
+      // Support both doc.data and doc.indices structures
+      const items = doc.data || doc.indices || [];
+      for (const item of items) {
+        const symbol = item.symbol || item.SYMBOL;
+        if (!symbol) continue;
+        
+        // Get price (IEP - Indicative Equilibrium Price)
+        const iep = parseFloat(item.iep || item.IEP || item.preMPrice || item.prem_price || item.PREM_PRICE || item.lastPrice || item.LAST_PRICE || 0);
+        if (!iep || iep <= 0) continue;
+        
+        const volume = parseInt(item.totalTradedVolume || item.TOTAL_TRADED_VOLUME || item.volume || item.VOLUME || item.preMVolume || item.prem_volume || item.PREM_VOLUME || 0);
+        const change = parseFloat(item.pChange || item.PCHANGE || item.change || item.CHANGE || 0);
+        
+        premarketMap.set(symbol.toUpperCase(), {
+          iep,
+          volume,
+          change
+        });
       }
     }
     
-    // Check uploaded premarket
-    if (premarketData.size === 0) {
+    // Check uploaded premarket if no data found
+    if (premarketMap.size === 0) {
       const uploadedPreMDocs = await uploadedPreMCollection.find({ date: date }).toArray();
       for (const doc of uploadedPreMDocs) {
-        if (doc.indices && Array.isArray(doc.indices)) {
-          for (const item of doc.indices) {
-            if (item.symbol) {
-              premarketData.set(item.symbol, {
-                gapPercent: item.gapPercent || item.gap_percent || item.GAP_PERCENT || 0,
-                preMVolume: item.preMVolume || item.prem_volume || item.PREM_VOLUME || item.volume || 0,
-                preMPrice: item.preMPrice || item.prem_price || item.PREM_PRICE || item.lastPrice || 0
-              });
-            }
-          }
+        const items = doc.data || doc.indices || [];
+        for (const item of items) {
+          const symbol = item.symbol || item.SYMBOL;
+          if (!symbol) continue;
+          
+          const iep = parseFloat(item.iep || item.IEP || item.preMPrice || item.prem_price || item.PREM_PRICE || item.lastPrice || item.LAST_PRICE || 0);
+          if (!iep || iep <= 0) continue;
+          
+          const volume = parseInt(item.totalTradedVolume || item.TOTAL_TRADED_VOLUME || item.volume || item.VOLUME || item.preMVolume || item.prem_volume || item.PREM_VOLUME || 0);
+          const change = parseFloat(item.pChange || item.PCHANGE || item.change || item.CHANGE || 0);
+          
+          premarketMap.set(symbol.toUpperCase(), {
+            iep,
+            volume,
+            change
+          });
         }
       }
     }
   } catch (error) {
-    console.error('Error fetching premarket data:', error);
+    console.error('❌ Error fetching premarket data:', error);
     return {
       success: false,
       signals: [],
@@ -581,7 +606,9 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
     };
   }
   
-  if (premarketData.size === 0) {
+  console.log('📊 Premarket data for', date, ':', premarketMap.size, 'stocks');
+  
+  if (premarketMap.size === 0) {
     return {
       success: false,
       signals: [],
@@ -590,85 +617,112 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
     };
   }
   
-  // Filter EOD candidates with premarket validation
-  const validatedCandidates = [];
+  // Step 4: Validate and score candidates
+  const validatedSignals = [];
+  const stats = {
+    total: eodCandidates.length,
+    noPremarket: 0,
+    gapTooSmall: 0,
+    gapTooLarge: 0,
+    lowVolume: 0,
+    lowScore: 0,
+    passed: 0
+  };
   
   for (const candidate of eodCandidates) {
-    const symbol = candidate.symbol;
-    const preM = premarketData.get(symbol);
+    const symbol = (candidate.symbol || '').toUpperCase().replace(/-EQ|-BE|-BZ/gi, '');
+    const pmInfo = premarketMap.get(symbol);
     
-    if (!preM) continue; // Skip if no premarket data
+    if (!pmInfo) {
+      stats.noPremarket++;
+      continue;
+    }
     
-    const gapPercent = Math.abs(preM.gapPercent);
-    const preMVolume = preM.preMVolume;
-    const avgVol20D = candidate.volume; // From EOD result
+    // Calculate gap from yesterday's close and today's premarket price
+    const yesterdayClose = parseFloat(candidate.close || candidate.entry_price || 0);
+    if (!yesterdayClose || yesterdayClose <= 0) {
+      stats.noPremarket++;
+      continue;
+    }
     
-    // Gap tier filter
-    if (gapPercent < config.gapMin) {
+    const todayPremarket = pmInfo.iep;
+    const gapPercent = ((todayPremarket - yesterdayClose) / yesterdayClose) * 100;
+    const absGap = Math.abs(gapPercent);
+    
+    // Gap filters
+    if (absGap < config.gapMin) {
+      stats.gapTooSmall++;
       diagnostics[REJECTION_REASONS.GAP_TOO_SMALL]++;
       continue;
     }
     
     // Extreme gap mode check
-    if (!config.extremeGapMode && gapPercent > config.gapMax) {
+    if (!config.extremeGapMode && absGap > config.gapMax) {
+      stats.gapTooLarge++;
       diagnostics[REJECTION_REASONS.GAP_TOO_LARGE]++;
       continue;
     }
     
-    if (config.extremeGapMode && (gapPercent < 12 || gapPercent > 30)) {
+    if (config.extremeGapMode && (absGap < 12 || absGap > 30)) {
+      stats.gapTooLarge++;
       diagnostics[REJECTION_REASONS.GAP_TOO_LARGE]++;
       continue;
     }
     
-    // Premarket volume filter
-    // Use absolute minimum (50000) or skip if preMVolume field is missing/0
+    // Volume filter (only if available)
+    const preMVolume = pmInfo.volume;
     if (preMVolume > 0 && preMVolume < config.preMMinAbs) {
+      stats.lowVolume++;
       diagnostics[REJECTION_REASONS.PREM_VOL_TOO_LOW_ABS]++;
       continue;
     }
-    // If preMVolume is 0 or missing, skip volume filter (field might not be available)
     
-    // Trap guard: If gap > 12% and relVol < 0.15, reject
-    if (gapPercent > 12) {
-      const relVolPreM = avgVol20D > 0 ? preMVolume / avgVol20D : 0;
-      if (relVolPreM < 0.15) {
-        diagnostics[REJECTION_REASONS.TRAP_GUARD]++;
-        continue;
-      }
-    }
+    // Score calculation
+    let score = candidate.score || 50;
+    score += Math.min(15, absGap * 1.0); // Gap bonus
     
-    // Direction
-    const direction = preM.gapPercent >= config.gapMin ? 'LONG' : 'SHORT';
-    
-    // Update score (add premarket confirmation bonus)
-    let score = candidate.score;
-    if (score >= config.preMScoreMin) {
-      // Add gap strength bonus
-      score += Math.min(10, gapPercent * 0.5);
-    } else {
+    if (score < config.preMScoreMin) {
+      stats.lowScore++;
       diagnostics[REJECTION_REASONS.SCORE_TOO_LOW]++;
       continue;
     }
     
-    validatedCandidates.push({
-      ...candidate,
-      entry_price: preM.preMPrice || candidate.entry_price,
-      gap_percent: preM.gapPercent,
+    // Direction
+    const side = gapPercent >= config.gapMin ? 'BUY' : 'SELL';
+    
+    // Prices
+    const entry = todayPremarket;
+    const stop = entry * (side === 'BUY' ? 0.97 : 1.03);
+    const target = entry * (side === 'BUY' ? 1.05 : 0.95);
+    
+    validatedSignals.push({
+      symbol: candidate.symbol,
       score: Math.round(score),
-      direction,
-      preM_volume: preMVolume,
-      rel_vol_prem: avgVol20D > 0 ? (preMVolume / avgVol20D).toFixed(2) : '0',
-      reason: `${direction} gap ${preM.gapPercent.toFixed(2)}%, relVol ${(preMVolume / avgVol20D * 100).toFixed(1)}%, Score: ${Math.round(score)}`,
+      entry_price: parseFloat(entry.toFixed(2)),
+      target_price: parseFloat(target.toFixed(2)),
+      stop_loss: parseFloat(stop.toFixed(2)),
+      side: side,
+      reason: `Gap: ${gapPercent.toFixed(2)}%`,
+      gap_percent: parseFloat(gapPercent.toFixed(2)),
+      yesterdayClose: parseFloat(yesterdayClose.toFixed(2)),
+      premarketPrice: parseFloat(todayPremarket.toFixed(2)),
+      premarketVolume: preMVolume,
       mode: 'PREMARKET',
       strategy: 'momentum_gap'
     });
+    
+    stats.passed++;
   }
   
   // Sort by score descending
-  validatedCandidates.sort((a, b) => b.score - a.score);
+  validatedSignals.sort((a, b) => b.score - a.score);
   
-  // Limit to 25 candidates
-  const finalSignals = validatedCandidates.slice(0, 25);
+  // Limit to top candidates (default 25, but user's code uses 6 for intraday)
+  const finalSignals = validatedSignals.slice(0, 25);
+  
+  console.log('📊 PREMARKET STATS:', stats);
+  console.log('✅ Final signals:', finalSignals.length);
+  console.log('='.repeat(60));
   
   // Get top rejection reasons
   const rejectStats = Object.entries(diagnostics)
@@ -691,6 +745,7 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
     success: true,
     signals: finalSignals,
     diagnostics,
+    stats: stats, // Add stats object like user's code
     meta: {
       rejectStats,
       filtersUsed,
@@ -698,7 +753,7 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
       dataUsed: { eodDate: refEodDate, preMDate: date }
     },
     message: finalSignals.length > 0
-      ? `Generated ${finalSignals.length} validated candidates (Premarket mode)`
+      ? `${finalSignals.length} intraday signals for ${date}`
       : `No validated candidates (Premarket mode)`
   };
 }
