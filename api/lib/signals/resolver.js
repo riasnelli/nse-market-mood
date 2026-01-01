@@ -166,15 +166,39 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
   const overrideMode = userOverride.mode;
   const isAutoMode = !overrideMode || overrideMode === 'AUTO';
   
-  // AUTO mode selection - ALWAYS prioritize EOD when bhav exists for refDate
+  // AUTO mode selection - Check for premarket data FIRST, then fall back to EOD
   // Note: If we reach here, refEodDate is guaranteed to exist (early return above if not)
   if (isAutoMode) {
-    // KEY RULE: If bhav exists for refDate => ALWAYS use EOD (no exceptions)
-    // This is the highest priority - EOD data always takes precedence
-    mode = MODE_EOD;
-    reason = `EOD watchlist for ${signalDate} (bhav data available for ${refEodDate})`;
-    if (!premarketDate) {
-      missingFiles.push(`premarket for ${signalDate}`);
+    // CRITICAL FIX: Check if target date is TODAY and premarket data exists
+    // If premarket exists for TODAY (signalDate), use PREMARKET mode
+    if (signalDate === today && hasSignalDatePreM && premarketDate) {
+      // Check if market is open for LIVE mode
+      if (effectiveMarketStatus.isOpen === true) {
+        mode = MODE_LIVE;
+        reason = `LIVE mode for ${signalDate} (premarket data available, market open)`;
+      } else {
+        mode = MODE_PREM;
+        reason = `PREMARKET mode for ${signalDate} (premarket data available)`;
+      }
+      console.log(`✅ [Resolver] AUTO mode: Using ${mode === MODE_LIVE ? 'LIVE' : 'PREMARKET'} - premarket data found for ${signalDate}`);
+    } else if (premarketDate && premarketDate === signalDate) {
+      // Premarket exists for signal date (even if not today)
+      if (effectiveMarketStatus.isOpen === true) {
+        mode = MODE_LIVE;
+        reason = `LIVE mode for ${signalDate} (premarket data available, market open)`;
+      } else {
+        mode = MODE_PREM;
+        reason = `PREMARKET mode for ${signalDate} (premarket data available)`;
+      }
+      console.log(`✅ [Resolver] AUTO mode: Using ${mode === MODE_LIVE ? 'LIVE' : 'PREMARKET'} - premarket data found for ${signalDate}`);
+    } else {
+      // No premarket data available, use EOD mode
+      mode = MODE_EOD;
+      reason = `EOD watchlist for ${signalDate} (bhav data available for ${refEodDate}, no premarket data)`;
+      if (!premarketDate) {
+        missingFiles.push(`premarket for ${signalDate}`);
+      }
+      console.log(`ℹ️ [Resolver] AUTO mode: Using EOD - no premarket data for ${signalDate}`);
     }
   } else {
     // User override mode

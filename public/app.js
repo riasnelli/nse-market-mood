@@ -3593,6 +3593,29 @@ class MarketMoodApp {
                                         : 'Data uploaded successfully!';
                                     this.showUploadStatus(successMessage, 'success');
                                     
+                                    // CRITICAL: If premarket uploaded for today, auto-refresh signals
+                                    if (uploadType === 'premarket') {
+                                        const today = new Date().toISOString().split('T')[0];
+                                        if (date === today) {
+                                            console.log('📊 Premarket uploaded for today - auto-refreshing signals to activate PREMARKET mode...');
+                                            // Wait for DB to commit, then refresh signals
+                                            setTimeout(async () => {
+                                                try {
+                                                    // Only refresh if we're on the signals page
+                                                    if (this.currentView === 'signals') {
+                                                        const currentDate = this._signalsStatusData?.date || date;
+                                                        const currentStrategy = this.selectedStrategy || 'momentum_gap';
+                                                        console.log(`🔄 Refreshing signals for ${currentDate} with strategy ${currentStrategy}`);
+                                                        await this.loadSignals(currentDate, currentStrategy);
+                                                        // Success message already shown by showUploadStatus above
+                                                    }
+                                                } catch (err) {
+                                                    console.error('❌ Error refreshing signals after premarket upload:', err);
+                                                }
+                                            }, 2000); // 2 second delay to ensure DB is committed
+                                        }
+                                    }
+                                    
                                     // CRITICAL: Force table refresh after successful upload/update
                                     // Wait a bit for backend to process and commit to DB
                                     console.log('🔄 Forcing immediate table refresh after file upload/update...');
