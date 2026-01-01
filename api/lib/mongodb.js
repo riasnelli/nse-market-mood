@@ -61,10 +61,79 @@ async function connectToDatabase() {
 
     console.log(`✅ Connected to MongoDB Atlas (database: ${dbName})`);
     
+    // Initialize collections and indexes
+    await initializeCollections(db);
+    
     return { client, db };
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
     throw error;
+  }
+}
+
+/**
+ * Initialize collections and indexes
+ * Ensures required collections exist with proper indexes
+ */
+async function initializeCollections(db) {
+  try {
+    const collections = await db.listCollections().toArray();
+    const collectionNames = collections.map(c => c.name);
+    
+    // Ensure eod_candidates collection exists
+    if (!collectionNames.includes('eod_candidates')) {
+      await db.createCollection('eod_candidates');
+      console.log('✅ Created eod_candidates collection');
+    }
+    
+    // Ensure index on date field for eod_candidates (creates index if it doesn't exist)
+    try {
+      await db.collection('eod_candidates').createIndex({ date: 1 }, { background: true });
+      console.log('✅ Created index on eod_candidates.date');
+    } catch (indexError) {
+      // Index might already exist, ignore the error
+      if (!indexError.message.includes('already exists')) {
+        console.warn('⚠️ Warning creating index on eod_candidates.date:', indexError.message);
+      }
+    }
+    
+    // Ensure other important collections exist (optional, they'll be created on first insert)
+    const requiredCollections = [
+      'signal_candidates',
+      'active_signals',
+      'rejected_candidates'
+    ];
+    
+    for (const collName of requiredCollections) {
+      if (!collectionNames.includes(collName)) {
+        await db.createCollection(collName);
+        console.log(`✅ Created ${collName} collection`);
+      }
+    }
+    
+    // Create indexes for signal_candidates
+    try {
+      await db.collection('signal_candidates').createIndex({ tradingDay: 1, strategyId: 1 }, { background: true });
+      await db.collection('signal_candidates').createIndex({ createdAt: -1 }, { background: true });
+    } catch (err) {
+      if (!err.message.includes('already exists')) {
+        console.warn('⚠️ Warning creating indexes on signal_candidates:', err.message);
+      }
+    }
+    
+    // Create indexes for active_signals
+    try {
+      await db.collection('active_signals').createIndex({ premarketDate: 1, strategyId: 1 }, { background: true });
+      await db.collection('active_signals').createIndex({ createdAt: -1 }, { background: true });
+    } catch (err) {
+      if (!err.message.includes('already exists')) {
+        console.warn('⚠️ Warning creating indexes on active_signals:', err.message);
+      }
+    }
+    
+  } catch (error) {
+    // Don't fail connection if collection initialization fails
+    console.warn('⚠️ Warning during collection initialization:', error.message);
   }
 }
 
