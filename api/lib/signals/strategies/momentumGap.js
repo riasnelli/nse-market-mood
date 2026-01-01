@@ -10,7 +10,8 @@
 const {
   getDailyBhavcopyCollection,
   getPreMarketDataCollection,
-  getUploadedDataCollection
+  getUploadedDataCollection,
+  getEODCandidatesCollection
 } = require('../../mongodb');
 const { prevTradingDay } = require('../../tradingCalendar');
 const { MODE_EOD, MODE_PREM, MODE_LIVE } = require('../mode');
@@ -91,6 +92,99 @@ function getVolatilityProxy(high, low, close) {
   // Fallback: HighLow%
   const highLowPercent = ((high - low) / close) * 100;
   return highLowPercent;
+}
+
+/**
+ * Store EOD candidates in cache for future premarket validation
+ */
+async function storeEODCandidates(date, candidates, strategy = 'momentum_gap') {
+  try {
+    const eodCandidatesCollection = await getEODCandidatesCollection();
+    await eodCandidatesCollection.updateOne(
+      { date: date, strategy: strategy },
+      {
+        $set: {
+          date: date,
+          strategy: strategy,
+          candidates: candidates,
+          count: candidates.length,
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    console.log(`✅ [MomentumGap] Cached ${candidates.length} EOD candidates for ${date}`);
+  } catch (error) {
+    console.error(`❌ [MomentumGap] Error storing EOD candidates for ${date}:`, error);
+  }
+}
+
+/**
+ * Load cached EOD candidates from database
+ */
+async function loadEODCandidates(date, strategy = 'momentum_gap') {
+  try {
+    const eodCandidatesCollection = await getEODCandidatesCollection();
+    const cached = await eodCandidatesCollection.findOne({ date: date, strategy: strategy });
+    if (cached && cached.candidates && Array.isArray(cached.candidates)) {
+      console.log(`✅ [MomentumGap] Loaded ${cached.candidates.length} cached EOD candidates for ${date}`);
+      return cached.candidates;
+    }
+    return null;
+  } catch (error) {
+    console.error(`❌ [MomentumGap] Error loading cached EOD candidates for ${date}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Find the most recent EOD date before target date
+ * Searches up to 10 trading days back
+ */
+async function findMostRecentEODDate(targetDate) {
+  const targetDateObj = new Date(targetDate);
+  let searchDate = new Date(targetDateObj);
+  searchDate.setDate(searchDate.getDate() - 1);
+  
+  const bhavcopyCollection = await getDailyBhavcopyCollection();
+  const uploadedBhavCollection = await getUploadedDataCollection('bhav');
+  
+  // Search up to 10 days back
+  for (let i = 0; i < 10; i++) {
+    // Skip weekends
+    while (searchDate.getDay() === 0 || searchDate.getDay() === 6) {
+      searchDate.setDate(searchDate.getDate() - 1);
+    }
+    
+    const dateStr = searchDate.toISOString().split('T')[0];
+    
+    // Check daily_bhavcopy collection
+    const bhavData = await bhavcopyCollection.findOne({
+      date: dateStr,
+      series: 'EQ'
+    });
+    
+    if (bhavData) {
+      console.log(`✅ [MomentumGap] Found EOD data for: ${dateStr}`);
+      return dateStr;
+    }
+    
+    // Check uploaded bhavcopy collection
+    const uploadedBhav = await uploadedBhavCollection.findOne({
+      date: dateStr
+    });
+    
+    if (uploadedBhav && uploadedBhav.indices && Array.isArray(uploadedBhav.indices) && uploadedBhav.indices.length > 0) {
+      console.log(`✅ [MomentumGap] Found uploaded EOD data for: ${dateStr}`);
+      return dateStr;
+    }
+    
+    // Try next day back
+    searchDate.setDate(searchDate.getDate() - 1);
+  }
+  
+  console.warn(`⚠️ [MomentumGap] No EOD data found in last 10 trading days before ${targetDate}`);
+  return null;
 }
 
 /**
@@ -349,6 +443,11 @@ async function runMomentumGapEOD(date, eodDate, params = {}) {
     { label: 'Score Min', value: config.eodScoreMin }
   ];
   
+  // Cache EOD candidates for future premarket validation
+  if (finalSignals.length > 0) {
+    await storeEODCandidates(eodDate, finalSignals, 'momentum_gap');
+  }
+  
   return {
     success: true,
     signals: finalSignals,
@@ -397,10 +496,41 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
     diagnostics[reason] = 0;
   });
   
-  // First, get EOD watchlist as base pool
-  const eodResult = await runMomentumGapEOD(date, eodDate, params);
-  if (!eodResult.success) {
-    return eodResult;
+  // Auto-detect EOD date if not provided
+  let refEodDate = eodDate;
+  if (!refEodDate) {
+    refEodDate = await findMostRecentEODDate(date);
+    if (!refEodDate) {
+      return {
+        success: false,
+        signals: [],
+        diagnostics,
+        message: `No EOD data found before ${date}. Please upload previous day's bhavcopy first.`
+      };
+    }
+    console.log(`✅ [MomentumGap PREM] Auto-detected EOD date: ${refEodDate} for premarket date: ${date}`);
+  }
+  
+  // Try to load cached EOD candidates first
+  let eodCandidates = await loadEODCandidates(refEodDate, 'momentum_gap');
+  
+  // If no cached candidates, generate them (will cache automatically)
+  if (!eodCandidates || eodCandidates.length === 0) {
+    console.log(`⚠️ [MomentumGap PREM] No cached candidates found, generating from bhavcopy...`);
+    const eodResult = await runMomentumGapEOD(date, refEodDate, params);
+    if (!eodResult.success) {
+      return eodResult;
+    }
+    eodCandidates = eodResult.signals;
+  }
+  
+  if (!eodCandidates || eodCandidates.length === 0) {
+    return {
+      success: false,
+      signals: [],
+      diagnostics,
+      message: `No EOD candidates found for reference date ${refEodDate}`
+    };
   }
   
   // Get premarket data
@@ -463,7 +593,7 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
   // Filter EOD candidates with premarket validation
   const validatedCandidates = [];
   
-  for (const candidate of eodResult.signals) {
+  for (const candidate of eodCandidates) {
     const symbol = candidate.symbol;
     const preM = premarketData.get(symbol);
     
@@ -565,7 +695,7 @@ async function runMomentumGapPREM(date, eodDate, params = {}) {
       rejectStats,
       filtersUsed,
       modeDisplay: 'PREMARKET',
-      dataUsed: { eodDate, preMDate: date }
+      dataUsed: { eodDate: refEodDate, preMDate: date }
     },
     message: finalSignals.length > 0
       ? `Generated ${finalSignals.length} validated candidates (Premarket mode)`

@@ -9741,6 +9741,88 @@ class MarketMoodApp {
         signalsContainer.innerHTML = '';
         signalsContainer.style.display = 'block';
 
+        // Add data flow banner for PREMARKET mode
+        const modeDisplay = this._signalsStatusData?.modeDisplay;
+        const dataUsed = this._signalsStatusData?.dataUsed;
+        
+        if (modeDisplay === 'PREMARKET' && dataUsed) {
+            const eodDate = dataUsed.refEodDate || dataUsed.eodDate;
+            const premarketDate = dataUsed.premarketDate || dataUsed.preMDate || date;
+            const signalCount = signals.length;
+            
+            // Get meta information if available (candidatesProcessed, premarketStocksAvailable)
+            const signalsInfo = this._signalsStatusData?.signalsInfo;
+            const meta = signalsInfo?.meta || {};
+            const candidatesProcessed = meta.candidatesProcessed || signalCount; // Fallback to signal count
+            const premarketStocksAvailable = meta.premarketStocksAvailable || signalCount; // Fallback
+            
+            const dataFlowBanner = document.createElement('div');
+            dataFlowBanner.id = 'dataFlowBanner';
+            dataFlowBanner.style.cssText = `
+                margin: 10px;
+                padding: 15px;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+                margin-bottom: 20px;
+            `;
+            
+            dataFlowBanner.innerHTML = `
+                <div style="font-weight: 700; margin-bottom: 10px; font-size: 16px;">
+                    📊 Data Flow Validation
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 100px; text-align: center;">
+                        <div style="background: rgba(255,255,255,0.2); padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 12px; opacity: 0.9;">Yesterday EOD</div>
+                            <div style="font-weight: 700; font-size: 16px; margin-top: 4px;">
+                                ${eodDate || 'N/A'}
+                            </div>
+                            <div style="font-size: 11px; opacity: 0.8; margin-top: 4px;">
+                                ${candidatesProcessed} candidates
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="font-size: 24px; flex-shrink: 0;">→</div>
+                    
+                    <div style="flex: 1; min-width: 100px; text-align: center;">
+                        <div style="background: rgba(255,255,255,0.2); padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 12px; opacity: 0.9;">Today Premarket</div>
+                            <div style="font-weight: 700; font-size: 16px; margin-top: 4px;">
+                                ${premarketDate || 'N/A'}
+                            </div>
+                            <div style="font-size: 11px; opacity: 0.8; margin-top: 4px;">
+                                ${premarketStocksAvailable} stocks
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="font-size: 24px; flex-shrink: 0;">→</div>
+                    
+                    <div style="flex: 1; min-width: 100px; text-align: center;">
+                        <div style="background: rgba(255,255,255,0.3); padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 12px; opacity: 0.9;">Final Signals</div>
+                            <div style="font-weight: 700; font-size: 20px; margin-top: 4px;">
+                                ${signalCount}
+                            </div>
+                            <div style="font-size: 11px; opacity: 0.8; margin-top: 4px;">
+                                validated signals
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="font-size: 12px; opacity: 0.9; text-align: center;">
+                    ✅ Gap validation completed: Entry prices updated to premarket levels
+                </div>
+            `;
+            
+            signalsContainer.appendChild(dataFlowBanner);
+        }
+
         // Create signals grid with equal left and right padding
         const signalsGrid = document.createElement('div');
         signalsGrid.className = 'signals-grid';
