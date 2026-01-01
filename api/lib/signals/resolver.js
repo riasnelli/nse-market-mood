@@ -169,36 +169,38 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
   // AUTO mode selection - Check for premarket data FIRST, then fall back to EOD
   // Note: If we reach here, refEodDate is guaranteed to exist (early return above if not)
   if (isAutoMode) {
-    // CRITICAL FIX: Check if target date is TODAY and premarket data exists
-    // If premarket exists for TODAY (signalDate), use PREMARKET mode
-    if (signalDate === today && hasSignalDatePreM && premarketDate) {
+    console.log(`🔍 [Resolver] AUTO mode detection: signalDate=${signalDate}, today=${today}, hasSignalDatePreM=${hasSignalDatePreM}, premarketDate=${premarketDate}`);
+    
+    // CRITICAL: If target date is not today, use EOD mode (past/future dates)
+    if (signalDate !== today) {
+      console.log(`📅 [Resolver] Target date (${signalDate}) is not today (${today}), using EOD mode`);
+      mode = MODE_EOD;
+      reason = `EOD watchlist for ${signalDate} (not today's date)`;
+      if (!premarketDate) {
+        missingFiles.push(`premarket for ${signalDate}`);
+      }
+    } else if (hasSignalDatePreM && premarketDate) {
+      // Target date IS today AND premarket data exists - use PREMARKET or LIVE mode
+      console.log(`✅ [Resolver] Premarket data found for today (${signalDate})`);
+      
       // Check if market is open for LIVE mode
       if (effectiveMarketStatus.isOpen === true) {
         mode = MODE_LIVE;
         reason = `LIVE mode for ${signalDate} (premarket data available, market open)`;
+        console.log(`🔴 [Resolver] Market is open - using LIVE mode`);
       } else {
         mode = MODE_PREM;
         reason = `PREMARKET mode for ${signalDate} (premarket data available)`;
+        console.log(`🟡 [Resolver] Market not open - using PREMARKET mode`);
       }
-      console.log(`✅ [Resolver] AUTO mode: Using ${mode === MODE_LIVE ? 'LIVE' : 'PREMARKET'} - premarket data found for ${signalDate}`);
-    } else if (premarketDate && premarketDate === signalDate) {
-      // Premarket exists for signal date (even if not today)
-      if (effectiveMarketStatus.isOpen === true) {
-        mode = MODE_LIVE;
-        reason = `LIVE mode for ${signalDate} (premarket data available, market open)`;
-      } else {
-        mode = MODE_PREM;
-        reason = `PREMARKET mode for ${signalDate} (premarket data available)`;
-      }
-      console.log(`✅ [Resolver] AUTO mode: Using ${mode === MODE_LIVE ? 'LIVE' : 'PREMARKET'} - premarket data found for ${signalDate}`);
     } else {
-      // No premarket data available, use EOD mode
+      // Target date IS today BUT no premarket data available - use EOD mode
+      console.log(`⚠️ [Resolver] No premarket data for today (${signalDate}) - using EOD mode`);
       mode = MODE_EOD;
       reason = `EOD watchlist for ${signalDate} (bhav data available for ${refEodDate}, no premarket data)`;
       if (!premarketDate) {
         missingFiles.push(`premarket for ${signalDate}`);
       }
-      console.log(`ℹ️ [Resolver] AUTO mode: Using EOD - no premarket data for ${signalDate}`);
     }
   } else {
     // User override mode
