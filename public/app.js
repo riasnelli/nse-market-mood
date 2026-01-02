@@ -9740,6 +9740,11 @@ class MarketMoodApp {
             signals = this.getFilteredSignals(signals, this._signalFilterState.filter, this._signalFilterState.sort);
         }
         
+        // LIMIT TO TOP 6 SIGNALS
+        if (signals.length > 6) {
+            signals = signals.slice(0, 6);
+        }
+        
         // Always clear container and hide loading before rendering
         signalsContainer.innerHTML = '';
         signalsContainer.style.display = 'block';
@@ -10317,7 +10322,7 @@ class MarketMoodApp {
             const success = signals.success !== false && signals.success !== undefined;
             
             if (hasSignals) {
-                engineStatus = `Active — ${signalCount} signal${signalCount !== 1 ? 's' : ''} generated.`;
+                engineStatus = `Active — ${signalCount} signal${signalCount !== 1 ? 's' : ''} generated (Top 6 shown).`;
                 engineStatusColor = '#10b981';
             } else if (success || (signals.success === undefined && message)) {
                 if (message) {
@@ -10868,7 +10873,7 @@ class MarketMoodApp {
             
             if (hasSignals) {
                 // Active with signals
-                engineStatus = `Active — ${signalCount} signal${signalCount !== 1 ? 's' : ''} generated.`;
+                engineStatus = `Active — ${signalCount} signal${signalCount !== 1 ? 's' : ''} generated (Top 6 shown).`;
                 engineStatusColor = '#10b981';
             } else if (success || (signals.success === undefined && message)) {
                 // Request succeeded but no signals - use backend message
