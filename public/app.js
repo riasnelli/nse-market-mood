@@ -11237,12 +11237,12 @@ class MarketMoodApp {
             // Show actual market status from API
             if (marketStatusEl && data?.marketStatus) {
                 const isOpen = data.marketStatus.isOpen;
-                marketStatusEl.textContent = isOpen ? 'Market Open' : 'Market Closed';
+                marketStatusEl.textContent = isOpen ? 'NSE Market Open' : 'NSE Market Closed';
                 marketStatusEl.style.color = isOpen ? '#10b981' : '#9ca3af'; // Green if open, gray if closed
             } else if (marketStatusEl && this.lastMarketStatus) {
                 // Fallback to last known status
                 const isOpen = this.lastMarketStatus.isOpen;
-                marketStatusEl.textContent = isOpen ? 'Market Open' : 'Market Closed';
+                marketStatusEl.textContent = isOpen ? 'NSE Market Open' : 'NSE Market Closed';
                 marketStatusEl.style.color = isOpen ? '#10b981' : '#9ca3af';
             }
 

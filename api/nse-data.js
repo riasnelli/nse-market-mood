@@ -36,12 +36,12 @@ async function establishNSESession(baseUrl) {
   try {
     // First, visit the main NSE page to get session cookies
     const mainPageUrl = baseUrl.replace('/api', '') || 'https://www.nseindia.com';
-    
+
     // Use a timeout to prevent hanging
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Session establishment timeout')), 3000)
     );
-    
+
     const fetchPromise = fetch(mainPageUrl, {
       method: 'GET',
       headers: {
@@ -54,14 +54,14 @@ async function establishNSESession(baseUrl) {
       redirect: 'follow',
       timeout: 3000
     });
-    
+
     const sessionResponse = await Promise.race([fetchPromise, timeoutPromise]);
-    
+
     // Extract cookies from response headers
     // node-fetch returns set-cookie as an array or string
     const setCookieHeader = sessionResponse.headers.get('set-cookie');
     let cookies = '';
-    
+
     if (setCookieHeader) {
       if (Array.isArray(setCookieHeader)) {
         // If it's an array, join them
@@ -75,11 +75,11 @@ async function establishNSESession(baseUrl) {
         cookies = cookieParts.map(cookie => cookie.split(';')[0].trim()).join('; ');
       }
     }
-    
+
     if (cookies) {
       console.log('NSE session cookies obtained');
     }
-    
+
     return cookies;
   } catch (error) {
     // Silently fail - we'll continue without cookies
@@ -92,24 +92,24 @@ async function establishNSESession(baseUrl) {
 async function checkMarketStatus(req) {
   try {
     const baseUrl = getNSEBaseUrl(req);
-    
+
     // Establish session first
     const cookies = await establishNSESession(baseUrl);
     const headers = getNSEHeaders(baseUrl);
     if (cookies) {
       headers['Cookie'] = cookies;
     }
-    
+
     // Try to fetch NSE data to check if market is responding with live data
     // Use Promise.race for timeout
     const fetchPromise = fetch(`${baseUrl}/equity-stockIndices?index=NIFTY%2050`, {
       headers: headers
     });
-    
-    const timeoutPromise = new Promise((_, reject) => 
+
+    const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Timeout')), 5000)
     );
-    
+
     const response = await Promise.race([fetchPromise, timeoutPromise]);
 
     if (!response.ok) {
@@ -120,7 +120,7 @@ async function checkMarketStatus(req) {
     }
 
     const data = await response.json();
-    
+
     // Check if we got valid data
     if (!data || !data.data || data.data.length === 0) {
       return { isOpen: false, verified: true, reason: 'NO_DATA' };
@@ -134,31 +134,60 @@ async function checkMarketStatus(req) {
     // Check if lastPrice exists and is a valid number (not 0 or null)
     // When market is closed, sometimes lastPrice might be 0 or stale
     const hasValidPrice = nifty.lastPrice && nifty.lastPrice > 0;
-    
+
     // Check timestamp if available (some NSE responses include timestamps)
-    // If data is very old (more than 1 hour), market is likely closed
-    let isRecentData = true;
+    // If data is very old (more than 15 mins), market is likely closed
+    let isRecentData = false; // Default to false to be safe
+    let dataAgePercent = 100; // 100% means very old
+
     if (data.meta && data.meta.lastUpdateTime) {
       const lastUpdate = new Date(data.meta.lastUpdateTime);
       const now = new Date();
+      // Calculate minutes difference
       const diffMinutes = (now - lastUpdate) / (1000 * 60);
-      isRecentData = diffMinutes < 60; // Data should be less than 1 hour old
+
+      // Data considered recent if less than 15 minutes old
+      // (Market updates every few seconds, so 15 mins is generous buffer)
+      isRecentData = diffMinutes < 15;
+
+      console.log(`NSE Data Age: ${diffMinutes.toFixed(2)} mins, Recent: ${isRecentData}`);
+    } else {
+      // If no timestamp, fall back to system time check
+      const timeCheck = checkMarketStatusByTime();
+      isRecentData = timeCheck.isOpen;
+      console.log('No NSE timestamp available, using system time check:', isRecentData);
     }
 
     // Additional check: if change is exactly 0 and pChange is exactly 0, might be closed
     // But this is not reliable as market can have 0 change when open
     const hasActivity = nifty.change !== undefined || nifty.pChange !== undefined;
 
+    // Cross-verify with system time
+    // If system time says market is definitely closed (e.g. night time), 
+    // be very strict about data freshness (must be < 5 mins)
+    const timeStatus = checkMarketStatusByTime();
+    if (!timeStatus.isOpen && isRecentData) {
+      // If usage outside market hours, ensure data is SUPER fresh
+      const lastUpdate = new Date(data.meta?.lastUpdateTime);
+      const now = new Date();
+      const diffMinutes = (now - lastUpdate) / (1000 * 60);
+      // If outside hours, only accept < 5 min old data (likely pre/post market activity)
+      if (diffMinutes > 5) {
+        isRecentData = false;
+        console.log('Outside market hours and data > 5 mins old -> Forcing CLOSED');
+      }
+    }
+
     // Market is likely open if:
     // 1. We have valid price data
-    // 2. Data is recent (if timestamp available)
+    // 2. Data is recent (confirmed by timestamp or system time)
     // 3. We got a successful API response
     const isOpen = hasValidPrice && isRecentData && hasActivity;
 
     return {
       isOpen: isOpen,
       verified: true,
-      reason: isOpen ? 'LIVE_DATA' : 'STALE_DATA',
+      reason: isOpen ? 'LIVE_DATA' : 'STALE_DATA_OR_CLOSED',
       lastPrice: nifty.lastPrice,
       timestamp: data.meta?.lastUpdateTime || new Date().toISOString()
     };
@@ -207,11 +236,11 @@ const handler = async (req, res) => {
 
   try {
     console.log('Fetching NSE data...');
-    
+
     // Get base URL from request
     const baseUrl = getNSEBaseUrl(req);
     console.log('Using NSE API base URL:', baseUrl);
-    
+
     // Establish NSE session first (get cookies)
     console.log('Establishing NSE session...');
     const cookies = await establishNSESession(baseUrl);
@@ -222,11 +251,11 @@ const handler = async (req, res) => {
     } else {
       console.log('Continuing without session cookies');
     }
-    
+
     // First, check if market is actually open
     const marketStatus = await checkMarketStatus(req);
     console.log('Market status:', marketStatus);
-    
+
     // List of indices to fetch
     const indices = [
       'NIFTY 50',
@@ -245,9 +274,9 @@ const handler = async (req, res) => {
       'NIFTY PVT BANK',
       'NIFTY INFRA'
     ];
-    
+
     // baseUrl already set above, reuse it
-    
+
     // Fetch all indices in parallel
     const fetchPromises = indices.map(index => {
       const encodedIndex = encodeURIComponent(index);
@@ -264,7 +293,7 @@ const handler = async (req, res) => {
         return null;
       });
     });
-    
+
     // Also fetch VIX
     const vixPromise = fetch(`${baseUrl}/equity-stockIndices?index=INDIA%20VIX`, {
       headers: headers
@@ -278,7 +307,7 @@ const handler = async (req, res) => {
       console.warn('Error fetching VIX:', error.message);
       return null;
     });
-    
+
     // Fetch market breadth data (advances/declines) from market statistics
     // Try multiple endpoints to get advances/declines
     const marketBreadthPromise = Promise.all([
@@ -311,13 +340,13 @@ const handler = async (req, res) => {
     ]).then(([marketStatus, niftyData]) => {
       // Try to extract advances/declines from either response
       let advances = 0, declines = 0;
-      
+
       // Check market status response
       if (marketStatus && marketStatus.marketState) {
         advances = marketStatus.marketState.advances || 0;
         declines = marketStatus.marketState.declines || 0;
       }
-      
+
       // Check NIFTY 50 data response
       if ((advances === 0 || declines === 0) && niftyData && niftyData.data) {
         const nifty = niftyData.data.find(item => item.symbol === 'NIFTY 50');
@@ -331,27 +360,27 @@ const handler = async (req, res) => {
           declines = niftyData.meta.declines || declines;
         }
       }
-      
+
       return { advances, declines, raw: { marketStatus, niftyData } };
     }).catch(() => ({ advances: 0, declines: 0 }));
-    
+
     // Wait for all requests
     const results = await Promise.all([...fetchPromises, vixPromise, marketBreadthPromise]);
-    
+
     // Combine all data
     const allData = {
       indices: [],
       vix: null,
       marketBreadth: { advances: 0, declines: 0 }
     };
-    
+
     // Extract market breadth from the last result (market breadth promise)
     const marketBreadthData = results[results.length - 1];
     if (marketBreadthData && marketBreadthData.advances !== undefined) {
       allData.marketBreadth.advances = marketBreadthData.advances || 0;
       allData.marketBreadth.declines = marketBreadthData.declines || 0;
     }
-    
+
     // Process indices results (excluding the last one which is market breadth)
     results.slice(0, -2).forEach((data, index) => {
       if (data && data.data && data.data.length > 0) {
@@ -379,7 +408,7 @@ const handler = async (req, res) => {
         console.warn(`⚠️ Index fetch for "${indexName}" returned empty data array`);
       }
     });
-    
+
     // Process VIX (second to last result)
     const vixData = results[results.length - 2];
     if (vixData && vixData.data && vixData.data.length > 0) {
@@ -392,7 +421,7 @@ const handler = async (req, res) => {
         };
       }
     }
-    
+
     // Log results - warn if indices array is empty
     if (allData.indices.length === 0) {
       console.warn(`⚠️ NSE data fetched but indices array is empty. Expected ${indices.length} indices, got 0.`);
@@ -401,7 +430,7 @@ const handler = async (req, res) => {
       console.log(`✅ NSE data fetched successfully: ${allData.indices.length} indices`);
     }
     console.log(`Market Breadth: Advances=${allData.marketBreadth.advances}, Declines=${allData.marketBreadth.declines}`);
-    
+
     // If advances/declines are 0, try to calculate from indices
     if (allData.marketBreadth.advances === 0 && allData.marketBreadth.declines === 0 && allData.indices.length > 0) {
       const positiveIndices = allData.indices.filter(idx => idx.pChange > 0).length;
@@ -411,9 +440,9 @@ const handler = async (req, res) => {
       allData.marketBreadth.declines = negativeIndices * 10;
       console.log(`Estimated Market Breadth from indices: Advances=${allData.marketBreadth.advances}, Declines=${allData.marketBreadth.declines}`);
     }
-    
+
     const processedData = processMarketData(allData);
-    
+
     // Add market status to response
     processedData.marketStatus = {
       isOpen: marketStatus.isOpen,
@@ -421,7 +450,7 @@ const handler = async (req, res) => {
       reason: marketStatus.reason,
       timestamp: marketStatus.timestamp || new Date().toISOString()
     };
-    
+
     // Automatically save indices data to MongoDB if we have valid data
     try {
       await saveIndicesDataToDatabase(allData.indices, allData.vix);
@@ -429,9 +458,9 @@ const handler = async (req, res) => {
       // Log error but don't fail the request
       console.warn('⚠️ Failed to save indices data to database:', saveError.message);
     }
-    
+
     res.status(200).json(processedData);
-    
+
   } catch (error) {
     console.error('❌ Error fetching NSE data:', error);
     console.error('Error details:', {
@@ -439,10 +468,10 @@ const handler = async (req, res) => {
       stack: error.stack,
       name: error.name
     });
-    
+
     // Check market status even on error
     const marketStatus = await checkMarketStatus(req).catch(() => checkMarketStatusByTime());
-    
+
     // Return error response with empty arrays (not mock data)
     // Client will handle empty arrays and show "No data available"
     res.status(500).json({
@@ -467,10 +496,10 @@ function processMarketData(data) {
   try {
     // Find NIFTY 50 for mood calculation
     const nifty50 = data.indices.find(item => item.symbol === 'NIFTY 50');
-    
+
     const moodScore = calculateMoodScore(nifty50, data.indices, data.marketBreadth);
     const mood = getMoodFromScore(moodScore);
-    
+
     return {
       mood: mood,
       indices: data.indices, // All available indices
@@ -492,32 +521,32 @@ function processMarketData(data) {
 
 function calculateMoodScore(nifty50, allIndices, marketBreadth) {
   let score = 50;
-  
+
   if (!nifty50) return score;
-  
+
   // NIFTY 50 performance
   if (nifty50.pChange > 0.5) score += 20;
   else if (nifty50.pChange < -0.5) score -= 20;
   else if (nifty50.pChange > 0.1) score += 10;
   else if (nifty50.pChange < -0.1) score -= 10;
-  
+
   // Market breadth (from marketBreadth object)
   if (marketBreadth && marketBreadth.advances > 0 && marketBreadth.declines > 0) {
     if (marketBreadth.advances > marketBreadth.declines * 1.5) score += 15;
     else if (marketBreadth.declines > marketBreadth.advances * 1.5) score -= 15;
   }
-  
+
   // Consider other major indices
-  const majorIndices = allIndices.filter(idx => 
+  const majorIndices = allIndices.filter(idx =>
     ['NIFTY BANK', 'NIFTY IT', 'NIFTY NEXT 50'].includes(idx.symbol)
   );
-  
+
   const positiveCount = majorIndices.filter(idx => idx.pChange > 0).length;
   const negativeCount = majorIndices.filter(idx => idx.pChange < 0).length;
-  
+
   if (positiveCount > negativeCount * 1.5) score += 5;
   else if (negativeCount > positiveCount * 1.5) score -= 5;
-  
+
   return Math.max(0, Math.min(100, score));
 }
 
@@ -554,22 +583,22 @@ async function saveIndicesDataToDatabase(indices, vix) {
 
   try {
     const collection = await getDailyIndicesCollection();
-    
+
     // Get today's date in YYYY-MM-DD format (IST timezone)
     const now = new Date();
     const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
     const istOffset = 5.5 * 60 * 60000; // +5:30
     const ist = new Date(utc + istOffset);
     const todayDate = ist.toISOString().split('T')[0];
-    
+
     // Check if data for today already exists (check count of documents for this date)
     const existingCount = await collection.countDocuments({ date: todayDate });
-    
+
     if (existingCount > 0) {
       console.log(`📊 Data for ${todayDate} already exists in database (${existingCount} records), skipping save`);
       return;
     }
-    
+
     // Prepare data for storage
     const indicesData = indices.map(idx => ({
       symbol: idx.symbol,
@@ -578,7 +607,7 @@ async function saveIndicesDataToDatabase(indices, vix) {
       pChange: idx.pChange,
       timestamp: new Date().toISOString()
     }));
-    
+
     // Add VIX if available
     if (vix && vix.last) {
       indicesData.push({
@@ -589,7 +618,7 @@ async function saveIndicesDataToDatabase(indices, vix) {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     // Insert data into daily_indices collection
     const insertResult = await collection.insertMany(
       indicesData.map(idx => ({
@@ -603,7 +632,7 @@ async function saveIndicesDataToDatabase(indices, vix) {
         createdAt: new Date()
       }))
     );
-    
+
     console.log(`✅ Saved ${insertResult.insertedCount} indices records to database for ${todayDate}`);
   } catch (error) {
     console.error('Error saving indices data to database:', error);
