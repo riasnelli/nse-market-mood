@@ -736,9 +736,72 @@ class MarketMoodApp {
         });
     }
 
-    /**
-     * Setup polling channels with fetch functions
-     */
+    async loadData() {
+        if (this._isLoading) {
+            console.log('🔄 Data load already in progress, skipping duplicate call');
+            return;
+        }
+
+        this._isLoading = true;
+
+        // Safety timeout to clear loading flag if something gets stuck
+        // Clear previous timeout if exists
+        if (this._loadingTimeout) clearTimeout(this._loadingTimeout);
+        this._loadingTimeout = setTimeout(() => {
+            if (this._isLoading) {
+                console.warn('⚠️ Force clearing loading flag after timeout');
+                this._isLoading = false;
+            }
+        }, 30000); // 30 second safety timeout
+
+        try {
+            console.log('🔄 Loading market data...');
+
+            // Show loading if first load
+            if (!this.lastSuccessfulStatus) {
+                this.updateMoodLoadingStatus('Fetching market data...');
+            }
+
+            const response = await fetch(this.apiUrl);
+
+            if (!response.ok) {
+                throw new Error(`API returned ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            // Handle error response from API (e.g. 500 with error message)
+            if (data.error) {
+                throw new Error(data.message || data.error);
+            }
+
+            console.log('✅ Data loaded successfully', data);
+
+            // Reset consecutive failures on success
+            this.consecutiveFailures = 0;
+            this.lastSuccessfulStatus = data.marketStatus;
+            this.lastMarketStatus = data.marketStatus;
+
+            // Update UI with data
+            this.updateUI(data);
+
+            // Handle market status changes (open/closed)
+            this.handleMarketStatusChange(data.marketStatus);
+
+            // Hide loading overlay
+            this.hideMoodLoading();
+
+        } catch (error) {
+            console.error('❌ Error loading data:', error);
+            this.consecutiveFailures++;
+
+            this.handleDataLoadError(error);
+        } finally {
+            this._isLoading = false;
+            if (this._loadingTimeout) clearTimeout(this._loadingTimeout);
+        }
+    }
+
     setupPollingChannels() {
         // Register mood channel (fetches full data including mood)
         this.pollingManager.registerChannel('moodChannel', async () => {

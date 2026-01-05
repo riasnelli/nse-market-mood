@@ -48,10 +48,10 @@ function detectFileType(fileName) {
     return 'bhav';
   }
   // More specific: must contain "bhav" AND not be indices or premarket
-  if (normalizedName.includes('BHAV') && 
-      !normalizedName.includes('IND') && 
-      !normalizedName.includes('PRE') &&
-      normalizedName.endsWith('.CSV')) {
+  if (normalizedName.includes('BHAV') &&
+    !normalizedName.includes('IND') &&
+    !normalizedName.includes('PRE') &&
+    normalizedName.endsWith('.CSV')) {
     return 'bhav';
   }
 
@@ -66,7 +66,7 @@ function detectFileType(fileName) {
   }
   // More specific: must contain "PRE" AND "OPEN" or "MARKET" (but not "PREMIUM")
   if ((normalizedName.includes('PRE') && normalizedName.includes('OPEN')) ||
-      (normalizedName.includes('PREMARKET') && !normalizedName.includes('PREMIUM'))) {
+    (normalizedName.includes('PREMARKET') && !normalizedName.includes('PREMIUM'))) {
     if (normalizedName.endsWith('.CSV')) {
       return 'premarket';
     }
@@ -82,11 +82,11 @@ function detectFileType(fileName) {
     return 'marketactivity';
   }
   // More specific: must contain "MARKET" AND "ACTIVITY" (not "52" or "WK")
-  if (normalizedName.includes('MARKET') && 
-      normalizedName.includes('ACTIVITY') &&
-      !normalizedName.includes('52') &&
-      !normalizedName.includes('WK') &&
-      normalizedName.endsWith('.CSV')) {
+  if (normalizedName.includes('MARKET') &&
+    normalizedName.includes('ACTIVITY') &&
+    !normalizedName.includes('52') &&
+    !normalizedName.includes('WK') &&
+    normalizedName.endsWith('.CSV')) {
     return 'marketactivity';
   }
 
@@ -104,8 +104,8 @@ function detectFileType(fileName) {
   }
   // More specific: must contain "52" AND ("WK" or "WEEK") (not "52W" in marketactivity)
   if ((normalizedName.includes('52') && (normalizedName.includes('WK') || normalizedName.includes('WEEK'))) &&
-      !normalizedName.includes('MARKETACTIVITY') &&
-      normalizedName.endsWith('.CSV')) {
+    !normalizedName.includes('MARKETACTIVITY') &&
+    normalizedName.endsWith('.CSV')) {
     return '52w';
   }
 
@@ -138,7 +138,7 @@ function parseDateFromFilename(fileName) {
     // Process each 8-digit match, use the first valid one
     for (const match of all8DigitMatches) {
       const first4 = Number(match.substring(0, 4));
-      
+
       // If first 4 digits are >= 2000 and <= 2099, treat as YYYYMMDD
       if (first4 >= 2000 && first4 <= 2099) {
         // YYYYMMDD format
@@ -166,7 +166,28 @@ function parseDateFromFilename(fileName) {
         }
       }
     }
-    // If we processed 8-digit matches but none were valid, continue to other patterns
+  }
+
+  // Helper: Strict date validator
+  const isValidDate = (y, m, d) => {
+    return y >= 2000 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31;
+  };
+
+  // Pattern 0: Specific fix for the "2212-20-25" bug
+  // The bug was caused by regex capturing parts of other numbers or being too loose.
+  // We'll prioritize strict exact patterns first.
+
+  // Pattern A: Strict DDMMYYYY aligned with common NSE filenames
+  // Matches "22122025" in "sec_bhavdata_full_22122025.csv"
+  const ddmmyyyyStrict = fileName.match(/_(\d{2})(\d{2})(\d{4})\./);
+  if (ddmmyyyyStrict) {
+    const [, dd, mm, yyyy] = ddmmyyyyStrict;
+    const d = parseInt(dd, 10);
+    const m = parseInt(mm, 10);
+    const y = parseInt(yyyy, 10);
+    if (isValidDate(y, m, d)) {
+      return `${yyyy}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
   }
 
   // Pattern 2: DDMMYY (6 digits at end) - for MA files
@@ -220,7 +241,7 @@ function parseDateFromFilename(fileName) {
  */
 function validateFileType(fileName, expectedType) {
   const detectedType = detectFileType(fileName);
-  
+
   if (detectedType === 'unknown') {
     return {
       valid: false,
