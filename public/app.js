@@ -1761,21 +1761,47 @@ class MarketMoodApp {
     }
 
     handleManualRefresh() {
-        // Manual refresh always works, regardless of market status
-        // This allows users to refresh even when market is closed
-        // Refresh the currently active page
-        if (this.currentView === 'signals') {
-            // Refresh signals page
-            console.log('🔄 Refreshing signals page...');
-            const currentDate = this._signalsStatusData?.date || new Date().toISOString().split('T')[0];
-            const currentStrategy = this.selectedStrategy || 'momentum_gap';
-            this.loadSignals(currentDate, currentStrategy);
-        } else {
-            // Refresh mood page (default)
-            console.log('🔄 Refreshing mood page...');
-            this.loadData();
-        }
+        console.log('🔄 Manual refresh triggered');
+
+        // CRITICAL: Clear all cached signal data to force fresh fetch
+        this._signalsStatusData = {
+            date: null,
+            signalsInfo: null,
+            dataAvailability: null,
+            strategy: null,
+            backendMessage: null,
+            mode: null
+        };
+
+        // Clear uploaded data cache to force fresh fetch
+        this._updateUploadedDataInfoPromise = null;
+
+        // Refresh uploaded data info first, then reload view
+        this.updateUploadedDataInfo().then(() => {
+            console.log('✅ Uploaded data refreshed');
+
+            // Reload based on current view
+            if (this.currentView === 'signals') {
+                console.log('🔄 Refreshing signals page...');
+                const currentStrategy = this.selectedStrategy || 'momentum_gap';
+                // Pass null as date to force findBestSignalDate() to run
+                this.loadSignals(null, currentStrategy);
+            } else {
+                console.log('🔄 Refreshing mood page...');
+                this.loadData();
+            }
+        }).catch(err => {
+            console.error('❌ Error refreshing uploaded data:', err);
+            // Still try to reload view even if upload data refresh fails
+            if (this.currentView === 'signals') {
+                const currentStrategy = this.selectedStrategy || 'momentum_gap';
+                this.loadSignals(null, currentStrategy);
+            } else {
+                this.loadData();
+            }
+        });
     }
+
 
     isMarketOpen() {
         // Prefer API-based market status over time-based check
@@ -8819,14 +8845,121 @@ class MarketMoodApp {
         return date.toISOString().split('T')[0];
     }
 
+    /**
+     * Find best date for signal generation from uploaded data
+     * Looks for most recent date with both bhav (T-1) and premarket (T) data
+     * @returns {Promise<Object|null>} - { signalDate, bhavDate, premarketDate, isComplete } or null
+     */
+    async findBestSignalDate() {
+        console.log('🔍 Finding best date for signals from uploaded data');
+
+        try {
+            // Fetch current uploaded data status for both bhav and premarket
+            const [bhavResp, premarketResp] = await Promise.all([
+                fetch('/api/data?action=get&type=bhav'),
+                fetch('/api/data?action=get&type=premarket')
+            ]);
+
+            if (!bhavResp.ok || !premarketResp.ok) {
+                console.error('Failed to fetch uploaded data');
+                return null;
+            }
+
+            const bhavData = await bhavResp.json();
+            const premarketData = await premarketResp.json();
+
+            if (!bhavData.success || !premarketData.success) {
+                console.error('Invalid data response');
+                return null;
+            }
+
+            // Create date maps with row counts
+            const bhavDates = new Map();
+            (bhavData.data || []).forEach(d => {
+                if (d.date && d.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    const count = d.rowCount || d.indicesCount || d.count || 0;
+                    bhavDates.set(d.date, count);
+                }
+            });
+
+            const premarketDates = new Map();
+            (premarketData.data || []).forEach(d => {
+                if (d.date && d.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    const count = d.rowCount || d.indicesCount || d.count || 0;
+                    premarketDates.set(d.date, count);
+                }
+            });
+
+            console.log('📅 Available bhav dates:', Array.from(bhavDates.keys()).sort().reverse().slice(0, 5));
+            console.log('📅 Available premarket dates:', Array.from(premarketDates.keys()).sort().reverse().slice(0, 5));
+
+            // Find most recent date with BOTH bhav (T-1) AND premarket (T)
+            // For signal generation on date T, we need bhav from T-1 and premarket from T
+            const allDates = [...new Set([...bhavDates.keys(), ...premarketDates.keys()])]
+                .filter(d => d && d !== 'undefined' && d !== 'null')
+                .sort((a, b) => new Date(b) - new Date(a)); // Newest first
+
+            for (const date of allDates) {
+                const prevDay = this.getPrevTradingDay(date);
+                const bhavCount = bhavDates.get(prevDay) || 0;
+                const premarketCount = premarketDates.get(date) || 0;
+                const hasBhavForPrevDay = bhavCount > 50; // Minimum threshold for valid bhav
+                const hasPremarketForToday = premarketCount > 0;
+
+                console.log(`🔍 Checking ${date}: prevDay=${prevDay}, bhav=${bhavCount}, premarket=${premarketCount}`);
+
+                if (hasBhavForPrevDay && hasPremarketForToday) {
+                    console.log(`✅ Best signal date found: ${date} (using bhav from ${prevDay}, count=${bhavCount})`);
+                    return {
+                        signalDate: date,
+                        bhavDate: prevDay,
+                        premarketDate: date,
+                        isComplete: true
+                    };
+                }
+            }
+
+            // Fallback: Most recent date with bhav only (for EOD-only signals)
+            const latestBhavDate = Array.from(bhavDates.keys()).sort().reverse()[0];
+            if (latestBhavDate) {
+                const nextDay = this.getNextTradingDay(latestBhavDate);
+                const bhavCount = bhavDates.get(latestBhavDate) || 0;
+                console.log(`⚠️ No complete dataset found. Using bhav from ${latestBhavDate} (count=${bhavCount}) for signals on ${nextDay}`);
+                return {
+                    signalDate: nextDay,
+                    bhavDate: latestBhavDate,
+                    premarketDate: null,
+                    isComplete: false
+                };
+            }
+
+            console.error('❌ No valid dates found in uploaded data');
+            return null;
+
+        } catch (error) {
+            console.error('Error finding best signal date:', error);
+            return null;
+        }
+    }
+
     async loadSignals(signalDate, strategy = null) {
-        // Ensure signalDate is never null/undefined
+        // If no date provided, find the best date from uploaded data
         let targetSignalDate = signalDate;
+
         if (!targetSignalDate || typeof targetSignalDate !== 'string') {
-            console.error('❌ loadSignals called with invalid date:', signalDate);
-            const today = new Date().toISOString().split('T')[0];
-            targetSignalDate = this.getNextTradingDay(today);
-            console.warn(`⚠️ Defaulting to next trading day from today: ${targetSignalDate}`);
+            console.log('📅 No signal date provided, finding best date from uploads...');
+            const bestDate = await this.findBestSignalDate();
+
+            if (bestDate) {
+                targetSignalDate = bestDate.signalDate;
+                console.log(`✅ Using best available date: ${targetSignalDate} (bhav: ${bestDate.bhavDate}, premarket: ${bestDate.premarketDate || 'N/A'})`);
+            } else {
+                // Fallback to today + 1
+                console.warn('⚠️ No uploaded data found, using fallback date');
+                const today = new Date().toISOString().split('T')[0];
+                targetSignalDate = this.getNextTradingDay(today);
+                console.warn(`⚠️ Defaulting to next trading day from today: ${targetSignalDate}`);
+            }
         }
 
         console.log('📊 Loading signals, date:', targetSignalDate, 'strategy:', strategy || this.selectedStrategy);
