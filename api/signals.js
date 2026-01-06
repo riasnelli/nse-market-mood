@@ -1,5 +1,5 @@
-const { 
-  getDailyBhavcopyCollection, 
+const {
+  getDailyBhavcopyCollection,
   getPreMarketDataCollection,
   getSignalCollection,
   getSignalRunCollection,
@@ -8,10 +8,10 @@ const {
   getSignalsStoreCollection
 } = require('./lib/mongodb');
 const { authMiddleware } = require('./lib/auth');
-const { 
-  generateSignalsForDate, 
-  getCurrentMood, 
-  selectStrategyFromMood 
+const {
+  generateSignalsForDate,
+  getCurrentMood,
+  selectStrategyFromMood
 } = require('./lib/signals/generateSignals');
 const {
   nextTradingDay,
@@ -74,7 +74,12 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
     console.log(`   - Premarket data: ${date} (today's pre-open)`);
     console.log(`   - Bhavcopy data: ${yesterdayDate} (yesterday's EOD)`);
     console.log(`   - Indices data: ${yesterdayDate} (yesterday's EOD)`);
-    
+
+    // VALIDATION: Check if we have necessary data BEFORE proceeding
+    // 1. Check Previous Trading Day (Bhavcopy)
+    // 2. Check Target Date (Premarket)
+    // If either is missing, fail fast with specific error code
+
     // Get collections with error handling
     let bhavcopyCollection, premarketCollection;
     try {
@@ -95,86 +100,111 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
     let bhavcopyData = [];
     let bhavCountDaily = 0;
     let bhavCountUploaded = 0;
-    
+    const MIN_BHAV_COUNT = 300; // Minimum valid bhav records (NSE typically has 300+ EQ stocks)
+
     try {
       // First, try daily_bhavcopy collection
       bhavcopyData = await bhavcopyCollection
-        .find({ 
+        .find({
           date: yesterdayDate,
           series: 'EQ'
         })
         .toArray();
-      
+
       bhavCountDaily = bhavcopyData.length;
       console.log(`📊 BHAVCOPY COUNT for ${yesterdayDate}: daily_bhavcopy = ${bhavCountDaily}`);
-      
-      // If no exact date match, try to find the most recent date before or equal to yesterday
-      if (bhavcopyData.length === 0) {
-        console.log(`No exact date match in daily_bhavcopy for ${yesterdayDate}, searching for closest date...`);
+
+      // If no exact date match OR count is too low (corrupted data), try to find the most recent valid date
+      if (bhavcopyData.length < MIN_BHAV_COUNT) {
+        if (bhavcopyData.length > 0) {
+          console.warn(`⚠️ Bhav data for ${yesterdayDate} has only ${bhavcopyData.length} records (below minimum ${MIN_BHAV_COUNT}). Searching for valid alternative...`);
+        } else {
+          console.log(`No exact date match in daily_bhavcopy for ${yesterdayDate}, searching for closest valid date...`);
+        }
+
         const allBhavDaily = await bhavcopyCollection
           .find({ series: 'EQ' })
           .sort({ date: -1 })
           .limit(50)
           .toArray();
-        
+
         const uniqueDates = [...new Set(allBhavDaily.map(d => d.date))].sort().reverse();
         console.log(`📅 Available dates in daily_bhavcopy:`, uniqueDates.slice(0, 10).join(', '));
-        
+
         for (const dateStr of uniqueDates) {
           if (dateStr && dateStr <= yesterdayDate) {
-            console.log(`✅ Found closest date in daily_bhavcopy: ${dateStr} (looking for ${yesterdayDate})`);
-            bhavcopyData = await bhavcopyCollection
+            const candidateData = await bhavcopyCollection
               .find({ date: dateStr, series: 'EQ' })
               .toArray();
-            bhavCountDaily = bhavcopyData.length;
-            break;
+
+            const candidateCount = candidateData.length;
+            console.log(`🔍 Checking ${dateStr}: ${candidateCount} records`);
+
+            if (candidateCount >= MIN_BHAV_COUNT) {
+              console.log(`✅ Found valid bhav date: ${dateStr} with ${candidateCount} records (minimum ${MIN_BHAV_COUNT})`);
+              bhavcopyData = candidateData;
+              bhavCountDaily = candidateCount;
+              break;
+            } else {
+              console.log(`⏭️  Skipping ${dateStr}: only ${candidateCount} records (below minimum ${MIN_BHAV_COUNT})`);
+            }
           }
         }
       }
-      
-      // If no data in daily_bhavcopy, check uploadedBhav collection
-      if (bhavcopyData.length === 0) {
-        console.log(`No data in daily_bhavcopy for ${yesterdayDate}, checking uploadedBhav...`);
+
+      // If no valid data in daily_bhavcopy, check uploadedBhav collection
+      if (bhavcopyData.length < MIN_BHAV_COUNT) {
+        console.log(`No valid data in daily_bhavcopy for ${yesterdayDate}, checking uploadedBhav...`);
         try {
           const uploadedBhavCollection = await getUploadedDataCollection('bhav');
-          
+
           const allBhavDocs = await uploadedBhavCollection
             .find({})
             .sort({ date: -1 })
             .limit(20)
             .toArray();
-          
-          console.log(`📅 Available dates in uploadedBhav:`, allBhavDocs.map(d => d.date).join(', '));
-          
+
+          console.log(`📅 Available dates in uploadedBhav:`, allBhavDocs.map(d => `${d.date}(${d.rowCount || d.indicesCount || 0})`).join(', '));
+
           let uploadedBhavDocs = await uploadedBhavCollection
             .find({ date: yesterdayDate })
             .toArray();
-          
-          if (uploadedBhavDocs.length === 0) {
+
+          // Check if uploaded data meets minimum threshold
+          const uploadedCount = uploadedBhavDocs.reduce((sum, doc) => sum + (doc.rowCount || doc.indicesCount || 0), 0);
+
+          if (uploadedCount < MIN_BHAV_COUNT) {
+            console.warn(`⚠️ Uploaded bhav for ${yesterdayDate} has only ${uploadedCount} records. Searching for valid alternative...`);
+
+            // Find closest valid date
             let closestDoc = null;
             let closestDate = null;
-            
+
             for (const doc of allBhavDocs) {
-              if (doc.date && doc.date <= yesterdayDate) {
+              const docCount = doc.rowCount || doc.indicesCount || 0;
+              if (doc.date && doc.date <= yesterdayDate && docCount >= MIN_BHAV_COUNT) {
                 if (!closestDate || doc.date > closestDate) {
                   closestDate = doc.date;
                   closestDoc = doc;
                 }
               }
             }
-            
+
             if (closestDoc) {
               uploadedBhavDocs = [closestDoc];
-              console.log(`✅ Found closest date: ${closestDoc.date} (looking for ${yesterdayDate})`);
+              console.log(`✅ Found valid uploaded bhav: ${closestDoc.date} with ${closestDoc.rowCount || closestDoc.indicesCount || 0} records`);
+            } else {
+              uploadedBhavDocs = [];
+              console.error(`❌ No valid uploaded bhav found (all dates have < ${MIN_BHAV_COUNT} records)`);
             }
           }
-          
+
           for (const doc of uploadedBhavDocs) {
             if (doc.indices && Array.isArray(doc.indices) && doc.indices.length > 0) {
               const eqStocks = doc.indices.filter(item => {
                 return !item.series || item.series === 'EQ';
               });
-              
+
               bhavcopyData = bhavcopyData.concat(eqStocks);
               bhavCountUploaded += eqStocks.length;
             }
@@ -183,11 +213,27 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
           console.error('Error querying uploadedBhav collection:', uploadedError);
         }
       }
-      
-      console.log(`📊 FINAL BHAVCOPY COUNT for ${yesterdayDate}: total = ${bhavcopyData.length}`);
-      
-      if (bhavcopyData.length === 0) {
-        console.warn(`⚠️ No bhavcopy data found for ${yesterdayDate}`);
+
+      console.log(`📊 FINAL BHAVCOPY COUNT: ${bhavcopyData.length} (daily: ${bhavCountDaily}, uploaded: ${bhavCountUploaded})`);
+
+      if (bhavcopyData.length < MIN_BHAV_COUNT) {
+        console.error(`❌ Insufficient bhav data: only ${bhavcopyData.length} records found (minimum ${MIN_BHAV_COUNT} required)`);
+        // FAIL FAST: Reject insufficient data
+        return {
+          success: false,
+          date: date,
+          signals: [],
+          signal_count: 0,
+          error: {
+            code: 'INSUFFICIENT_DATA',
+            type: 'BHAVCOPY',
+            date: yesterdayDate,
+            count: bhavcopyData.length,
+            minimum: MIN_BHAV_COUNT,
+            details: `Only ${bhavcopyData.length} records found (minimum ${MIN_BHAV_COUNT} required). Data may be corrupted.`
+          },
+          message: `Insufficient EOD data: only ${bhavcopyData.length} stocks found (expected ${MIN_BHAV_COUNT}+). Please re-upload bhav file.`
+        };
       }
     } catch (queryError) {
       console.error('Error querying bhavcopy data:', queryError);
@@ -201,32 +247,38 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
     }
 
     if (bhavcopyData.length === 0) {
+      // This redundancy catch is now handled above, but keeping for safety structure
       return {
-        success: true,
+        success: false,
         date: date,
         signals: [],
         signal_count: 0,
+        error: {
+          code: 'MISSING_DATA',
+          type: 'BHAVCOPY',
+          date: yesterdayDate
+        },
         message: `No bhavcopy data found for ${yesterdayDate}. Please upload bhavcopy data.`
       };
     }
 
     // Get today's premarket data
     let premarketData = [];
-    
+
     try {
       premarketData = await premarketCollection
         .find({ date: date })
         .toArray();
-      
+
       if (premarketData.length === 0) {
         const allPremarketDaily = await premarketCollection
           .find({})
           .sort({ date: -1 })
           .limit(50)
           .toArray();
-        
+
         const uniqueDates = [...new Set(allPremarketDaily.map(d => d.date))].sort().reverse();
-        
+
         for (const dateStr of uniqueDates) {
           if (dateStr && dateStr <= date) {
             premarketData = await premarketCollection
@@ -236,25 +288,25 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
           }
         }
       }
-      
+
       // If no data in premarket_data, check uploadedPreMarket collection
       if (premarketData.length === 0) {
         const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
-        
+
         const allPremarketDocs = await uploadedPremarketCollection
           .find({})
           .sort({ date: -1 })
           .limit(20)
           .toArray();
-        
+
         let uploadedPremarketDocs = await uploadedPremarketCollection
           .find({ date: date })
           .toArray();
-        
+
         if (uploadedPremarketDocs.length === 0) {
           let closestDoc = null;
           let closestDate = null;
-          
+
           for (const doc of allPremarketDocs) {
             if (doc.date && doc.date <= date) {
               if (!closestDate || doc.date > closestDate) {
@@ -263,12 +315,12 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
               }
             }
           }
-          
+
           if (closestDoc) {
             uploadedPremarketDocs = [closestDoc];
           }
         }
-        
+
         for (const doc of uploadedPremarketDocs) {
           if (doc.indices && Array.isArray(doc.indices)) {
             premarketData = premarketData.concat(doc.indices);
@@ -279,7 +331,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       console.error('Error querying premarket data:', queryError);
       premarketData = [];
     }
-    
+
     if (premarketData.length === 0) {
       console.warn(`⚠️ No premarket data found for ${date}`);
     }
@@ -331,31 +383,31 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         filterCounters.duplicateSymbol++;
         continue;
       }
-      
+
       const bhavcopy = bhavcopyMap.get(symbol);
       if (!bhavcopy) {
         filterCounters.noBhavcopyMatch++;
         continue;
       }
-      
+
       if (bhavcopy.series && bhavcopy.series !== 'EQ') {
         filterCounters.notEqSeries++;
         continue;
       }
 
       // Use normalized fields: close, prevClose
-      const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE || 
-                            bhavcopy.PREV_CLOSE || bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
+      const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE ||
+        bhavcopy.PREV_CLOSE || bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
       if (yesterdayClose <= 0) {
         filterCounters.invalidYesterdayClose++;
         continue;
       }
 
       // Use normalized fields: iep, pre_open_price, price
-      const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE || 
-                            premarket.price || premarket.PRICE ||
-                            premarket.last_price || premarket.LAST_PRICE ||
-                            premarket.open || premarket.OPEN || 0;
+      const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE ||
+        premarket.price || premarket.PRICE ||
+        premarket.last_price || premarket.LAST_PRICE ||
+        premarket.open || premarket.OPEN || 0;
       if (premarketPrice <= 0) {
         filterCounters.invalidPremarketPrice++;
         continue;
@@ -376,9 +428,9 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       }
 
       // Use normalized fields: volume, ttl_trd_qnty
-      const volume = bhavcopy.volume || bhavcopy.VOLUME || 
-                    bhavcopy.tottrdqty || bhavcopy.TOTTRDQTY || 
-                    bhavcopy.traded_quantity || bhavcopy.TRADED_QUANTITY || 0;
+      const volume = bhavcopy.volume || bhavcopy.VOLUME ||
+        bhavcopy.tottrdqty || bhavcopy.TOTTRDQTY ||
+        bhavcopy.traded_quantity || bhavcopy.TRADED_QUANTITY || 0;
       const minVolume = 100000;
       if (volume < minVolume) {
         filterCounters.volumeTooLow++;
@@ -416,7 +468,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
         filterCounters.scoreTooLow++;
         continue;
       }
-      
+
       filterCounters.passed++;
 
       const entryPrice = premarketPrice;
@@ -471,7 +523,7 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       ];
       const sortedReasons = reasons.sort((a, b) => filterCounters[b.key] - filterCounters[a.key]);
       topReason = sortedReasons[0] ? `${sortedReasons[0].label} (${filterCounters[sortedReasons[0].key]})` : 'Unknown';
-      
+
       return {
         success: true,
         date: date,
@@ -559,18 +611,18 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
 function verifyAdminAuth(req) {
   const appKey = req.headers['x-app-key'];
   const validAppKey = process.env.APP_KEY;
-  
+
   if (!validAppKey) {
     console.warn('⚠️ APP_KEY not configured in environment');
     return false;
   }
-  
+
   return appKey === validAppKey;
 }
 
 const handler = async (req, res) => {
   const DEBUG = process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development';
-  
+
   // Health check endpoint: GET /api/signals?ping=1
   if (req.method === 'GET' && req.query.ping === '1') {
     return res.status(200).json({
@@ -580,26 +632,26 @@ const handler = async (req, res) => {
       message: 'Signals endpoint is working'
     });
   }
-  
+
   try {
     // Check if MongoDB is configured
     const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
-    
+
     // Clean REST API contract:
     // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get saved signals (READ-ONLY)
     // POST /api/signals with body {date, strategy} - Admin-only: Force regenerate signals
-    
+
     if (req.method === 'GET') {
       // Support backward compatibility: ?operation=latest
       const operation = req.query.operation;
       if (operation === 'latest') {
         // Get latest signal date (get-latest-signal-date.js logic)
         const today = new Date().toISOString().split('T')[0];
-        
+
         if (DEBUG) {
           console.log('[SIGNALS API] GET request - operation: latest');
         }
-        
+
         if (!mongoUri) {
           return res.status(200).json({
             date: today,
@@ -625,13 +677,13 @@ const handler = async (req, res) => {
             .sort({ date: -1 })
             .limit(1)
             .toArray();
-          
+
           const [latestIndices] = await indicesCollection
             .find({})
             .sort({ date: -1 })
             .limit(1)
             .toArray();
-          
+
           const [latestPremarket] = await premarketCollection
             .find({})
             .sort({ date: -1 })
@@ -648,7 +700,7 @@ const handler = async (req, res) => {
             .filter(Boolean)
             .sort()
             .reverse();
-          
+
           const latestCompleteDate = allDates[0] || today;
 
           return res.status(200).json({
@@ -673,19 +725,19 @@ const handler = async (req, res) => {
           });
         }
       }
-      
+
       // Support backward compatibility: ?operation=get (from get-signals.js)
       if (operation === 'get') {
         // Legacy get-signals.js endpoint - redirect to main GET handler below
         // This maintains backward compatibility
       }
-      
+
       // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap&modeOverride=EOD|PREMARKET|LIVE&marketStatus=... - Get signals for a date
       let targetDate = req.query.date || new Date().toISOString().split('T')[0];
       let strategy = req.query.strategy;
       const modeOverride = req.query.modeOverride; // Only present when explicitly set (not AUTO)
       const includeDebug = req.query.debug === '1' || process.env.NODE_ENV !== 'production';
-      
+
       // Recompute market status using tradingCalendar - do NOT trust frontend
       const today = getTodayIST();
       const computedMarketOpen = isTradingDay(today) && (() => {
@@ -699,7 +751,7 @@ const handler = async (req, res) => {
         // Market hours: 9:15 AM - 3:30 PM IST (555-930 minutes)
         return timeMinutes >= 555 && timeMinutes < 930;
       })();
-      
+
       // Get market status from query (for diagnostic only, but recompute isOpen)
       let marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
       if (req.query.marketStatus) {
@@ -716,24 +768,24 @@ const handler = async (req, res) => {
           marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
         }
       }
-      
+
       // User override from query params - only accept valid modes
       const validModes = ['EOD', 'PREMARKET', 'LIVE'];
-      const overrideMode = modeOverride && validModes.includes(modeOverride.toUpperCase()) 
-        ? modeOverride.toUpperCase() 
+      const overrideMode = modeOverride && validModes.includes(modeOverride.toUpperCase())
+        ? modeOverride.toUpperCase()
         : undefined; // Treat invalid/undefined as AUTO
-      
+
       const userOverride = {
         mode: overrideMode,
         strategy: strategy
       };
-      
+
       // If no strategy specified, get mood-based strategy
       if (!strategy) {
         try {
           const mood = await getCurrentMood();
           strategy = selectStrategyFromMood(mood);
-      if (DEBUG) {
+          if (DEBUG) {
             console.log(`[SIGNALS API] Selected strategy based on mood: ${strategy} (mood score: ${mood?.score || 'N/A'})`);
           }
         } catch (error) {
@@ -741,7 +793,7 @@ const handler = async (req, res) => {
           strategy = 'momentum_gap';
         }
       }
-      
+
       // Get strategy meta after strategy is finalized
       let strategyMeta;
       try {
@@ -750,12 +802,12 @@ const handler = async (req, res) => {
         console.warn(`[SIGNALS API] Error getting strategy meta for ${strategy}, using fallback:`, error.message);
         strategyMeta = null;
       }
-      const safeStrategyMeta = strategyMeta || { 
-        id: strategy, 
-        name: strategy, 
-        rulesText: { EOD: [], PREMARKET: [], LIVE: [] } 
+      const safeStrategyMeta = strategyMeta || {
+        id: strategy,
+        name: strategy,
+        rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
       };
-      
+
       // Resolve signals context (this determines signalDate, refEodDate, premarketDate, mode)
       const context = await resolveSignalsContext({
         targetDate,
@@ -763,16 +815,16 @@ const handler = async (req, res) => {
         marketStatus,
         userOverride
       });
-      
+
       const signalDate = context.signalDate;
       const refEodDate = context.refEodDate;
       const premarketDate = context.premarketDate;
       const detectedMode = context.mode;
-      
+
       if (DEBUG) {
         console.log(`[SIGNALS API] Resolved context - signalDate: ${signalDate}, refEodDate: ${refEodDate}, premarketDate: ${premarketDate}, mode: ${detectedMode}`);
       }
-      
+
       if (!signalDate || !refEodDate) {
         return res.status(200).json({
           success: true,
@@ -793,7 +845,7 @@ const handler = async (req, res) => {
           }
         });
       }
-      
+
       if (!mongoUri) {
         if (DEBUG) console.log('[SIGNALS API] MongoDB not configured, returning NO_DATA status');
         return res.status(200).json({
@@ -859,19 +911,19 @@ const handler = async (req, res) => {
         // Read from signals_store collection (new unified store)
         const signalsStoreCollection = await getSignalsStoreCollection();
         // Only query with finalMode - never use fallback query that could return MODE_NONE/legacy docs
-        let storedDoc = await signalsStoreCollection.findOne({ 
+        let storedDoc = await signalsStoreCollection.findOne({
           date: signalDate,
           strategy: strategy || 'momentum_gap',
           mode: finalMode
         });
-        
+
         // Note: MongoDB query guarantees storedDoc.mode === finalMode if document exists
         // No need to validate mode here since query already filters for finalMode
-        
+
         if (storedDoc) {
           // Assert that stored doc mode is not MODE_NONE (query guarantees it matches finalMode, but double-check)
           assertNoModeNone(storedDoc.mode, 'storedDoc.mode from signals_store');
-          
+
           // Return stored document with status
           const transformedSignals = Array.isArray(storedDoc.signals) ? storedDoc.signals.map(signal => ({
             symbol: signal.symbol,
@@ -892,7 +944,7 @@ const handler = async (req, res) => {
           // Use finalMode directly - MongoDB query guarantees storedDoc.mode === finalMode
           const modeDisplay = getModeDisplayName(finalMode);
           const modeLabel = getModeLabel(finalMode);
-          
+
           // Get dataUsed from storedDoc or construct from available fields
           const dataUsed = storedDoc.dataUsed || {
             refEodDate: storedDoc.refDate || refEodDate,
@@ -922,9 +974,9 @@ const handler = async (req, res) => {
             filtersUsed: storedDoc.filtersUsed || null,
             dataUsed: dataUsed,
             run_id: storedDoc.run_id || null,
-            usedDates: { 
-              targetDate, 
-              signalDate: storedDoc.date || signalDate, 
+            usedDates: {
+              targetDate,
+              signalDate: storedDoc.date || signalDate,
               refDate: storedDoc.refDate || refEodDate,
               eodDate: dataUsed.refEodDate,
               preMDate: dataUsed.premarketDate
@@ -933,37 +985,37 @@ const handler = async (req, res) => {
             resolvedBy: overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto',
             computedMarketOpen: computedMarketOpen
           };
-          
+
           // Include debug info if requested
           if (includeDebug && storedDoc.debug) {
             response.debug = storedDoc.debug;
           }
-          
+
           return res.status(200).json(response);
         }
 
         // No signals found in store - try to auto-generate if data is available
         if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store, attempting auto-generation...`);
-        
+
         // Always try to auto-generate signals if data is available
         if (DEBUG) console.log(`[SIGNALS API] Attempting to auto-generate signals with strategy: ${strategy}, finalMode: ${finalMode}, marketStatus: ${marketStatus.isOpen}`);
-        
+
         // Hard assert: finalMode must never be MODE_NONE at this point
         if (finalMode === MODE_NONE) {
           throw new Error(`[SIGNALS API] finalMode is MODE_NONE after guard — this should be impossible. refEodDate: ${refEodDate}, detectedMode: ${detectedMode}`);
         }
-        
+
         try {
           const result = await generateSignalsForDate(targetDate, strategy, 'PLAYBOOK', {
             marketStatus,
             userOverride,
             resolvedMode: finalMode  // Pass finalMode to avoid resolver returning MODE_NONE
           });
-          
+
           // Update signalDate and refDate from result (resolver may have adjusted them)
           const resolvedSignalDate = result.signalDate || signalDate;
           const resolvedRefDate = result.refDate || refEodDate;
-          
+
           if (result.status === 'READY' || result.status === 'NO_MATCH') {
             // Signals generated successfully, return them
             const transformedSignals = Array.isArray(result.signals) ? result.signals.map(signal => ({
@@ -977,12 +1029,12 @@ const handler = async (req, res) => {
               feature_fields: signal.feature_fields,
               reason: signal.reason
             })) : [];
-            
-        // Use resolvedBy from earlier guard (already computed)
-        // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
-        const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
-        
-        const response = {
+
+            // Use resolvedBy from earlier guard (already computed)
+            // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
+            const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
+
+            const response = {
               success: true,
               engine: 'OK',
               requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
@@ -1029,9 +1081,9 @@ const handler = async (req, res) => {
               },
               message: result.message || 'Signals generated automatically',
               missingFiles: result.missingFiles || null,
-              usedDates: result.usedDates || { 
-                targetDate, 
-                signalDate: result.signalDate || signalDate, 
+              usedDates: result.usedDates || {
+                targetDate,
+                signalDate: result.signalDate || signalDate,
                 refDate: result.refDate || refEodDate,
                 eodDate: result.dataUsed?.refEodDate || null,
                 preMDate: result.dataUsed?.premarketDate || null
@@ -1040,7 +1092,7 @@ const handler = async (req, res) => {
               resolvedBy: resolvedBy,
               computedMarketOpen: computedMarketOpen
             };
-            
+
             // Add debug fields
             if (includeDebug) {
               response.debug = {
@@ -1050,14 +1102,14 @@ const handler = async (req, res) => {
                 clientMarketStatus: req.query.marketStatus ? JSON.parse(req.query.marketStatus) : null
               };
             }
-            
+
             return res.status(200).json(response);
           } else if (result.status === 'INSUFFICIENT_DATA') {
             // Data not available - return INSUFFICIENT_DATA status
             // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
             const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
             const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
-            
+
             const response = {
               success: true,
               engine: 'OK',
@@ -1101,7 +1153,7 @@ const handler = async (req, res) => {
               resolvedBy: resolvedBy,
               computedMarketOpen: computedMarketOpen
             };
-            
+
             // Add debug fields
             if (includeDebug) {
               response.debug = {
@@ -1111,7 +1163,7 @@ const handler = async (req, res) => {
                 clientMarketStatus: req.query.marketStatus ? JSON.parse(req.query.marketStatus) : null
               };
             }
-            
+
             return res.status(200).json(response);
           } else {
             // Generation failed (ERROR, etc.)
@@ -1163,7 +1215,7 @@ const handler = async (req, res) => {
           console.error('[SIGNALS API] Error auto-generating signals:', genError);
           // Fall through to return NO_DATA
         }
-        
+
         // Return NO_DATA status if signals couldn't be generated
         return res.status(200).json({
           success: true,
@@ -1251,25 +1303,25 @@ const handler = async (req, res) => {
           meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
         });
       }
-      
+
     } else if (req.method === 'POST') {
       // POST /api/signals - Admin-only: Force regenerate signals
       // Requires x-app-key header matching APP_KEY environment variable
-      
+
       if (!verifyAdminAuth(req)) {
         return res.status(401).json({
           error: 'Unauthorized',
           message: 'Admin authentication required. Provide x-app-key header matching APP_KEY.'
         });
       }
-      
+
       const date = req.body?.date || req.query.date || new Date().toISOString().split('T')[0];
       const strategy = req.body?.strategy || req.query.strategy || 'momentum_gap';
-      
+
       if (DEBUG) {
         console.log(`[SIGNALS API] POST request (admin) - date: ${date}, strategy: ${strategy}`);
       }
-      
+
       if (!mongoUri) {
         if (DEBUG) console.log('[SIGNALS API] MongoDB not configured');
         return res.status(200).json({
@@ -1295,10 +1347,10 @@ const handler = async (req, res) => {
         // Market hours: 9:15 AM - 3:30 PM IST (555-930 minutes)
         return timeMinutes >= 555 && timeMinutes < 930;
       })();
-      
+
       const marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
       const userOverride = { strategy: strategy };
-      
+
       // Get strategy meta after strategy is finalized
       let strategyMeta;
       try {
@@ -1307,12 +1359,12 @@ const handler = async (req, res) => {
         console.warn(`[SIGNALS API] POST: Error getting strategy meta for ${strategy}, using fallback:`, error.message);
         strategyMeta = null;
       }
-      const safeStrategyMeta = strategyMeta || { 
-        id: strategy, 
-        name: strategy, 
-        rulesText: { EOD: [], PREMARKET: [], LIVE: [] } 
+      const safeStrategyMeta = strategyMeta || {
+        id: strategy,
+        name: strategy,
+        rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
       };
-      
+
       // Resolve signals context
       const context = await resolveSignalsContext({
         targetDate: date,
@@ -1320,12 +1372,12 @@ const handler = async (req, res) => {
         marketStatus,
         userOverride
       });
-      
+
       const signalDate = context.signalDate;
       const refEodDate = context.refEodDate;
       const premarketDate = context.premarketDate;
       const detectedMode = context.mode;
-      
+
       // Apply same guard logic as GET handler
       let finalMode = detectedMode;
       if (finalMode === MODE_NONE && refEodDate) {
@@ -1355,14 +1407,14 @@ const handler = async (req, res) => {
           computedMarketOpen: computedMarketOpen
         });
       }
-      
+
       // Verify mode is one of the supported modes
       const supportedModeConstants = [MODE_EOD, MODE_PREM, MODE_LIVE];
       if (!supportedModeConstants.includes(finalMode)) {
         console.error(`❌ [SIGNALS API] POST: Invalid mode detected: ${finalMode}, forcing MODE_EOD`);
         finalMode = MODE_EOD;
       }
-      
+
       // Hard assert before calling generateSignalsForDate
       assertNoModeNone(finalMode, 'POST handler finalMode before generateSignalsForDate');
 
@@ -1372,11 +1424,11 @@ const handler = async (req, res) => {
         userOverride,
         resolvedMode: finalMode  // Pass finalMode to avoid resolver returning MODE_NONE
       });
-      
+
       if (DEBUG) {
         console.log(`[SIGNALS API] Generated signals: status=${result.status}, count=${result.signal_count || 0}`);
       }
-      
+
       res.status(200).json({
         status: result.status,
         date: result.date || date,
@@ -1438,7 +1490,7 @@ const handler = async (req, res) => {
     const date = req.query.date || new Date().toISOString().split('T')[0];
     const strategy = req.query.strategy || 'momentum_gap';
     const modeOverride = req.query.modeOverride || 'AUTO';
-    
+
     // NEVER return 404 or 500 - always return 200 with error info
     return res.status(200).json({
       success: false,
