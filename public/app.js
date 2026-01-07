@@ -8359,8 +8359,10 @@ class MarketMoodApp {
         if (preferredDate) {
             signalDate = preferredDate;
         } else if (bestAvailableDate) {
-            signalDate = this.getNextTradingDay(bestAvailableDate);
-            console.log(`📅 Latest data is for ${bestAvailableDate}, signals will be for next trading day: ${signalDate}`);
+            // Use bestAvailableDate as the signal date (not next day!)
+            // For date T, we use bhav from T-1 and premarket from T
+            signalDate = bestAvailableDate;
+            console.log(`📅 Using ${bestAvailableDate} as signal date (has bhav+premarket data)`);
         } else {
             // No data found - use today or tomorrow based on market status
             const isMarketClosed = this.lastMarketStatus && !this.lastMarketStatus.isOpen;
