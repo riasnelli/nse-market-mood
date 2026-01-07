@@ -8309,27 +8309,36 @@ class MarketMoodApp {
         let bestAvailableDate = null;
         if (this._dateMap && this._dateMap.size > 0) {
             const dateMapEntries = Array.from(this._dateMap.entries());
-            // Priority: Latest with both bhav+premarket, else latest with bhav
+            // Priority: Latest date T with bhav(T-1) + premarket(T)
             const sortedEntries = [...dateMapEntries].sort((a, b) => {
                 return new Date(b[0]) - new Date(a[0]);
             });
 
-            // Try to find date with both bhav+premarket
+            // Try to find date T with bhav from T-1 AND premarket from T
             for (const [dateStr, dateData] of sortedEntries) {
-                if (dateData.bhav && dateData.bhav.count > 0 &&
-                    dateData.premarket && dateData.premarket.count > 0) {
+                const prevDay = this.getPrevTradingDay(dateStr);
+                const prevDayData = this._dateMap.get(prevDay);
+
+                // Check if we have bhav for T-1 (>50 records) and premarket for T
+                const hasBhavForPrevDay = prevDayData?.bhav?.count > 50;
+                const hasPremarketForToday = dateData.premarket?.count > 0;
+
+                if (hasBhavForPrevDay && hasPremarketForToday) {
                     bestAvailableDate = dateStr;
-                    console.log(`📅 Best date (bhav+premarket): ${bestAvailableDate}`);
+                    console.log(`📅 Best date (T=${dateStr}): bhav(T-1=${prevDay}, count=${prevDayData.bhav.count}) + premarket(T=${dateStr}, count=${dateData.premarket.count})`);
                     break;
                 }
             }
 
-            // Fallback to latest with bhav
+            // Fallback: Latest date with bhav for T-1 only (EOD mode)
             if (!bestAvailableDate) {
                 for (const [dateStr, dateData] of sortedEntries) {
-                    if (dateData.bhav && dateData.bhav.count > 0) {
+                    const prevDay = this.getPrevTradingDay(dateStr);
+                    const prevDayData = this._dateMap.get(prevDay);
+
+                    if (prevDayData?.bhav?.count > 50) {
                         bestAvailableDate = dateStr;
-                        console.log(`📅 Best date (bhav only): ${bestAvailableDate}`);
+                        console.log(`📅 Best date (bhav only, T=${dateStr}): bhav(T-1=${prevDay}, count=${prevDayData.bhav.count})`);
                         break;
                     }
                 }
