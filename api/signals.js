@@ -180,240 +180,36 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
       }
 
 
-      // VALIDATION: Check if we have necessary data BEFORE proceeding
-      // 1. Check Previous Trading Day (Bhavcopy)
-      // 2. Check Target Date (Premarket)
-      // If either is missing, fail fast with specific error code
+      if (bhavcopyData.length < MIN_BHAV_COUNT) {
+        console.log(`No valid data in daily_bhavcopy for ${yesterdayDate}, checking uploadedBhav...`);
+        try {
+          const uploadedBhavCollection = await getUploadedDataCollection('bhav');
 
-      // Get collections with error handling
-      let bhavcopyCollection, premarketCollection;
-      try {
-        bhavcopyCollection = await getDailyBhavcopyCollection();
-        premarketCollection = await getPreMarketDataCollection();
-      } catch (dbError) {
-        console.error('Error connecting to MongoDB collections:', dbError);
-        return {
-          success: false,
-          date: date,
-          signals: [],
-          signal_count: 0,
-          message: 'Database connection failed. Please check MongoDB configuration.'
-        };
-      }
-
-      // Get yesterday's bhavcopy data from both daily_bhavcopy AND uploadedBhav collections
-      let bhavcopyData = [];
-      let bhavCountDaily = 0;
-      let bhavCountUploaded = 0;
-      const MIN_BHAV_COUNT = 300; // Minimum valid bhav records (NSE typically has 300+ EQ stocks)
-
-      try {
-        // First, try daily_bhavcopy collection
-        bhavcopyData = await bhavcopyCollection
-          .find({
-            date: yesterdayDate,
-            series: 'EQ'
-          })
-          .toArray();
-
-        bhavCountDaily = bhavcopyData.length;
-        console.log(`📊 BHAVCOPY COUNT for ${yesterdayDate}: daily_bhavcopy = ${bhavCountDaily}`);
-
-        // If no exact date match OR count is too low (corrupted data), try to find the most recent valid date
-        if (bhavcopyData.length < MIN_BHAV_COUNT) {
-          if (bhavcopyData.length > 0) {
-            console.warn(`⚠️ Bhav data for ${yesterdayDate} has only ${bhavcopyData.length} records (below minimum ${MIN_BHAV_COUNT}). Searching for valid alternative...`);
-          } else {
-            console.log(`No exact date match in daily_bhavcopy for ${yesterdayDate}, searching for closest valid date...`);
-          }
-
-          const allBhavDaily = await bhavcopyCollection
-            .find({ series: 'EQ' })
-            .sort({ date: -1 })
-            .limit(50)
-            .toArray();
-
-          const uniqueDates = [...new Set(allBhavDaily.map(d => d.date))].sort().reverse();
-          console.log(`📅 Available dates in daily_bhavcopy:`, uniqueDates.slice(0, 10).join(', '));
-
-          for (const dateStr of uniqueDates) {
-            if (dateStr && dateStr <= yesterdayDate) {
-              const candidateData = await bhavcopyCollection
-                .find({ date: dateStr, series: 'EQ' })
-                .toArray();
-
-              const candidateCount = candidateData.length;
-              console.log(`🔍 Checking ${dateStr}: ${candidateCount} records`);
-
-              if (candidateCount >= MIN_BHAV_COUNT) {
-                console.log(`✅ Found valid bhav date: ${dateStr} with ${candidateCount} records (minimum ${MIN_BHAV_COUNT})`);
-                bhavcopyData = candidateData;
-                bhavCountDaily = candidateCount;
-                break;
-              } else {
-                console.log(`⏭️  Skipping ${dateStr}: only ${candidateCount} records (below minimum ${MIN_BHAV_COUNT})`);
-              }
-            }
-          }
-        }
-
-        // If no valid data in daily_bhavcopy, check uploadedBhav collection
-        if (bhavcopyData.length < MIN_BHAV_COUNT) {
-          console.log(`No valid data in daily_bhavcopy for ${yesterdayDate}, checking uploadedBhav...`);
-          try {
-            const uploadedBhavCollection = await getUploadedDataCollection('bhav');
-
-            const allBhavDocs = await uploadedBhavCollection
-              .find({})
-              .sort({ date: -1 })
-              .limit(20)
-              .toArray();
-
-            console.log(`📅 Available dates in uploadedBhav:`, allBhavDocs.map(d => `${d.date}(${d.rowCount || d.indicesCount || 0})`).join(', '));
-
-            let uploadedBhavDocs = await uploadedBhavCollection
-              .find({ date: yesterdayDate })
-              .toArray();
-
-            // Check if uploaded data meets minimum threshold
-            const uploadedCount = uploadedBhavDocs.reduce((sum, doc) => sum + (doc.rowCount || doc.indicesCount || 0), 0);
-
-            if (uploadedCount < MIN_BHAV_COUNT) {
-              console.warn(`⚠️ Uploaded bhav for ${yesterdayDate} has only ${uploadedCount} records. Searching for valid alternative...`);
-
-              // Find closest valid date
-              let closestDoc = null;
-              let closestDate = null;
-
-              for (const doc of allBhavDocs) {
-                const docCount = doc.rowCount || doc.indicesCount || 0;
-                if (doc.date && doc.date <= yesterdayDate && docCount >= MIN_BHAV_COUNT) {
-                  if (!closestDate || doc.date > closestDate) {
-                    closestDate = doc.date;
-                    closestDoc = doc;
-                  }
-                }
-              }
-
-              if (closestDoc) {
-                uploadedBhavDocs = [closestDoc];
-                console.log(`✅ Found valid uploaded bhav: ${closestDoc.date} with ${closestDoc.rowCount || closestDoc.indicesCount || 0} records`);
-              } else {
-                uploadedBhavDocs = [];
-                console.error(`❌ No valid uploaded bhav found (all dates have < ${MIN_BHAV_COUNT} records)`);
-              }
-            }
-
-            for (const doc of uploadedBhavDocs) {
-              if (doc.indices && Array.isArray(doc.indices) && doc.indices.length > 0) {
-                const eqStocks = doc.indices.filter(item => {
-                  return !item.series || item.series === 'EQ';
-                });
-
-                bhavcopyData = bhavcopyData.concat(eqStocks);
-                bhavCountUploaded += eqStocks.length;
-              }
-            }
-          } catch (uploadedError) {
-            console.error('Error querying uploadedBhav collection:', uploadedError);
-          }
-        }
-
-        console.log(`📊 FINAL BHAVCOPY COUNT: ${bhavcopyData.length} (daily: ${bhavCountDaily}, uploaded: ${bhavCountUploaded})`);
-
-        if (bhavcopyData.length < MIN_BHAV_COUNT) {
-          console.error(`❌ Insufficient bhav data: only ${bhavcopyData.length} records found (minimum ${MIN_BHAV_COUNT} required)`);
-          // FAIL FAST: Reject insufficient data
-          return {
-            success: false,
-            date: date,
-            signals: [],
-            signal_count: 0,
-            error: {
-              code: 'INSUFFICIENT_DATA',
-              type: 'BHAVCOPY',
-              date: yesterdayDate,
-              count: bhavcopyData.length,
-              minimum: MIN_BHAV_COUNT,
-              details: `Only ${bhavcopyData.length} records found (minimum ${MIN_BHAV_COUNT} required). Data may be corrupted.`
-            },
-            message: `Insufficient EOD data: only ${bhavcopyData.length} stocks found (expected ${MIN_BHAV_COUNT}+). Please re-upload bhav file.`
-          };
-        }
-      } catch (queryError) {
-        console.error('Error querying bhavcopy data:', queryError);
-        return {
-          success: false,
-          date: date,
-          signals: [],
-          signal_count: 0,
-          message: `Error querying bhavcopy data for ${yesterdayDate}`
-        };
-      }
-
-      if (bhavcopyData.length === 0) {
-        // This redundancy catch is now handled above, but keeping for safety structure
-        return {
-          success: false,
-          date: date,
-          signals: [],
-          signal_count: 0,
-          error: {
-            code: 'MISSING_DATA',
-            type: 'BHAVCOPY',
-            date: yesterdayDate
-          },
-          message: `No bhavcopy data found for ${yesterdayDate}. Please upload bhavcopy data.`
-        };
-      }
-
-      // Get today's premarket data
-      let premarketData = [];
-
-      try {
-        premarketData = await premarketCollection
-          .find({ date: date })
-          .toArray();
-
-        if (premarketData.length === 0) {
-          const allPremarketDaily = await premarketCollection
-            .find({})
-            .sort({ date: -1 })
-            .limit(50)
-            .toArray();
-
-          const uniqueDates = [...new Set(allPremarketDaily.map(d => d.date))].sort().reverse();
-
-          for (const dateStr of uniqueDates) {
-            if (dateStr && dateStr <= date) {
-              premarketData = await premarketCollection
-                .find({ date: dateStr })
-                .toArray();
-              break;
-            }
-          }
-        }
-
-        // If no data in premarket_data, check uploadedPreMarket collection
-        if (premarketData.length === 0) {
-          const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
-
-          const allPremarketDocs = await uploadedPremarketCollection
+          const allBhavDocs = await uploadedBhavCollection
             .find({})
             .sort({ date: -1 })
             .limit(20)
             .toArray();
 
-          let uploadedPremarketDocs = await uploadedPremarketCollection
-            .find({ date: date })
+          console.log(`📅 Available dates in uploadedBhav:`, allBhavDocs.map(d => `${d.date}(${d.rowCount || d.indicesCount || 0})`).join(', '));
+
+          let uploadedBhavDocs = await uploadedBhavCollection
+            .find({ date: yesterdayDate })
             .toArray();
 
-          if (uploadedPremarketDocs.length === 0) {
+          // Check if uploaded data meets minimum threshold
+          const uploadedCount = uploadedBhavDocs.reduce((sum, doc) => sum + (doc.rowCount || doc.indicesCount || 0), 0);
+
+          if (uploadedCount < MIN_BHAV_COUNT) {
+            console.warn(`⚠️ Uploaded bhav for ${yesterdayDate} has only ${uploadedCount} records. Searching for valid alternative...`);
+
+            // Find closest valid date
             let closestDoc = null;
             let closestDate = null;
 
-            for (const doc of allPremarketDocs) {
-              if (doc.date && doc.date <= date) {
+            for (const doc of allBhavDocs) {
+              const docCount = doc.rowCount || doc.indicesCount || 0;
+              if (doc.date && doc.date <= yesterdayDate && docCount >= MIN_BHAV_COUNT) {
                 if (!closestDate || doc.date > closestDate) {
                   closestDate = doc.date;
                   closestDoc = doc;
@@ -422,615 +218,834 @@ async function generateSimpleMomentumGapSignals(date, strategy = 'momentum_gap')
             }
 
             if (closestDoc) {
-              uploadedPremarketDocs = [closestDoc];
+              uploadedBhavDocs = [closestDoc];
+              console.log(`✅ Found valid uploaded bhav: ${closestDoc.date} with ${closestDoc.rowCount || closestDoc.indicesCount || 0} records`);
+            } else {
+              uploadedBhavDocs = [];
+              console.error(`❌ No valid uploaded bhav found (all dates have < ${MIN_BHAV_COUNT} records)`);
             }
           }
 
-          for (const doc of uploadedPremarketDocs) {
-            if (doc.indices && Array.isArray(doc.indices)) {
-              premarketData = premarketData.concat(doc.indices);
+          for (const doc of uploadedBhavDocs) {
+            if (doc.indices && Array.isArray(doc.indices) && doc.indices.length > 0) {
+              const eqStocks = doc.indices.filter(item => {
+                return !item.series || item.series === 'EQ';
+              });
+
+              bhavcopyData = bhavcopyData.concat(eqStocks);
+              bhavCountUploaded += eqStocks.length;
             }
           }
+        } catch (uploadedError) {
+          console.error('Error querying uploadedBhav collection:', uploadedError);
         }
-      } catch (queryError) {
-        console.error('Error querying premarket data:', queryError);
-        premarketData = [];
       }
 
-      if (premarketData.length === 0) {
-        console.warn(`⚠️ No premarket data found for ${date}`);
-      }
+      console.log(`📊 FINAL BHAVCOPY COUNT: ${bhavcopyData.length} (daily: ${bhavCountDaily}, uploaded: ${bhavCountUploaded})`);
 
-      // Create lookup maps
-      const bhavcopyMap = new Map();
-      bhavcopyData.forEach(item => {
-        const symbol = item.symbol || item.SYMBOL || item.Symbol;
-        if (symbol) {
-          bhavcopyMap.set(symbol.toUpperCase(), item);
-        }
-      });
-
-      const premarketMap = new Map();
-      premarketData.forEach(item => {
-        const symbol = item.symbol || item.SYMBOL || item.Symbol;
-        if (symbol) {
-          premarketMap.set(symbol.toUpperCase(), item);
-        }
-      });
-
-      // Generate signals with filter counters
-      const signals = [];
-      const processedSymbols = new Set();
-      const filterCounters = {
-        totalPremarket: premarketData.length,
-        totalBhavcopy: bhavcopyData.length,
-        noSymbol: 0,
-        duplicateSymbol: 0,
-        noBhavcopyMatch: 0,
-        notEqSeries: 0,
-        invalidYesterdayClose: 0,
-        invalidPremarketPrice: 0,
-        gapTooSmall: 0,
-        volumeTooLow: 0,
-        scoreTooLow: 0,
-        passed: 0
-      };
-
-      // Process stocks with premarket data
-      for (const premarket of premarketData) {
-        // Use normalized fields from parser
-        const symbol = (premarket.symbol || premarket.SYMBOL || premarket.Symbol || '').toUpperCase();
-        if (!symbol) {
-          filterCounters.noSymbol++;
-          continue;
-        }
-        if (processedSymbols.has(symbol)) {
-          filterCounters.duplicateSymbol++;
-          continue;
-        }
-
-        const bhavcopy = bhavcopyMap.get(symbol);
-        if (!bhavcopy) {
-          filterCounters.noBhavcopyMatch++;
-          continue;
-        }
-
-        if (bhavcopy.series && bhavcopy.series !== 'EQ') {
-          filterCounters.notEqSeries++;
-          continue;
-        }
-
-        // Use normalized fields: close, prevClose
-        const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE ||
-          bhavcopy.PREV_CLOSE || bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
-        if (yesterdayClose <= 0) {
-          filterCounters.invalidYesterdayClose++;
-          continue;
-        }
-
-        // Use normalized fields: iep, pre_open_price, price
-        const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE ||
-          premarket.price || premarket.PRICE ||
-          premarket.last_price || premarket.LAST_PRICE ||
-          premarket.open || premarket.OPEN || 0;
-        if (premarketPrice <= 0) {
-          filterCounters.invalidPremarketPrice++;
-          continue;
-        }
-
-        const gapPercent = ((premarketPrice - yesterdayClose) / yesterdayClose) * 100;
-
-        if (gapPercent < 0.3) {
-          filterCounters.gapTooSmall++;
-          continue;
-        }
-
-        const yesterdayHigh = bhavcopy.high || yesterdayClose;
-        let nearHigh = false;
-        if (yesterdayHigh > 0) {
-          const nearHighPercent = ((yesterdayHigh - premarketPrice) / yesterdayHigh) * 100;
-          nearHigh = Math.abs(nearHighPercent) <= 2.0;
-        }
-
-        // Use normalized fields: volume, ttl_trd_qnty
-        const volume = bhavcopy.volume || bhavcopy.VOLUME ||
-          bhavcopy.tottrdqty || bhavcopy.TOTTRDQTY ||
-          bhavcopy.traded_quantity || bhavcopy.TRADED_QUANTITY || 0;
-        const minVolume = 100000;
-        if (volume < minVolume) {
-          filterCounters.volumeTooLow++;
-          continue;
-        }
-
-        // Calculate score
-        let gapScore = 0;
-        if (gapPercent >= 0.5 && gapPercent <= 2.5) {
-          const optimalGap = 1.5;
-          const distance = Math.abs(gapPercent - optimalGap);
-          gapScore = Math.max(0, 40 - (distance * 20));
-        } else if (gapPercent > 2.5 && gapPercent <= 5.0) {
-          gapScore = 30 - ((gapPercent - 2.5) * 4);
-        }
-
-        const nearHighScore = nearHigh ? 20 : 0;
-
-        let volumeScore = 0;
-        if (volume >= 1000000) volumeScore = 20;
-        else if (volume >= 500000) volumeScore = 15;
-        else if (volume >= 200000) volumeScore = 10;
-        else volumeScore = 5;
-
-        let deliveryScore = 0;
-        const delivery = bhavcopy.delivery || 0;
-        const deliveryPercent = bhavcopy.delivery_percent || 0;
-        if (deliveryPercent > 50) deliveryScore = 20;
-        else if (deliveryPercent > 30) deliveryScore = 15;
-        else if (deliveryPercent > 20) deliveryScore = 10;
-
-        const totalScore = gapScore + nearHighScore + volumeScore + deliveryScore;
-
-        if (totalScore < 50) {
-          filterCounters.scoreTooLow++;
-          continue;
-        }
-
-        filterCounters.passed++;
-
-        const entryPrice = premarketPrice;
-        const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
-        const stopLoss = entryPrice - (atr * 1.5);
-        const targetPrice = entryPrice + (atr * 2.5);
-
-        const reasons = [];
-        if (gapPercent >= 0.5) reasons.push(`Gap-up ${gapPercent.toFixed(2)}%`);
-        if (nearHigh) reasons.push('Near high');
-        if (volume >= 500000) reasons.push('High volume');
-        if (deliveryPercent > 30) reasons.push('Good delivery');
-
-        const reason = reasons.join(', ') || 'Gap-up momentum';
-
-        signals.push({
-          symbol: symbol,
-          direction: 'BUY',
-          entry: parseFloat(entryPrice.toFixed(2)),
-          target: parseFloat(targetPrice.toFixed(2)),
-          sl: parseFloat(Math.max(0, stopLoss).toFixed(2)),
-          score: Math.round(totalScore),
-          reason: reason,
-          entry_price: parseFloat(entryPrice.toFixed(2)),
-          target_price: parseFloat(targetPrice.toFixed(2)),
-          stop_loss: parseFloat(Math.max(0, stopLoss).toFixed(2)),
-          side: 'BUY',
-          confidence_score: parseFloat((totalScore / 100).toFixed(2)),
-          gap_percent: parseFloat(gapPercent.toFixed(2)),
-          near_high: nearHigh,
-          volume: volume,
-          delivery_percent: deliveryPercent
-        });
-
-        processedSymbols.add(symbol);
-      }
-
-      // Sort by score descending and take top 10
-      signals.sort((a, b) => b.score - a.score);
-      const topSignals = signals.slice(0, 10);
-
-      // Find top reason for 0 signals
-      let topReason = '';
-      if (topSignals.length === 0) {
-        const reasons = [
-          { key: 'noBhavcopyMatch', label: 'No bhavcopy match' },
-          { key: 'gapTooSmall', label: 'Gap too small' },
-          { key: 'volumeTooLow', label: 'Volume too low' },
-          { key: 'scoreTooLow', label: 'Score too low' },
-          { key: 'invalidPremarketPrice', label: 'Invalid premarket price' },
-          { key: 'invalidYesterdayClose', label: 'Invalid yesterday close' }
-        ];
-        const sortedReasons = reasons.sort((a, b) => filterCounters[b.key] - filterCounters[a.key]);
-        topReason = sortedReasons[0] ? `${sortedReasons[0].label} (${filterCounters[sortedReasons[0].key]})` : 'Unknown';
-
+      if (bhavcopyData.length < MIN_BHAV_COUNT) {
+        console.error(`❌ Insufficient bhav data: only ${bhavcopyData.length} records found (minimum ${MIN_BHAV_COUNT} required)`);
+        // FAIL FAST: Reject insufficient data
         return {
-          success: true,
+          success: false,
           date: date,
           signals: [],
           signal_count: 0,
-          message: `No signals generated for ${date} (no stocks met criteria)`,
-          filterCounters: filterCounters,
-          topReason: topReason
-        };
-      }
-
-      // Save to database
-      let runId = null;
-      try {
-        if (uuidv4) {
-          runId = uuidv4();
-        } else {
-          runId = `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        }
-        const signalRunCollection = await getSignalRunCollection();
-        const signalCollection = await getSignalCollection();
-
-        const signalRun = {
-          run_id: runId,
-          date: date,
-          bhavcopy_date: yesterdayDate,
-          strategy: strategy || 'momentum_gap',
-          signal_count: topSignals.length,
-          filter_counters: filterCounters,
-          created_at: new Date()
-        };
-
-        await signalRunCollection.insertOne(signalRun);
-
-        const signalDocs = topSignals.map(signal => ({
-          run_id: runId,
-          date: date,
-          symbol: signal.symbol,
-          side: signal.side,
-          score: signal.score,
-          entry_price: signal.entry_price,
-          stop_loss: signal.stop_loss,
-          target_price: signal.target_price,
-          confidence_score: signal.confidence_score,
-          feature_fields: {
-            gap_percent: signal.gap_percent,
-            near_high: signal.near_high,
-            volume: signal.volume,
-            delivery_percent: signal.delivery_percent
+          error: {
+            code: 'INSUFFICIENT_DATA',
+            type: 'BHAVCOPY',
+            date: yesterdayDate,
+            count: bhavcopyData.length,
+            minimum: MIN_BHAV_COUNT,
+            details: `Only ${bhavcopyData.length} records found (minimum ${MIN_BHAV_COUNT} required). Data may be corrupted.`
           },
-          reason: signal.reason
-        }));
-
-        await signalCollection.insertMany(signalDocs);
-        console.log(`✅ Saved ${topSignals.length} signals to database with run_id: ${runId}`);
-      } catch (dbWriteError) {
-        console.warn('⚠️ Failed to save signals to database (continuing anyway):', dbWriteError.message);
+          message: `Insufficient EOD data: only ${bhavcopyData.length} stocks found (expected ${MIN_BHAV_COUNT}+). Please re-upload bhav file.`
+        };
       }
+    } catch (queryError) {
+      console.error('Error querying bhavcopy data:', queryError);
+      return {
+        success: false,
+        date: date,
+        signals: [],
+        signal_count: 0,
+        message: `Error querying bhavcopy data for ${yesterdayDate}`
+      };
+    }
+
+    if (bhavcopyData.length === 0) {
+      // This redundancy catch is now handled above, but keeping for safety structure
+      return {
+        success: false,
+        date: date,
+        signals: [],
+        signal_count: 0,
+        error: {
+          code: 'MISSING_DATA',
+          type: 'BHAVCOPY',
+          date: yesterdayDate
+        },
+        message: `No bhavcopy data found for ${yesterdayDate}. Please upload bhavcopy data.`
+      };
+    }
+
+    // Get today's premarket data
+    let premarketData = [];
+
+    try {
+      premarketData = await premarketCollection
+        .find({ date: date })
+        .toArray();
+
+      if (premarketData.length === 0) {
+        const allPremarketDaily = await premarketCollection
+          .find({})
+          .sort({ date: -1 })
+          .limit(50)
+          .toArray();
+
+        const uniqueDates = [...new Set(allPremarketDaily.map(d => d.date))].sort().reverse();
+
+        for (const dateStr of uniqueDates) {
+          if (dateStr && dateStr <= date) {
+            premarketData = await premarketCollection
+              .find({ date: dateStr })
+              .toArray();
+            break;
+          }
+        }
+      }
+
+      // If no data in premarket_data, check uploadedPreMarket collection
+      if (premarketData.length === 0) {
+        const uploadedPremarketCollection = await getUploadedDataCollection('premarket');
+
+        const allPremarketDocs = await uploadedPremarketCollection
+          .find({})
+          .sort({ date: -1 })
+          .limit(20)
+          .toArray();
+
+        let uploadedPremarketDocs = await uploadedPremarketCollection
+          .find({ date: date })
+          .toArray();
+
+        if (uploadedPremarketDocs.length === 0) {
+          let closestDoc = null;
+          let closestDate = null;
+
+          for (const doc of allPremarketDocs) {
+            if (doc.date && doc.date <= date) {
+              if (!closestDate || doc.date > closestDate) {
+                closestDate = doc.date;
+                closestDoc = doc;
+              }
+            }
+          }
+
+          if (closestDoc) {
+            uploadedPremarketDocs = [closestDoc];
+          }
+        }
+
+        for (const doc of uploadedPremarketDocs) {
+          if (doc.indices && Array.isArray(doc.indices)) {
+            premarketData = premarketData.concat(doc.indices);
+          }
+        }
+      }
+    } catch (queryError) {
+      console.error('Error querying premarket data:', queryError);
+      premarketData = [];
+    }
+
+    if (premarketData.length === 0) {
+      console.warn(`⚠️ No premarket data found for ${date}`);
+    }
+
+    // Create lookup maps
+    const bhavcopyMap = new Map();
+    bhavcopyData.forEach(item => {
+      const symbol = item.symbol || item.SYMBOL || item.Symbol;
+      if (symbol) {
+        bhavcopyMap.set(symbol.toUpperCase(), item);
+      }
+    });
+
+    const premarketMap = new Map();
+    premarketData.forEach(item => {
+      const symbol = item.symbol || item.SYMBOL || item.Symbol;
+      if (symbol) {
+        premarketMap.set(symbol.toUpperCase(), item);
+      }
+    });
+
+    // Generate signals with filter counters
+    const signals = [];
+    const processedSymbols = new Set();
+    const filterCounters = {
+      totalPremarket: premarketData.length,
+      totalBhavcopy: bhavcopyData.length,
+      noSymbol: 0,
+      duplicateSymbol: 0,
+      noBhavcopyMatch: 0,
+      notEqSeries: 0,
+      invalidYesterdayClose: 0,
+      invalidPremarketPrice: 0,
+      gapTooSmall: 0,
+      volumeTooLow: 0,
+      scoreTooLow: 0,
+      passed: 0
+    };
+
+    // Process stocks with premarket data
+    for (const premarket of premarketData) {
+      // Use normalized fields from parser
+      const symbol = (premarket.symbol || premarket.SYMBOL || premarket.Symbol || '').toUpperCase();
+      if (!symbol) {
+        filterCounters.noSymbol++;
+        continue;
+      }
+      if (processedSymbols.has(symbol)) {
+        filterCounters.duplicateSymbol++;
+        continue;
+      }
+
+      const bhavcopy = bhavcopyMap.get(symbol);
+      if (!bhavcopy) {
+        filterCounters.noBhavcopyMatch++;
+        continue;
+      }
+
+      if (bhavcopy.series && bhavcopy.series !== 'EQ') {
+        filterCounters.notEqSeries++;
+        continue;
+      }
+
+      // Use normalized fields: close, prevClose
+      const yesterdayClose = bhavcopy.close || bhavcopy.prevClose || bhavcopy.CLOSE ||
+        bhavcopy.PREV_CLOSE || bhavcopy.last_price || bhavcopy.LAST_PRICE || 0;
+      if (yesterdayClose <= 0) {
+        filterCounters.invalidYesterdayClose++;
+        continue;
+      }
+
+      // Use normalized fields: iep, pre_open_price, price
+      const premarketPrice = premarket.iep || premarket.pre_open_price || premarket.PRE_OPEN_PRICE ||
+        premarket.price || premarket.PRICE ||
+        premarket.last_price || premarket.LAST_PRICE ||
+        premarket.open || premarket.OPEN || 0;
+      if (premarketPrice <= 0) {
+        filterCounters.invalidPremarketPrice++;
+        continue;
+      }
+
+      const gapPercent = ((premarketPrice - yesterdayClose) / yesterdayClose) * 100;
+
+      if (gapPercent < 0.3) {
+        filterCounters.gapTooSmall++;
+        continue;
+      }
+
+      const yesterdayHigh = bhavcopy.high || yesterdayClose;
+      let nearHigh = false;
+      if (yesterdayHigh > 0) {
+        const nearHighPercent = ((yesterdayHigh - premarketPrice) / yesterdayHigh) * 100;
+        nearHigh = Math.abs(nearHighPercent) <= 2.0;
+      }
+
+      // Use normalized fields: volume, ttl_trd_qnty
+      const volume = bhavcopy.volume || bhavcopy.VOLUME ||
+        bhavcopy.tottrdqty || bhavcopy.TOTTRDQTY ||
+        bhavcopy.traded_quantity || bhavcopy.TRADED_QUANTITY || 0;
+      const minVolume = 100000;
+      if (volume < minVolume) {
+        filterCounters.volumeTooLow++;
+        continue;
+      }
+
+      // Calculate score
+      let gapScore = 0;
+      if (gapPercent >= 0.5 && gapPercent <= 2.5) {
+        const optimalGap = 1.5;
+        const distance = Math.abs(gapPercent - optimalGap);
+        gapScore = Math.max(0, 40 - (distance * 20));
+      } else if (gapPercent > 2.5 && gapPercent <= 5.0) {
+        gapScore = 30 - ((gapPercent - 2.5) * 4);
+      }
+
+      const nearHighScore = nearHigh ? 20 : 0;
+
+      let volumeScore = 0;
+      if (volume >= 1000000) volumeScore = 20;
+      else if (volume >= 500000) volumeScore = 15;
+      else if (volume >= 200000) volumeScore = 10;
+      else volumeScore = 5;
+
+      let deliveryScore = 0;
+      const delivery = bhavcopy.delivery || 0;
+      const deliveryPercent = bhavcopy.delivery_percent || 0;
+      if (deliveryPercent > 50) deliveryScore = 20;
+      else if (deliveryPercent > 30) deliveryScore = 15;
+      else if (deliveryPercent > 20) deliveryScore = 10;
+
+      const totalScore = gapScore + nearHighScore + volumeScore + deliveryScore;
+
+      if (totalScore < 50) {
+        filterCounters.scoreTooLow++;
+        continue;
+      }
+
+      filterCounters.passed++;
+
+      const entryPrice = premarketPrice;
+      const atr = bhavcopy.atr20 || (yesterdayClose * 0.02);
+      const stopLoss = entryPrice - (atr * 1.5);
+      const targetPrice = entryPrice + (atr * 2.5);
+
+      const reasons = [];
+      if (gapPercent >= 0.5) reasons.push(`Gap-up ${gapPercent.toFixed(2)}%`);
+      if (nearHigh) reasons.push('Near high');
+      if (volume >= 500000) reasons.push('High volume');
+      if (deliveryPercent > 30) reasons.push('Good delivery');
+
+      const reason = reasons.join(', ') || 'Gap-up momentum';
+
+      signals.push({
+        symbol: symbol,
+        direction: 'BUY',
+        entry: parseFloat(entryPrice.toFixed(2)),
+        target: parseFloat(targetPrice.toFixed(2)),
+        sl: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+        score: Math.round(totalScore),
+        reason: reason,
+        entry_price: parseFloat(entryPrice.toFixed(2)),
+        target_price: parseFloat(targetPrice.toFixed(2)),
+        stop_loss: parseFloat(Math.max(0, stopLoss).toFixed(2)),
+        side: 'BUY',
+        confidence_score: parseFloat((totalScore / 100).toFixed(2)),
+        gap_percent: parseFloat(gapPercent.toFixed(2)),
+        near_high: nearHigh,
+        volume: volume,
+        delivery_percent: deliveryPercent
+      });
+
+      processedSymbols.add(symbol);
+    }
+
+    // Sort by score descending and take top 10
+    signals.sort((a, b) => b.score - a.score);
+    const topSignals = signals.slice(0, 10);
+
+    // Find top reason for 0 signals
+    let topReason = '';
+    if (topSignals.length === 0) {
+      const reasons = [
+        { key: 'noBhavcopyMatch', label: 'No bhavcopy match' },
+        { key: 'gapTooSmall', label: 'Gap too small' },
+        { key: 'volumeTooLow', label: 'Volume too low' },
+        { key: 'scoreTooLow', label: 'Score too low' },
+        { key: 'invalidPremarketPrice', label: 'Invalid premarket price' },
+        { key: 'invalidYesterdayClose', label: 'Invalid yesterday close' }
+      ];
+      const sortedReasons = reasons.sort((a, b) => filterCounters[b.key] - filterCounters[a.key]);
+      topReason = sortedReasons[0] ? `${sortedReasons[0].label} (${filterCounters[sortedReasons[0].key]})` : 'Unknown';
 
       return {
         success: true,
         date: date,
-        run_id: runId,
-        signal_count: topSignals.length,
-        signals: topSignals,
-        message: `Generated ${topSignals.length} signals for ${date}`
-      };
-
-    } catch (error) {
-      console.error('Error generating signals:', error);
-      return {
-        success: false,
-        date: date || new Date().toISOString().split('T')[0],
         signals: [],
         signal_count: 0,
-        message: `Signal generation failed: ${error.message || 'Unknown error'}`,
-        error: error.message
+        message: `No signals generated for ${date} (no stocks met criteria)`,
+        filterCounters: filterCounters,
+        topReason: topReason
       };
     }
+
+    // Save to database
+    let runId = null;
+    try {
+      if (uuidv4) {
+        runId = uuidv4();
+      } else {
+        runId = `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      }
+      const signalRunCollection = await getSignalRunCollection();
+      const signalCollection = await getSignalCollection();
+
+      const signalRun = {
+        run_id: runId,
+        date: date,
+        bhavcopy_date: yesterdayDate,
+        strategy: strategy || 'momentum_gap',
+        signal_count: topSignals.length,
+        filter_counters: filterCounters,
+        created_at: new Date()
+      };
+
+      await signalRunCollection.insertOne(signalRun);
+
+      const signalDocs = topSignals.map(signal => ({
+        run_id: runId,
+        date: date,
+        symbol: signal.symbol,
+        side: signal.side,
+        score: signal.score,
+        entry_price: signal.entry_price,
+        stop_loss: signal.stop_loss,
+        target_price: signal.target_price,
+        confidence_score: signal.confidence_score,
+        feature_fields: {
+          gap_percent: signal.gap_percent,
+          near_high: signal.near_high,
+          volume: signal.volume,
+          delivery_percent: signal.delivery_percent
+        },
+        reason: signal.reason
+      }));
+
+      await signalCollection.insertMany(signalDocs);
+      console.log(`✅ Saved ${topSignals.length} signals to database with run_id: ${runId}`);
+    } catch (dbWriteError) {
+      console.warn('⚠️ Failed to save signals to database (continuing anyway):', dbWriteError.message);
+    }
+
+    return {
+      success: true,
+      date: date,
+      run_id: runId,
+      signal_count: topSignals.length,
+      signals: topSignals,
+      message: `Generated ${topSignals.length} signals for ${date}`
+    };
+
+  } catch (error) {
+    console.error('Error generating signals:', error);
+    return {
+      success: false,
+      date: date || new Date().toISOString().split('T')[0],
+      signals: [],
+      signal_count: 0,
+      message: `Signal generation failed: ${error.message || 'Unknown error'}`,
+      error: error.message
+    };
   }
+}
 
 /**
  * Verify admin authentication (APP_KEY header)
  */
 function verifyAdminAuth(req) {
-    const appKey = req.headers['x-app-key'];
-    const validAppKey = process.env.APP_KEY;
+  const appKey = req.headers['x-app-key'];
+  const validAppKey = process.env.APP_KEY;
 
-    if (!validAppKey) {
-      console.warn('⚠️ APP_KEY not configured in environment');
-      return false;
-    }
-
-    return appKey === validAppKey;
+  if (!validAppKey) {
+    console.warn('⚠️ APP_KEY not configured in environment');
+    return false;
   }
 
-  const handler = async (req, res) => {
-    const DEBUG = process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development';
+  return appKey === validAppKey;
+}
 
-    // Health check endpoint: GET /api/signals?ping=1
-    if (req.method === 'GET' && req.query.ping === '1') {
-      return res.status(200).json({
-        ok: true,
-        endpoint: 'signals',
-        timestamp: new Date().toISOString(),
-        message: 'Signals endpoint is working'
-      });
-    }
+const handler = async (req, res) => {
+  const DEBUG = process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development';
 
-    try {
-      // Check if MongoDB is configured
-      const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
+  // Health check endpoint: GET /api/signals?ping=1
+  if (req.method === 'GET' && req.query.ping === '1') {
+    return res.status(200).json({
+      ok: true,
+      endpoint: 'signals',
+      timestamp: new Date().toISOString(),
+      message: 'Signals endpoint is working'
+    });
+  }
 
-      // Clean REST API contract:
-      // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get saved signals (READ-ONLY)
-      // POST /api/signals with body {date, strategy} - Admin-only: Force regenerate signals
+  try {
+    // Check if MongoDB is configured
+    const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
 
-      if (req.method === 'GET') {
-        // Support backward compatibility: ?operation=latest
-        const operation = req.query.operation;
-        if (operation === 'latest') {
-          // Get latest signal date (get-latest-signal-date.js logic)
-          const today = new Date().toISOString().split('T')[0];
+    // Clean REST API contract:
+    // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap - Get saved signals (READ-ONLY)
+    // POST /api/signals with body {date, strategy} - Admin-only: Force regenerate signals
 
-          if (DEBUG) {
-            console.log('[SIGNALS API] GET request - operation: latest');
-          }
-
-          if (!mongoUri) {
-            return res.status(200).json({
-              date: today,
-              hasSignals: false,
-              latest_complete_date: today,
-              dates: {
-                bhavcopy: today,
-                indices: today,
-                premarket: today
-              },
-              message: 'Using today as the latest available date (MongoDB not configured)'
-            });
-          }
-
-          // Try to get latest dates from MongoDB collections
-          try {
-            const bhavcopyCollection = await getDailyBhavcopyCollection();
-            const indicesCollection = await getDailyIndicesCollection();
-            const premarketCollection = await getPreMarketDataCollection();
-
-            const [latestBhavcopy] = await bhavcopyCollection
-              .find({})
-              .sort({ date: -1 })
-              .limit(1)
-              .toArray();
-
-            const [latestIndices] = await indicesCollection
-              .find({})
-              .sort({ date: -1 })
-              .limit(1)
-              .toArray();
-
-            const [latestPremarket] = await premarketCollection
-              .find({})
-              .sort({ date: -1 })
-              .limit(1)
-              .toArray();
-
-            const dates = {
-              bhavcopy: latestBhavcopy?.date || today,
-              indices: latestIndices?.date || today,
-              premarket: latestPremarket?.date || today
-            };
-
-            const allDates = [dates.bhavcopy, dates.indices, dates.premarket]
-              .filter(Boolean)
-              .sort()
-              .reverse();
-
-            const latestCompleteDate = allDates[0] || today;
-
-            return res.status(200).json({
-              date: latestCompleteDate,
-              hasSignals: false,
-              latest_complete_date: latestCompleteDate,
-              dates: dates,
-              message: 'Latest dates retrieved from database'
-            });
-          } catch (dbError) {
-            console.warn('[SIGNALS API] Error querying database for latest dates, using today:', dbError.message);
-            return res.status(200).json({
-              date: today,
-              hasSignals: false,
-              latest_complete_date: today,
-              dates: {
-                bhavcopy: today,
-                indices: today,
-                premarket: today
-              },
-              message: 'Using today as the latest available date (database query failed)'
-            });
-          }
-        }
-
-        // Support backward compatibility: ?operation=get (from get-signals.js)
-        if (operation === 'get') {
-          // Legacy get-signals.js endpoint - redirect to main GET handler below
-          // This maintains backward compatibility
-        }
-
-        // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap&modeOverride=EOD|PREMARKET|LIVE&marketStatus=... - Get signals for a date
-        let targetDate = req.query.date || new Date().toISOString().split('T')[0];
-        let strategy = req.query.strategy;
-        const modeOverride = req.query.modeOverride; // Only present when explicitly set (not AUTO)
-        const includeDebug = req.query.debug === '1' || process.env.NODE_ENV !== 'production';
-
-        // Recompute market status using tradingCalendar - do NOT trust frontend
-        const today = getTodayIST();
-        const computedMarketOpen = isTradingDay(today) && (() => {
-          const ist = new Date();
-          const utc = ist.getTime() + (ist.getTimezoneOffset() * 60000);
-          const istOffset = 5.5 * 60 * 60000;
-          const istTime = new Date(utc + istOffset);
-          const hours = istTime.getHours();
-          const minutes = istTime.getMinutes();
-          const timeMinutes = hours * 60 + minutes;
-          // Market hours: 9:15 AM - 3:30 PM IST (555-930 minutes)
-          return timeMinutes >= 555 && timeMinutes < 930;
-        })();
-
-        // Get market status from query (for diagnostic only, but recompute isOpen)
-        let marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
-        if (req.query.marketStatus) {
-          try {
-            const clientMarketStatus = JSON.parse(req.query.marketStatus);
-            // Use client status as diagnostic, but override isOpen with computed value
-            marketStatus = {
-              ...clientMarketStatus,
-              isOpen: computedMarketOpen, // Always use computed value
-              timestamp: new Date().toISOString()
-            };
-          } catch (e) {
-            // If parsing fails, use computed value
-            marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
-          }
-        }
-
-        // User override from query params - only accept valid modes
-        const validModes = ['EOD', 'PREMARKET', 'LIVE'];
-        const overrideMode = modeOverride && validModes.includes(modeOverride.toUpperCase())
-          ? modeOverride.toUpperCase()
-          : undefined; // Treat invalid/undefined as AUTO
-
-        const userOverride = {
-          mode: overrideMode,
-          strategy: strategy
-        };
-
-        // If no strategy specified, get mood-based strategy
-        if (!strategy) {
-          try {
-            const mood = await getCurrentMood();
-            strategy = selectStrategyFromMood(mood);
-            if (DEBUG) {
-              console.log(`[SIGNALS API] Selected strategy based on mood: ${strategy} (mood score: ${mood?.score || 'N/A'})`);
-            }
-          } catch (error) {
-            console.warn('[SIGNALS API] Error getting mood, using default strategy:', error.message);
-            strategy = 'momentum_gap';
-          }
-        }
-
-        // Get strategy meta after strategy is finalized
-        let strategyMeta;
-        try {
-          strategyMeta = getStrategyMeta(strategy);
-        } catch (error) {
-          console.warn(`[SIGNALS API] Error getting strategy meta for ${strategy}, using fallback:`, error.message);
-          strategyMeta = null;
-        }
-        const safeStrategyMeta = strategyMeta || {
-          id: strategy,
-          name: strategy,
-          rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
-        };
-
-        // Resolve signals context (this determines signalDate, refEodDate, premarketDate, mode)
-        const context = await resolveSignalsContext({
-          targetDate,
-          today,
-          marketStatus,
-          userOverride
-        });
-
-        const signalDate = context.signalDate;
-        const refEodDate = context.refEodDate;
-        const premarketDate = context.premarketDate;
-        const detectedMode = context.mode;
+    if (req.method === 'GET') {
+      // Support backward compatibility: ?operation=latest
+      const operation = req.query.operation;
+      if (operation === 'latest') {
+        // Get latest signal date (get-latest-signal-date.js logic)
+        const today = new Date().toISOString().split('T')[0];
 
         if (DEBUG) {
-          console.log(`[SIGNALS API] Resolved context - signalDate: ${signalDate}, refEodDate: ${refEodDate}, premarketDate: ${premarketDate}, mode: ${detectedMode}`);
-        }
-
-        if (!signalDate || !refEodDate) {
-          return res.status(200).json({
-            success: true,
-            engineStatus: 'no_data',
-            requested: { date: targetDate, strategy, modeOverride },
-            context: {
-              signalDate: null,
-              refEodDate: null,
-              premarketDate: null,
-              hasBhav: false,
-              hasPremarket: false,
-              missingFiles: context.missingFiles || []
-            },
-            signals: [],
-            meta: {
-              reason: context.reason || 'Insufficient data available',
-              mode: null  // Don't return detectedMode which could be MODE_NONE
-            }
-          });
+          console.log('[SIGNALS API] GET request - operation: latest');
         }
 
         if (!mongoUri) {
-          if (DEBUG) console.log('[SIGNALS API] MongoDB not configured, returning NO_DATA status');
           return res.status(200).json({
-            success: true,
-            engineStatus: 'disabled',
-            requested: { date: targetDate, strategy, modeOverride },
-            context: {
-              signalDate: signalDate || null,
-              refEodDate: refEodDate || null,
-              premarketDate: premarketDate || null,
-              hasBhav: !!refEodDate,
-              hasPremarket: !!premarketDate,
-              missingFiles: context.missingFiles || []
+            date: today,
+            hasSignals: false,
+            latest_complete_date: today,
+            dates: {
+              bhavcopy: today,
+              indices: today,
+              premarket: today
             },
-            signals: [],
-            meta: {
-              reason: 'MongoDB not configured. Signals cannot be generated.',
-              mode: null  // Don't return detectedMode which could be MODE_NONE
-            }
+            message: 'Using today as the latest available date (MongoDB not configured)'
           });
         }
 
-        // Hard guard: NEVER allow MODE_NONE to reach strategy engines
-        // If mode is MODE_NONE but EOD data exists, force EOD mode
-        let finalMode = detectedMode;
-        const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
-        if (finalMode === MODE_NONE && refEodDate) {
-          console.warn(`⚠️ [SIGNALS API] MODE_NONE detected but EOD data exists (refEodDate: ${refEodDate}), forcing MODE_EOD`);
-          finalMode = MODE_EOD;
-        } else if (finalMode === MODE_NONE) {
-          // No data available - return INSUFFICIENT_DATA
+        // Try to get latest dates from MongoDB collections
+        try {
+          const bhavcopyCollection = await getDailyBhavcopyCollection();
+          const indicesCollection = await getDailyIndicesCollection();
+          const premarketCollection = await getPreMarketDataCollection();
+
+          const [latestBhavcopy] = await bhavcopyCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(1)
+            .toArray();
+
+          const [latestIndices] = await indicesCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(1)
+            .toArray();
+
+          const [latestPremarket] = await premarketCollection
+            .find({})
+            .sort({ date: -1 })
+            .limit(1)
+            .toArray();
+
+          const dates = {
+            bhavcopy: latestBhavcopy?.date || today,
+            indices: latestIndices?.date || today,
+            premarket: latestPremarket?.date || today
+          };
+
+          const allDates = [dates.bhavcopy, dates.indices, dates.premarket]
+            .filter(Boolean)
+            .sort()
+            .reverse();
+
+          const latestCompleteDate = allDates[0] || today;
+
           return res.status(200).json({
-            success: true,
-            engineStatus: 'insufficient_data',
-            requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
-            context: {
-              signalDate: signalDate || null,
-              refEodDate: refEodDate || null,
-              premarketDate: premarketDate || null,
-              hasBhav: !!refEodDate,
-              hasPremarket: !!premarketDate,
-              missingFiles: context.missingFiles || []
+            date: latestCompleteDate,
+            hasSignals: false,
+            latest_complete_date: latestCompleteDate,
+            dates: dates,
+            message: 'Latest dates retrieved from database'
+          });
+        } catch (dbError) {
+          console.warn('[SIGNALS API] Error querying database for latest dates, using today:', dbError.message);
+          return res.status(200).json({
+            date: today,
+            hasSignals: false,
+            latest_complete_date: today,
+            dates: {
+              bhavcopy: today,
+              indices: today,
+              premarket: today
             },
-            signals: [],
-            meta: {
-              reason: context.reason || 'Insufficient data available for signal generation',
-              mode: null // Don't return MODE_NONE in response
+            message: 'Using today as the latest available date (database query failed)'
+          });
+        }
+      }
+
+      // Support backward compatibility: ?operation=get (from get-signals.js)
+      if (operation === 'get') {
+        // Legacy get-signals.js endpoint - redirect to main GET handler below
+        // This maintains backward compatibility
+      }
+
+      // GET /api/signals?date=YYYY-MM-DD&strategy=momentum_gap&modeOverride=EOD|PREMARKET|LIVE&marketStatus=... - Get signals for a date
+      let targetDate = req.query.date || new Date().toISOString().split('T')[0];
+      let strategy = req.query.strategy;
+      const modeOverride = req.query.modeOverride; // Only present when explicitly set (not AUTO)
+      const includeDebug = req.query.debug === '1' || process.env.NODE_ENV !== 'production';
+
+      // Recompute market status using tradingCalendar - do NOT trust frontend
+      const today = getTodayIST();
+      const computedMarketOpen = isTradingDay(today) && (() => {
+        const ist = new Date();
+        const utc = ist.getTime() + (ist.getTimezoneOffset() * 60000);
+        const istOffset = 5.5 * 60 * 60000;
+        const istTime = new Date(utc + istOffset);
+        const hours = istTime.getHours();
+        const minutes = istTime.getMinutes();
+        const timeMinutes = hours * 60 + minutes;
+        // Market hours: 9:15 AM - 3:30 PM IST (555-930 minutes)
+        return timeMinutes >= 555 && timeMinutes < 930;
+      })();
+
+      // Get market status from query (for diagnostic only, but recompute isOpen)
+      let marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
+      if (req.query.marketStatus) {
+        try {
+          const clientMarketStatus = JSON.parse(req.query.marketStatus);
+          // Use client status as diagnostic, but override isOpen with computed value
+          marketStatus = {
+            ...clientMarketStatus,
+            isOpen: computedMarketOpen, // Always use computed value
+            timestamp: new Date().toISOString()
+          };
+        } catch (e) {
+          // If parsing fails, use computed value
+          marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
+        }
+      }
+
+      // User override from query params - only accept valid modes
+      const validModes = ['EOD', 'PREMARKET', 'LIVE'];
+      const overrideMode = modeOverride && validModes.includes(modeOverride.toUpperCase())
+        ? modeOverride.toUpperCase()
+        : undefined; // Treat invalid/undefined as AUTO
+
+      const userOverride = {
+        mode: overrideMode,
+        strategy: strategy
+      };
+
+      // If no strategy specified, get mood-based strategy
+      if (!strategy) {
+        try {
+          const mood = await getCurrentMood();
+          strategy = selectStrategyFromMood(mood);
+          if (DEBUG) {
+            console.log(`[SIGNALS API] Selected strategy based on mood: ${strategy} (mood score: ${mood?.score || 'N/A'})`);
+          }
+        } catch (error) {
+          console.warn('[SIGNALS API] Error getting mood, using default strategy:', error.message);
+          strategy = 'momentum_gap';
+        }
+      }
+
+      // Get strategy meta after strategy is finalized
+      let strategyMeta;
+      try {
+        strategyMeta = getStrategyMeta(strategy);
+      } catch (error) {
+        console.warn(`[SIGNALS API] Error getting strategy meta for ${strategy}, using fallback:`, error.message);
+        strategyMeta = null;
+      }
+      const safeStrategyMeta = strategyMeta || {
+        id: strategy,
+        name: strategy,
+        rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
+      };
+
+      // Resolve signals context (this determines signalDate, refEodDate, premarketDate, mode)
+      const context = await resolveSignalsContext({
+        targetDate,
+        today,
+        marketStatus,
+        userOverride
+      });
+
+      const signalDate = context.signalDate;
+      const refEodDate = context.refEodDate;
+      const premarketDate = context.premarketDate;
+      const detectedMode = context.mode;
+
+      if (DEBUG) {
+        console.log(`[SIGNALS API] Resolved context - signalDate: ${signalDate}, refEodDate: ${refEodDate}, premarketDate: ${premarketDate}, mode: ${detectedMode}`);
+      }
+
+      if (!signalDate || !refEodDate) {
+        return res.status(200).json({
+          success: true,
+          engineStatus: 'no_data',
+          requested: { date: targetDate, strategy, modeOverride },
+          context: {
+            signalDate: null,
+            refEodDate: null,
+            premarketDate: null,
+            hasBhav: false,
+            hasPremarket: false,
+            missingFiles: context.missingFiles || []
+          },
+          signals: [],
+          meta: {
+            reason: context.reason || 'Insufficient data available',
+            mode: null  // Don't return detectedMode which could be MODE_NONE
+          }
+        });
+      }
+
+      if (!mongoUri) {
+        if (DEBUG) console.log('[SIGNALS API] MongoDB not configured, returning NO_DATA status');
+        return res.status(200).json({
+          success: true,
+          engineStatus: 'disabled',
+          requested: { date: targetDate, strategy, modeOverride },
+          context: {
+            signalDate: signalDate || null,
+            refEodDate: refEodDate || null,
+            premarketDate: premarketDate || null,
+            hasBhav: !!refEodDate,
+            hasPremarket: !!premarketDate,
+            missingFiles: context.missingFiles || []
+          },
+          signals: [],
+          meta: {
+            reason: 'MongoDB not configured. Signals cannot be generated.',
+            mode: null  // Don't return detectedMode which could be MODE_NONE
+          }
+        });
+      }
+
+      // Hard guard: NEVER allow MODE_NONE to reach strategy engines
+      // If mode is MODE_NONE but EOD data exists, force EOD mode
+      let finalMode = detectedMode;
+      const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
+      if (finalMode === MODE_NONE && refEodDate) {
+        console.warn(`⚠️ [SIGNALS API] MODE_NONE detected but EOD data exists (refEodDate: ${refEodDate}), forcing MODE_EOD`);
+        finalMode = MODE_EOD;
+      } else if (finalMode === MODE_NONE) {
+        // No data available - return INSUFFICIENT_DATA
+        return res.status(200).json({
+          success: true,
+          engineStatus: 'insufficient_data',
+          requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
+          context: {
+            signalDate: signalDate || null,
+            refEodDate: refEodDate || null,
+            premarketDate: premarketDate || null,
+            hasBhav: !!refEodDate,
+            hasPremarket: !!premarketDate,
+            missingFiles: context.missingFiles || []
+          },
+          signals: [],
+          meta: {
+            reason: context.reason || 'Insufficient data available for signal generation',
+            mode: null // Don't return MODE_NONE in response
+          },
+          resolvedMode: null,
+          resolvedBy: resolvedBy,
+          computedMarketOpen: computedMarketOpen
+        });
+      }
+
+      // Verify mode is one of the supported modes
+      const supportedModeConstants = [MODE_EOD, MODE_PREM, MODE_LIVE];
+      if (!supportedModeConstants.includes(finalMode)) {
+        console.error(`❌ [SIGNALS API] Invalid mode detected: ${finalMode}, forcing MODE_EOD`);
+        finalMode = MODE_EOD;
+      }
+
+      try {
+        // Read from signals_store collection (new unified store)
+        const signalsStoreCollection = await getSignalsStoreCollection();
+        // Only query with finalMode - never use fallback query that could return MODE_NONE/legacy docs
+        let storedDoc = await signalsStoreCollection.findOne({
+          date: signalDate,
+          strategy: strategy || 'momentum_gap',
+          mode: finalMode
+        });
+
+        // Note: MongoDB query guarantees storedDoc.mode === finalMode if document exists
+        // No need to validate mode here since query already filters for finalMode
+
+        if (storedDoc) {
+          // Assert that stored doc mode is not MODE_NONE (query guarantees it matches finalMode, but double-check)
+          assertNoModeNone(storedDoc.mode, 'storedDoc.mode from signals_store');
+
+          // Return stored document with status
+          const transformedSignals = Array.isArray(storedDoc.signals) ? storedDoc.signals.map(signal => ({
+            symbol: signal.symbol,
+            score: signal.score,
+            entry_price: signal.entry_price,
+            target_price: signal.target_price,
+            stop_loss: signal.stop_loss,
+            side: signal.side || 'BUY',
+            confidence_score: signal.confidence_score,
+            feature_fields: signal.feature_fields,
+            reason: signal.reason
+          })) : [];
+
+          if (DEBUG) {
+            console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}, mode=${storedDoc.mode}`);
+          }
+
+          // Use finalMode directly - MongoDB query guarantees storedDoc.mode === finalMode
+          const modeDisplay = getModeDisplayName(finalMode);
+          const modeLabel = getModeLabel(finalMode);
+
+          // Get dataUsed from storedDoc or construct from available fields
+          const dataUsed = storedDoc.dataUsed || {
+            refEodDate: storedDoc.refDate || refEodDate,
+            premarketDate: storedDoc.modeInfo?.usedDates?.preMDate || premarketDate,
+            mode: finalMode,
+            signalDate: storedDoc.date || signalDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp
+          };
+
+          const response = {
+            targetDate,
+            signalDate: storedDoc.date || signalDate,
+            refDate: storedDoc.refDate || refEodDate,
+            strategy: storedDoc.strategy,
+            mode: finalMode,  // Use finalMode directly (query guarantees storedDoc.mode === finalMode)
+            modeDisplay,
+            modeLabel,
+            status: storedDoc.status, // READY | NO_MATCH | INSUFFICIENT_DATA | ERROR
+            signal_count: storedDoc.signal_count || 0,
+            signals: transformedSignals,
+            hasSignals: storedDoc.status === 'READY' && transformedSignals.length > 0,
+            message: storedDoc.message || 'Signals retrieved',
+            missingFiles: storedDoc.missingFiles || null,
+            diagnostics: storedDoc.diagnostics || null,
+            rejectStats: storedDoc.rejectStats || null,
+            filtersUsed: storedDoc.filtersUsed || null,
+            dataUsed: dataUsed,
+            run_id: storedDoc.run_id || null,
+            usedDates: {
+              targetDate,
+              signalDate: storedDoc.date || signalDate,
+              refDate: storedDoc.refDate || refEodDate,
+              eodDate: dataUsed.refEodDate,
+              preMDate: dataUsed.premarketDate
             },
-            resolvedMode: null,
-            resolvedBy: resolvedBy,
+            resolvedMode: finalMode,  // Use finalMode directly (query guarantees storedDoc.mode === finalMode)
+            resolvedBy: overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto',
             computedMarketOpen: computedMarketOpen
-          });
+          };
+
+          // Include debug info if requested
+          if (includeDebug && storedDoc.debug) {
+            response.debug = storedDoc.debug;
+          }
+
+          return res.status(200).json(response);
         }
 
-        // Verify mode is one of the supported modes
-        const supportedModeConstants = [MODE_EOD, MODE_PREM, MODE_LIVE];
-        if (!supportedModeConstants.includes(finalMode)) {
-          console.error(`❌ [SIGNALS API] Invalid mode detected: ${finalMode}, forcing MODE_EOD`);
-          finalMode = MODE_EOD;
+        // No signals found in store - try to auto-generate if data is available
+        if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store, attempting auto-generation...`);
+
+        // Always try to auto-generate signals if data is available
+        if (DEBUG) console.log(`[SIGNALS API] Attempting to auto-generate signals with strategy: ${strategy}, finalMode: ${finalMode}, marketStatus: ${marketStatus.isOpen}`);
+
+        // Hard assert: finalMode must never be MODE_NONE at this point
+        if (finalMode === MODE_NONE) {
+          throw new Error(`[SIGNALS API] finalMode is MODE_NONE after guard — this should be impossible. refEodDate: ${refEodDate}, detectedMode: ${detectedMode}`);
         }
 
         try {
-          // Read from signals_store collection (new unified store)
-          const signalsStoreCollection = await getSignalsStoreCollection();
-          // Only query with finalMode - never use fallback query that could return MODE_NONE/legacy docs
-          let storedDoc = await signalsStoreCollection.findOne({
-            date: signalDate,
-            strategy: strategy || 'momentum_gap',
-            mode: finalMode
+          const result = await generateSignalsForDate(targetDate, strategy, 'PLAYBOOK', {
+            marketStatus,
+            userOverride,
+            resolvedMode: finalMode  // Pass finalMode to avoid resolver returning MODE_NONE
           });
 
-          // Note: MongoDB query guarantees storedDoc.mode === finalMode if document exists
-          // No need to validate mode here since query already filters for finalMode
+          // Update signalDate and refDate from result (resolver may have adjusted them)
+          const resolvedSignalDate = result.signalDate || signalDate;
+          const resolvedRefDate = result.refDate || refEodDate;
 
-          if (storedDoc) {
-            // Assert that stored doc mode is not MODE_NONE (query guarantees it matches finalMode, but double-check)
-            assertNoModeNone(storedDoc.mode, 'storedDoc.mode from signals_store');
-
-            // Return stored document with status
-            const transformedSignals = Array.isArray(storedDoc.signals) ? storedDoc.signals.map(signal => ({
+          if (result.status === 'READY' || result.status === 'NO_MATCH') {
+            // Signals generated successfully, return them
+            const transformedSignals = Array.isArray(result.signals) ? result.signals.map(signal => ({
               symbol: signal.symbol,
               score: signal.score,
               entry_price: signal.entry_price,
@@ -1042,512 +1057,237 @@ function verifyAdminAuth(req) {
               reason: signal.reason
             })) : [];
 
-            if (DEBUG) {
-              console.log(`[SIGNALS API] Found stored signals: status=${storedDoc.status}, count=${transformedSignals.length}, mode=${storedDoc.mode}`);
-            }
-
-            // Use finalMode directly - MongoDB query guarantees storedDoc.mode === finalMode
-            const modeDisplay = getModeDisplayName(finalMode);
-            const modeLabel = getModeLabel(finalMode);
-
-            // Get dataUsed from storedDoc or construct from available fields
-            const dataUsed = storedDoc.dataUsed || {
-              refEodDate: storedDoc.refDate || refEodDate,
-              premarketDate: storedDoc.modeInfo?.usedDates?.preMDate || premarketDate,
-              mode: finalMode,
-              signalDate: storedDoc.date || signalDate,
-              marketOpen: marketStatus.isOpen,
-              marketTimestamp: marketStatus.timestamp
-            };
+            // Use resolvedBy from earlier guard (already computed)
+            // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
+            const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
 
             const response = {
-              targetDate,
-              signalDate: storedDoc.date || signalDate,
-              refDate: storedDoc.refDate || refEodDate,
-              strategy: storedDoc.strategy,
-              mode: finalMode,  // Use finalMode directly (query guarantees storedDoc.mode === finalMode)
-              modeDisplay,
-              modeLabel,
-              status: storedDoc.status, // READY | NO_MATCH | INSUFFICIENT_DATA | ERROR
-              signal_count: storedDoc.signal_count || 0,
+              success: true,
+              engine: 'OK',
+              requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
+              targetDate: result.targetDate || targetDate,
+              signalDate: result.signalDate || signalDate,
+              refDate: result.refDate || refEodDate,
+              strategy: result.strategy || strategy,
+              mode: resolvedMode,
+              modeDisplay: result.modeDisplay || (result.mode ? getModeDisplayName(result.mode) : 'EOD'),
+              modeLabel: result.modeLabel || (result.mode ? getModeLabel(result.mode) : 'EOD (Watchlist)'),
+              status: result.status,
+              signal_count: transformedSignals.length,
               signals: transformedSignals,
-              hasSignals: storedDoc.status === 'READY' && transformedSignals.length > 0,
-              message: storedDoc.message || 'Signals retrieved',
-              missingFiles: storedDoc.missingFiles || null,
-              diagnostics: storedDoc.diagnostics || null,
-              rejectStats: storedDoc.rejectStats || null,
-              filtersUsed: storedDoc.filtersUsed || null,
-              dataUsed: dataUsed,
-              run_id: storedDoc.run_id || null,
-              usedDates: {
-                targetDate,
-                signalDate: storedDoc.date || signalDate,
-                refDate: storedDoc.refDate || refEodDate,
-                eodDate: dataUsed.refEodDate,
-                preMDate: dataUsed.premarketDate
+              hasSignals: result.status === 'READY' && transformedSignals.length > 0,
+              diagnostics: result.diagnostics || null,
+              rejectStats: result.rejectStats || null,
+              filtersUsed: result.filtersUsed || null,
+              context: {
+                mode: resolvedMode,
+                signalDate: result.signalDate || signalDate,
+                refEodDate: result.dataUsed?.refEodDate || result.refDate || refEodDate,
+                premarketDate: result.dataUsed?.premarketDate || null,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp,
+                reason: result.message || 'Signals generated'
               },
-              resolvedMode: finalMode,  // Use finalMode directly (query guarantees storedDoc.mode === finalMode)
-              resolvedBy: overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto',
+              dataUsed: result.dataUsed || {
+                refEodDate: result.refDate || refEodDate,
+                premarketDate: result.dataUsed?.premarketDate || null,
+                mode: resolvedMode,
+                signalDate: result.signalDate || signalDate,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp
+              },
+              strategyMeta: {
+                id: safeStrategyMeta.id,
+                name: safeStrategyMeta.name,
+                rulesText: safeStrategyMeta.rulesText
+              },
+              meta: {
+                rejectStats: result.rejectStats || [],
+                filtersUsed: result.filtersUsed || [],
+                topRejectReason: result.rejectStats && result.rejectStats.length > 0 ? result.rejectStats[0] : null
+              },
+              message: result.message || 'Signals generated automatically',
+              missingFiles: result.missingFiles || null,
+              usedDates: result.usedDates || {
+                targetDate,
+                signalDate: result.signalDate || signalDate,
+                refDate: result.refDate || refEodDate,
+                eodDate: result.dataUsed?.refEodDate || null,
+                preMDate: result.dataUsed?.premarketDate || null
+              },
+              resolvedMode: resolvedMode,
+              resolvedBy: resolvedBy,
               computedMarketOpen: computedMarketOpen
             };
 
-            // Include debug info if requested
-            if (includeDebug && storedDoc.debug) {
-              response.debug = storedDoc.debug;
+            // Add debug fields
+            if (includeDebug) {
+              response.debug = {
+                resolvedMode: getModeDisplayName(resolvedMode),
+                resolvedBy,
+                computedMarketOpen: computedMarketOpen,
+                clientMarketStatus: req.query.marketStatus ? JSON.parse(req.query.marketStatus) : null
+              };
             }
 
             return res.status(200).json(response);
-          }
+          } else if (result.status === 'INSUFFICIENT_DATA') {
+            // Data not available - return INSUFFICIENT_DATA status
+            // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
+            const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
+            const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
 
-          // No signals found in store - try to auto-generate if data is available
-          if (DEBUG) console.log(`[SIGNALS API] No signals found in signals_store, attempting auto-generation...`);
-
-          // Always try to auto-generate signals if data is available
-          if (DEBUG) console.log(`[SIGNALS API] Attempting to auto-generate signals with strategy: ${strategy}, finalMode: ${finalMode}, marketStatus: ${marketStatus.isOpen}`);
-
-          // Hard assert: finalMode must never be MODE_NONE at this point
-          if (finalMode === MODE_NONE) {
-            throw new Error(`[SIGNALS API] finalMode is MODE_NONE after guard — this should be impossible. refEodDate: ${refEodDate}, detectedMode: ${detectedMode}`);
-          }
-
-          try {
-            const result = await generateSignalsForDate(targetDate, strategy, 'PLAYBOOK', {
-              marketStatus,
-              userOverride,
-              resolvedMode: finalMode  // Pass finalMode to avoid resolver returning MODE_NONE
-            });
-
-            // Update signalDate and refDate from result (resolver may have adjusted them)
-            const resolvedSignalDate = result.signalDate || signalDate;
-            const resolvedRefDate = result.refDate || refEodDate;
-
-            if (result.status === 'READY' || result.status === 'NO_MATCH') {
-              // Signals generated successfully, return them
-              const transformedSignals = Array.isArray(result.signals) ? result.signals.map(signal => ({
-                symbol: signal.symbol,
-                score: signal.score,
-                entry_price: signal.entry_price,
-                target_price: signal.target_price,
-                stop_loss: signal.stop_loss,
-                side: signal.side || 'BUY',
-                confidence_score: signal.confidence_score,
-                feature_fields: signal.feature_fields,
-                reason: signal.reason
-              })) : [];
-
-              // Use resolvedBy from earlier guard (already computed)
-              // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
-              const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
-
-              const response = {
-                success: true,
-                engine: 'OK',
-                requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
-                targetDate: result.targetDate || targetDate,
-                signalDate: result.signalDate || signalDate,
-                refDate: result.refDate || refEodDate,
-                strategy: result.strategy || strategy,
+            const response = {
+              success: true,
+              engine: 'OK',
+              requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
+              targetDate: result.targetDate || targetDate,
+              signalDate: result.signalDate || signalDate,
+              refDate: result.refDate || refEodDate,
+              strategy: result.strategy || strategy,
+              mode: resolvedMode,
+              status: 'INSUFFICIENT_DATA',
+              signal_count: 0,
+              signals: [],
+              hasSignals: false,
+              message: result.message || 'Insufficient data available for this date.',
+              missingFiles: result.missingFiles || null,
+              context: {
                 mode: resolvedMode,
-                modeDisplay: result.modeDisplay || (result.mode ? getModeDisplayName(result.mode) : 'EOD'),
-                modeLabel: result.modeLabel || (result.mode ? getModeLabel(result.mode) : 'EOD (Watchlist)'),
-                status: result.status,
-                signal_count: transformedSignals.length,
-                signals: transformedSignals,
-                hasSignals: result.status === 'READY' && transformedSignals.length > 0,
-                diagnostics: result.diagnostics || null,
-                rejectStats: result.rejectStats || null,
-                filtersUsed: result.filtersUsed || null,
-                context: {
-                  mode: resolvedMode,
-                  signalDate: result.signalDate || signalDate,
-                  refEodDate: result.dataUsed?.refEodDate || result.refDate || refEodDate,
-                  premarketDate: result.dataUsed?.premarketDate || null,
-                  marketOpen: marketStatus.isOpen,
-                  marketTimestamp: marketStatus.timestamp,
-                  reason: result.message || 'Signals generated'
-                },
-                dataUsed: result.dataUsed || {
-                  refEodDate: result.refDate || refEodDate,
-                  premarketDate: result.dataUsed?.premarketDate || null,
-                  mode: resolvedMode,
-                  signalDate: result.signalDate || signalDate,
-                  marketOpen: marketStatus.isOpen,
-                  marketTimestamp: marketStatus.timestamp
-                },
-                strategyMeta: {
-                  id: safeStrategyMeta.id,
-                  name: safeStrategyMeta.name,
-                  rulesText: safeStrategyMeta.rulesText
-                },
-                meta: {
-                  rejectStats: result.rejectStats || [],
-                  filtersUsed: result.filtersUsed || [],
-                  topRejectReason: result.rejectStats && result.rejectStats.length > 0 ? result.rejectStats[0] : null
-                },
-                message: result.message || 'Signals generated automatically',
-                missingFiles: result.missingFiles || null,
-                usedDates: result.usedDates || {
-                  targetDate,
-                  signalDate: result.signalDate || signalDate,
-                  refDate: result.refDate || refEodDate,
-                  eodDate: result.dataUsed?.refEodDate || null,
-                  preMDate: result.dataUsed?.premarketDate || null
-                },
-                resolvedMode: resolvedMode,
-                resolvedBy: resolvedBy,
-                computedMarketOpen: computedMarketOpen
-              };
-
-              // Add debug fields
-              if (includeDebug) {
-                response.debug = {
-                  resolvedMode: getModeDisplayName(resolvedMode),
-                  resolvedBy,
-                  computedMarketOpen: computedMarketOpen,
-                  clientMarketStatus: req.query.marketStatus ? JSON.parse(req.query.marketStatus) : null
-                };
-              }
-
-              return res.status(200).json(response);
-            } else if (result.status === 'INSUFFICIENT_DATA') {
-              // Data not available - return INSUFFICIENT_DATA status
-              // Guard against result.mode being MODE_NONE - always prefer finalMode (sanitized)
-              const resolvedMode = (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode;
-              const resolvedBy = overrideMode ? `override:${overrideMode.toLowerCase()}` : 'auto';
-
-              const response = {
-                success: true,
-                engine: 'OK',
-                requested: { date: targetDate, strategy, modeOverride: overrideMode || undefined },
-                targetDate: result.targetDate || targetDate,
                 signalDate: result.signalDate || signalDate,
-                refDate: result.refDate || refEodDate,
-                strategy: result.strategy || strategy,
+                refEodDate: result.refDate || refEodDate,
+                premarketDate: null,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp,
+                reason: result.message || 'Required CSV data not available'
+              },
+              dataUsed: {
+                refEodDate: result.refDate || refEodDate,
+                premarketDate: null,
                 mode: resolvedMode,
-                status: 'INSUFFICIENT_DATA',
-                signal_count: 0,
-                signals: [],
-                hasSignals: false,
-                message: result.message || 'Insufficient data available for this date.',
-                missingFiles: result.missingFiles || null,
-                context: {
-                  mode: resolvedMode,
-                  signalDate: result.signalDate || signalDate,
-                  refEodDate: result.refDate || refEodDate,
-                  premarketDate: null,
-                  marketOpen: marketStatus.isOpen,
-                  marketTimestamp: marketStatus.timestamp,
-                  reason: result.message || 'Required CSV data not available'
-                },
-                dataUsed: {
-                  refEodDate: result.refDate || refEodDate,
-                  premarketDate: null,
-                  mode: resolvedMode,
-                  signalDate: result.signalDate || signalDate,
-                  marketOpen: marketStatus.isOpen,
-                  marketTimestamp: marketStatus.timestamp
-                },
-                strategyMeta: {
-                  id: safeStrategyMeta.id,
-                  name: safeStrategyMeta.name,
-                  rulesText: safeStrategyMeta.rulesText
-                },
-                meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
-                usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
-                resolvedMode: resolvedMode,
-                resolvedBy: resolvedBy,
-                computedMarketOpen: computedMarketOpen
-              };
-
-              // Add debug fields
-              if (includeDebug) {
-                response.debug = {
-                  resolvedMode: getModeDisplayName(resolvedMode),
-                  resolvedBy,
-                  computedMarketOpen: computedMarketOpen,
-                  clientMarketStatus: req.query.marketStatus ? JSON.parse(req.query.marketStatus) : null
-                };
-              }
-
-              return res.status(200).json(response);
-            } else {
-              // Generation failed (ERROR, etc.)
-              return res.status(200).json({
-                success: true,
-                engine: 'OK',
-                requested: { date: targetDate, strategy, modeOverride },
-                targetDate: result.targetDate || targetDate,
                 signalDate: result.signalDate || signalDate,
-                refDate: result.refDate || refEodDate,
-                strategy: result.strategy || strategy,
-                mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
-                status: result.status || 'ERROR',
-                signal_count: 0,
-                signals: [],
-                hasSignals: false,
-                message: result.message || 'Error generating signals. Please check logs.',
-                missingFiles: result.missingFiles || null,
-                context: {
-                  mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
-                  signalDate: result.signalDate || signalDate,
-                  refEodDate: result.refDate || refEodDate,
-                  premarketDate: null,
-                  marketOpen: marketStatus.isOpen,
-                  marketTimestamp: marketStatus.timestamp,
-                  reason: result.message || 'Error generating signals'
-                },
-                dataUsed: {
-                  refEodDate: result.refDate || refEodDate,
-                  premarketDate: null,
-                  mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
-                  signalDate: result.signalDate || signalDate,
-                  marketOpen: marketStatus.isOpen,
-                  marketTimestamp: marketStatus.timestamp
-                },
-                strategyMeta: {
-                  id: safeStrategyMeta.id,
-                  name: safeStrategyMeta.name,
-                  rulesText: safeStrategyMeta.rulesText
-                },
-                meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
-                usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
-                resolvedMode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
-                resolvedBy: resolvedBy,
-                computedMarketOpen: computedMarketOpen
-              });
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp
+              },
+              strategyMeta: {
+                id: safeStrategyMeta.id,
+                name: safeStrategyMeta.name,
+                rulesText: safeStrategyMeta.rulesText
+              },
+              meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
+              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
+              resolvedMode: resolvedMode,
+              resolvedBy: resolvedBy,
+              computedMarketOpen: computedMarketOpen
+            };
+
+            // Add debug fields
+            if (includeDebug) {
+              response.debug = {
+                resolvedMode: getModeDisplayName(resolvedMode),
+                resolvedBy,
+                computedMarketOpen: computedMarketOpen,
+                clientMarketStatus: req.query.marketStatus ? JSON.parse(req.query.marketStatus) : null
+              };
             }
-          } catch (genError) {
-            console.error('[SIGNALS API] Error auto-generating signals:', genError);
-            // Fall through to return NO_DATA
+
+            return res.status(200).json(response);
+          } else {
+            // Generation failed (ERROR, etc.)
+            return res.status(200).json({
+              success: true,
+              engine: 'OK',
+              requested: { date: targetDate, strategy, modeOverride },
+              targetDate: result.targetDate || targetDate,
+              signalDate: result.signalDate || signalDate,
+              refDate: result.refDate || refEodDate,
+              strategy: result.strategy || strategy,
+              mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
+              status: result.status || 'ERROR',
+              signal_count: 0,
+              signals: [],
+              hasSignals: false,
+              message: result.message || 'Error generating signals. Please check logs.',
+              missingFiles: result.missingFiles || null,
+              context: {
+                mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
+                signalDate: result.signalDate || signalDate,
+                refEodDate: result.refDate || refEodDate,
+                premarketDate: null,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp,
+                reason: result.message || 'Error generating signals'
+              },
+              dataUsed: {
+                refEodDate: result.refDate || refEodDate,
+                premarketDate: null,
+                mode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
+                signalDate: result.signalDate || signalDate,
+                marketOpen: marketStatus.isOpen,
+                marketTimestamp: marketStatus.timestamp
+              },
+              strategyMeta: {
+                id: safeStrategyMeta.id,
+                name: safeStrategyMeta.name,
+                rulesText: safeStrategyMeta.rulesText
+              },
+              meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
+              usedDates: result.usedDates || { targetDate, signalDate: result.signalDate || signalDate, refDate: result.refDate || refEodDate },
+              resolvedMode: (result.mode && result.mode !== MODE_NONE && result.mode !== 'MODE_NONE') ? result.mode : finalMode,
+              resolvedBy: resolvedBy,
+              computedMarketOpen: computedMarketOpen
+            });
           }
+        } catch (genError) {
+          console.error('[SIGNALS API] Error auto-generating signals:', genError);
+          // Fall through to return NO_DATA
+        }
 
-          // Return NO_DATA status if signals couldn't be generated
-          return res.status(200).json({
-            success: true,
-            engine: 'OK',
-            requested: { date: targetDate, strategy, modeOverride },
-            targetDate,
-            signalDate: signalDate || targetDate,
-            refDate: refEodDate,
-            strategy,
+        // Return NO_DATA status if signals couldn't be generated
+        return res.status(200).json({
+          success: true,
+          engine: 'OK',
+          requested: { date: targetDate, strategy, modeOverride },
+          targetDate,
+          signalDate: signalDate || targetDate,
+          refDate: refEodDate,
+          strategy,
+          mode: finalMode,
+          status: 'NO_DATA',
+          signal_count: 0,
+          signals: [],
+          hasSignals: false,
+          message: 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).',
+          context: {
             mode: finalMode,
-            status: 'NO_DATA',
-            signal_count: 0,
-            signals: [],
-            hasSignals: false,
-            message: 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).',
-            context: {
-              mode: finalMode,
-              signalDate: signalDate || targetDate,
-              refEodDate: refEodDate,
-              premarketDate: premarketDate,
-              marketOpen: marketStatus.isOpen,
-              marketTimestamp: marketStatus.timestamp,
-              reason: 'No signals generated'
-            },
-            dataUsed: {
-              refEodDate: refEodDate,
-              premarketDate: premarketDate,
-              mode: finalMode,
-              signalDate: signalDate || targetDate,
-              marketOpen: marketStatus.isOpen,
-              marketTimestamp: marketStatus.timestamp
-            },
-            strategyMeta: {
-              id: safeStrategyMeta.id,
-              name: safeStrategyMeta.name,
-              rulesText: safeStrategyMeta.rulesText
-            },
-            meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
-            signal_count: 0,
-            signals: [],
-            hasSignals: false,
-            message: 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).'
-          });
-        } catch (error) {
-          console.error('[SIGNALS API] Error retrieving signals:', error);
-          const date = req.query.date || new Date().toISOString().split('T')[0];
-          const strategy = req.query.strategy || 'momentum_gap';
-          const modeOverride = req.query.modeOverride || 'AUTO';
-          return res.status(200).json({
-            success: false,
-            engine: 'ERROR',
-            requested: { date, strategy, modeOverride },
-            targetDate: date,
-            signalDate: null,
-            refDate: null,
-            strategy,
-            mode: null,  // Error case - don't return MODE_NONE
-            status: 'ERROR',
-            signal_count: 0,
-            signals: [],
-            hasSignals: false,
-            message: `Error retrieving signals: ${error.message}`,
-            context: {
-              mode: null,  // Error case - don't return MODE_NONE
-              signalDate: null,
-              refEodDate: null,
-              premarketDate: null,
-              marketOpen: false,
-              marketTimestamp: null,
-              reason: `Error: ${error.message}`
-            },
-            dataUsed: {
-              refEodDate: null,
-              premarketDate: null,
-              mode: null,  // Error case - don't return MODE_NONE
-              signalDate: null,
-              marketOpen: false,
-              marketTimestamp: null
-            },
-            strategyMeta: {
-              id: strategy,
-              name: strategy,
-              rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
-            },
-            meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
-          });
-        }
-
-      } else if (req.method === 'POST') {
-        // POST /api/signals - Admin-only: Force regenerate signals
-        // Requires x-app-key header matching APP_KEY environment variable
-
-        if (!verifyAdminAuth(req)) {
-          return res.status(401).json({
-            error: 'Unauthorized',
-            message: 'Admin authentication required. Provide x-app-key header matching APP_KEY.'
-          });
-        }
-
-        const date = req.body?.date || req.query.date || new Date().toISOString().split('T')[0];
-        const strategy = req.body?.strategy || req.query.strategy || 'momentum_gap';
-
-        if (DEBUG) {
-          console.log(`[SIGNALS API] POST request (admin) - date: ${date}, strategy: ${strategy}`);
-        }
-
-        if (!mongoUri) {
-          if (DEBUG) console.log('[SIGNALS API] MongoDB not configured');
-          return res.status(200).json({
-            status: 'ERROR',
-            date: date,
-            strategy: strategy,
-            signal_count: 0,
-            signals: [],
-            message: 'Signal generation requires MongoDB configuration.'
-          });
-        }
-
-        // Apply same resolver/guard logic as GET handler - do NOT bypass
-        const today = getTodayIST();
-        const computedMarketOpen = isTradingDay(today) && (() => {
-          const ist = new Date();
-          const utc = ist.getTime() + (ist.getTimezoneOffset() * 60000);
-          const istOffset = 5.5 * 60 * 60000;
-          const istTime = new Date(utc + istOffset);
-          const hours = istTime.getHours();
-          const minutes = istTime.getMinutes();
-          const timeMinutes = hours * 60 + minutes;
-          // Market hours: 9:15 AM - 3:30 PM IST (555-930 minutes)
-          return timeMinutes >= 555 && timeMinutes < 930;
-        })();
-
-        const marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
-        const userOverride = { strategy: strategy };
-
-        // Get strategy meta after strategy is finalized
-        let strategyMeta;
-        try {
-          strategyMeta = getStrategyMeta(strategy);
-        } catch (error) {
-          console.warn(`[SIGNALS API] POST: Error getting strategy meta for ${strategy}, using fallback:`, error.message);
-          strategyMeta = null;
-        }
-        const safeStrategyMeta = strategyMeta || {
-          id: strategy,
-          name: strategy,
-          rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
-        };
-
-        // Resolve signals context
-        const context = await resolveSignalsContext({
-          targetDate: date,
-          today,
-          marketStatus,
-          userOverride
+            signalDate: signalDate || targetDate,
+            refEodDate: refEodDate,
+            premarketDate: premarketDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp,
+            reason: 'No signals generated'
+          },
+          dataUsed: {
+            refEodDate: refEodDate,
+            premarketDate: premarketDate,
+            mode: finalMode,
+            signalDate: signalDate || targetDate,
+            marketOpen: marketStatus.isOpen,
+            marketTimestamp: marketStatus.timestamp
+          },
+          strategyMeta: {
+            id: safeStrategyMeta.id,
+            name: safeStrategyMeta.name,
+            rulesText: safeStrategyMeta.rulesText
+          },
+          meta: { rejectStats: [], filtersUsed: [], topRejectReason: null },
+          signal_count: 0,
+          signals: [],
+          hasSignals: false,
+          message: 'No signals available for this date yet. Please upload required CSV files (bhavcopy and premarket).'
         });
-
-        const signalDate = context.signalDate;
-        const refEodDate = context.refEodDate;
-        const premarketDate = context.premarketDate;
-        const detectedMode = context.mode;
-
-        // Apply same guard logic as GET handler
-        let finalMode = detectedMode;
-        if (finalMode === MODE_NONE && refEodDate) {
-          console.warn(`⚠️ [SIGNALS API] POST: MODE_NONE detected but EOD data exists (refEodDate: ${refEodDate}), forcing MODE_EOD`);
-          finalMode = MODE_EOD;
-        } else if (finalMode === MODE_NONE) {
-          // No data available - return INSUFFICIENT_DATA with mode:null and DO NOT write to DB
-          return res.status(200).json({
-            success: true,
-            engineStatus: 'insufficient_data',
-            requested: { date, strategy },
-            context: {
-              signalDate: signalDate || null,
-              refEodDate: refEodDate || null,
-              premarketDate: premarketDate || null,
-              hasBhav: !!refEodDate,
-              hasPremarket: !!premarketDate,
-              missingFiles: context.missingFiles || []
-            },
-            signals: [],
-            meta: {
-              reason: context.reason || 'Insufficient data available for signal generation',
-              mode: null  // Don't return MODE_NONE
-            },
-            resolvedMode: null,
-            resolvedBy: 'auto',
-            computedMarketOpen: computedMarketOpen
-          });
-        }
-
-        // Verify mode is one of the supported modes
-        const supportedModeConstants = [MODE_EOD, MODE_PREM, MODE_LIVE];
-        if (!supportedModeConstants.includes(finalMode)) {
-          console.error(`❌ [SIGNALS API] POST: Invalid mode detected: ${finalMode}, forcing MODE_EOD`);
-          finalMode = MODE_EOD;
-        }
-
-        // Hard assert before calling generateSignalsForDate
-        assertNoModeNone(finalMode, 'POST handler finalMode before generateSignalsForDate');
-
-        // Generate signals using the new module with resolvedMode
-        const result = await generateSignalsForDate(date, strategy, 'PLAYBOOK', {
-          marketStatus,
-          userOverride,
-          resolvedMode: finalMode  // Pass finalMode to avoid resolver returning MODE_NONE
-        });
-
-        if (DEBUG) {
-          console.log(`[SIGNALS API] Generated signals: status=${result.status}, count=${result.signal_count || 0}`);
-        }
-
-        res.status(200).json({
-          status: result.status,
-          date: result.date || date,
-          strategy: result.strategy || strategy,
-          signal_count: result.signal_count || 0,
-          signals: result.signals || [],
-          hasSignals: result.status === 'READY' && (result.signals && result.signals.length > 0),
-          message: result.message || 'Signals generated',
-          missingFiles: result.missingFiles || null,
-          run_id: result.run_id || null
-        });
-
-      } else {
-        // Method not allowed - but still return 200 with error info
+      } catch (error) {
+        console.error('[SIGNALS API] Error retrieving signals:', error);
         const date = req.query.date || new Date().toISOString().split('T')[0];
         const strategy = req.query.strategy || 'momentum_gap';
         const modeOverride = req.query.modeOverride || 'AUTO';
@@ -1559,25 +1299,25 @@ function verifyAdminAuth(req) {
           signalDate: null,
           refDate: null,
           strategy,
-          mode: null,  // Method not allowed - don't return MODE_NONE
+          mode: null,  // Error case - don't return MODE_NONE
           status: 'ERROR',
           signal_count: 0,
           signals: [],
           hasSignals: false,
-          message: `Method ${req.method} is not supported. Allowed: GET, POST`,
+          message: `Error retrieving signals: ${error.message}`,
           context: {
-            mode: null,  // Method not allowed - don't return MODE_NONE
+            mode: null,  // Error case - don't return MODE_NONE
             signalDate: null,
             refEodDate: null,
             premarketDate: null,
             marketOpen: false,
             marketTimestamp: null,
-            reason: `Method ${req.method} not allowed`
+            reason: `Error: ${error.message}`
           },
           dataUsed: {
             refEodDate: null,
             premarketDate: null,
-            mode: null,  // Method not allowed - don't return MODE_NONE
+            mode: null,  // Error case - don't return MODE_NONE
             signalDate: null,
             marketOpen: false,
             marketTimestamp: null
@@ -1590,13 +1330,149 @@ function verifyAdminAuth(req) {
           meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
         });
       }
-    } catch (error) {
-      console.error('❌ Error in signals endpoint:', error);
+
+    } else if (req.method === 'POST') {
+      // POST /api/signals - Admin-only: Force regenerate signals
+      // Requires x-app-key header matching APP_KEY environment variable
+
+      if (!verifyAdminAuth(req)) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Admin authentication required. Provide x-app-key header matching APP_KEY.'
+        });
+      }
+
+      const date = req.body?.date || req.query.date || new Date().toISOString().split('T')[0];
+      const strategy = req.body?.strategy || req.query.strategy || 'momentum_gap';
+
+      if (DEBUG) {
+        console.log(`[SIGNALS API] POST request (admin) - date: ${date}, strategy: ${strategy}`);
+      }
+
+      if (!mongoUri) {
+        if (DEBUG) console.log('[SIGNALS API] MongoDB not configured');
+        return res.status(200).json({
+          status: 'ERROR',
+          date: date,
+          strategy: strategy,
+          signal_count: 0,
+          signals: [],
+          message: 'Signal generation requires MongoDB configuration.'
+        });
+      }
+
+      // Apply same resolver/guard logic as GET handler - do NOT bypass
+      const today = getTodayIST();
+      const computedMarketOpen = isTradingDay(today) && (() => {
+        const ist = new Date();
+        const utc = ist.getTime() + (ist.getTimezoneOffset() * 60000);
+        const istOffset = 5.5 * 60 * 60000;
+        const istTime = new Date(utc + istOffset);
+        const hours = istTime.getHours();
+        const minutes = istTime.getMinutes();
+        const timeMinutes = hours * 60 + minutes;
+        // Market hours: 9:15 AM - 3:30 PM IST (555-930 minutes)
+        return timeMinutes >= 555 && timeMinutes < 930;
+      })();
+
+      const marketStatus = { isOpen: computedMarketOpen, timestamp: new Date().toISOString() };
+      const userOverride = { strategy: strategy };
+
+      // Get strategy meta after strategy is finalized
+      let strategyMeta;
+      try {
+        strategyMeta = getStrategyMeta(strategy);
+      } catch (error) {
+        console.warn(`[SIGNALS API] POST: Error getting strategy meta for ${strategy}, using fallback:`, error.message);
+        strategyMeta = null;
+      }
+      const safeStrategyMeta = strategyMeta || {
+        id: strategy,
+        name: strategy,
+        rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
+      };
+
+      // Resolve signals context
+      const context = await resolveSignalsContext({
+        targetDate: date,
+        today,
+        marketStatus,
+        userOverride
+      });
+
+      const signalDate = context.signalDate;
+      const refEodDate = context.refEodDate;
+      const premarketDate = context.premarketDate;
+      const detectedMode = context.mode;
+
+      // Apply same guard logic as GET handler
+      let finalMode = detectedMode;
+      if (finalMode === MODE_NONE && refEodDate) {
+        console.warn(`⚠️ [SIGNALS API] POST: MODE_NONE detected but EOD data exists (refEodDate: ${refEodDate}), forcing MODE_EOD`);
+        finalMode = MODE_EOD;
+      } else if (finalMode === MODE_NONE) {
+        // No data available - return INSUFFICIENT_DATA with mode:null and DO NOT write to DB
+        return res.status(200).json({
+          success: true,
+          engineStatus: 'insufficient_data',
+          requested: { date, strategy },
+          context: {
+            signalDate: signalDate || null,
+            refEodDate: refEodDate || null,
+            premarketDate: premarketDate || null,
+            hasBhav: !!refEodDate,
+            hasPremarket: !!premarketDate,
+            missingFiles: context.missingFiles || []
+          },
+          signals: [],
+          meta: {
+            reason: context.reason || 'Insufficient data available for signal generation',
+            mode: null  // Don't return MODE_NONE
+          },
+          resolvedMode: null,
+          resolvedBy: 'auto',
+          computedMarketOpen: computedMarketOpen
+        });
+      }
+
+      // Verify mode is one of the supported modes
+      const supportedModeConstants = [MODE_EOD, MODE_PREM, MODE_LIVE];
+      if (!supportedModeConstants.includes(finalMode)) {
+        console.error(`❌ [SIGNALS API] POST: Invalid mode detected: ${finalMode}, forcing MODE_EOD`);
+        finalMode = MODE_EOD;
+      }
+
+      // Hard assert before calling generateSignalsForDate
+      assertNoModeNone(finalMode, 'POST handler finalMode before generateSignalsForDate');
+
+      // Generate signals using the new module with resolvedMode
+      const result = await generateSignalsForDate(date, strategy, 'PLAYBOOK', {
+        marketStatus,
+        userOverride,
+        resolvedMode: finalMode  // Pass finalMode to avoid resolver returning MODE_NONE
+      });
+
+      if (DEBUG) {
+        console.log(`[SIGNALS API] Generated signals: status=${result.status}, count=${result.signal_count || 0}`);
+      }
+
+      res.status(200).json({
+        status: result.status,
+        date: result.date || date,
+        strategy: result.strategy || strategy,
+        signal_count: result.signal_count || 0,
+        signals: result.signals || [],
+        hasSignals: result.status === 'READY' && (result.signals && result.signals.length > 0),
+        message: result.message || 'Signals generated',
+        missingFiles: result.missingFiles || null,
+        run_id: result.run_id || null
+      });
+
+    } else {
+      // Method not allowed - but still return 200 with error info
       const date = req.query.date || new Date().toISOString().split('T')[0];
       const strategy = req.query.strategy || 'momentum_gap';
       const modeOverride = req.query.modeOverride || 'AUTO';
-
-      // NEVER return 404 or 500 - always return 200 with error info
       return res.status(200).json({
         success: false,
         engine: 'ERROR',
@@ -1605,25 +1481,25 @@ function verifyAdminAuth(req) {
         signalDate: null,
         refDate: null,
         strategy,
-        mode: null,  // Error case - don't return MODE_NONE
+        mode: null,  // Method not allowed - don't return MODE_NONE
         status: 'ERROR',
         signal_count: 0,
         signals: [],
         hasSignals: false,
-        message: `Error: ${error.message || 'Internal server error'}`,
+        message: `Method ${req.method} is not supported. Allowed: GET, POST`,
         context: {
-          mode: null,  // Error case - don't return MODE_NONE
+          mode: null,  // Method not allowed - don't return MODE_NONE
           signalDate: null,
           refEodDate: null,
           premarketDate: null,
           marketOpen: false,
           marketTimestamp: null,
-          reason: `Error: ${error.message || 'Internal server error'}`
+          reason: `Method ${req.method} not allowed`
         },
         dataUsed: {
           refEodDate: null,
           premarketDate: null,
-          mode: null,  // Error case - don't return MODE_NONE
+          mode: null,  // Method not allowed - don't return MODE_NONE
           signalDate: null,
           marketOpen: false,
           marketTimestamp: null
@@ -1636,30 +1512,76 @@ function verifyAdminAuth(req) {
         meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
       });
     }
-  };
+  } catch (error) {
+    console.error('❌ Error in signals endpoint:', error);
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const strategy = req.query.strategy || 'momentum_gap';
+    const modeOverride = req.query.modeOverride || 'AUTO';
 
-  // Wrap handler with auth middleware
-  // GET requests are public (read-only)
-  // POST requests require admin auth (handled by verifyAdminAuth in handler)
-  const wrappedHandler = authMiddleware({
-    requireAuth: req => {
-      // GET requests are public (read-only signals page)
-      if (req.method === 'GET') {
-        return false;
-      }
-      // POST requests require admin auth (handled separately in handler via verifyAdminAuth)
-      // We still run through auth middleware for rate limiting, but admin check is in handler
-      return false; // Admin check happens in handler, not here
-    },
-    rateLimitType: req => {
-      // POST requests are admin write operations
-      if (req.method === 'POST') return 'write';
-      return 'public';
+    // NEVER return 404 or 500 - always return 200 with error info
+    return res.status(200).json({
+      success: false,
+      engine: 'ERROR',
+      requested: { date, strategy, modeOverride },
+      targetDate: date,
+      signalDate: null,
+      refDate: null,
+      strategy,
+      mode: null,  // Error case - don't return MODE_NONE
+      status: 'ERROR',
+      signal_count: 0,
+      signals: [],
+      hasSignals: false,
+      message: `Error: ${error.message || 'Internal server error'}`,
+      context: {
+        mode: null,  // Error case - don't return MODE_NONE
+        signalDate: null,
+        refEodDate: null,
+        premarketDate: null,
+        marketOpen: false,
+        marketTimestamp: null,
+        reason: `Error: ${error.message || 'Internal server error'}`
+      },
+      dataUsed: {
+        refEodDate: null,
+        premarketDate: null,
+        mode: null,  // Error case - don't return MODE_NONE
+        signalDate: null,
+        marketOpen: false,
+        marketTimestamp: null
+      },
+      strategyMeta: {
+        id: strategy,
+        name: strategy,
+        rulesText: { EOD: [], PREMARKET: [], LIVE: [] }
+      },
+      meta: { rejectStats: [], filtersUsed: [], topRejectReason: null }
+    });
+  }
+};
+
+// Wrap handler with auth middleware
+// GET requests are public (read-only)
+// POST requests require admin auth (handled by verifyAdminAuth in handler)
+const wrappedHandler = authMiddleware({
+  requireAuth: req => {
+    // GET requests are public (read-only signals page)
+    if (req.method === 'GET') {
+      return false;
     }
-  })(handler);
+    // POST requests require admin auth (handled separately in handler via verifyAdminAuth)
+    // We still run through auth middleware for rate limiting, but admin check is in handler
+    return false; // Admin check happens in handler, not here
+  },
+  rateLimitType: req => {
+    // POST requests are admin write operations
+    if (req.method === 'POST') return 'write';
+    return 'public';
+  }
+})(handler);
 
-  // Export the wrapped handler and generate function
-  const signalsModule = wrappedHandler;
-  signalsModule.generateSimpleMomentumGapSignals = generateSimpleMomentumGapSignals;
-  module.exports = signalsModule;
+// Export the wrapped handler and generate function
+const signalsModule = wrappedHandler;
+signalsModule.generateSimpleMomentumGapSignals = generateSimpleMomentumGapSignals;
+module.exports = signalsModule;
 
