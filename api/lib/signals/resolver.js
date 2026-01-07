@@ -19,24 +19,25 @@ const { MODE_EOD, MODE_PREM, MODE_LIVE, MODE_NONE, getTodayIST } = require('./mo
 /**
  * Get latest available Bhav date (up to and including maxDate)
  */
+/**
+ * Get latest available Bhav date (up to and including maxDate)
+ */
 async function getLatestBhavDate(maxDate) {
   try {
     const bhavcopyCollection = await getDailyBhavcopyCollection();
-    
-    // Find latest Bhav date <= maxDate
+
+    // Find latest Bhav date <= maxDate from daily_bhavcopy
     const latestBhav = await bhavcopyCollection
-      .find({ 
+      .find({
         date: { $lte: maxDate },
         series: 'EQ'
       })
       .sort({ date: -1 })
       .limit(1)
       .toArray();
-    
-    if (latestBhav.length > 0) {
-      return latestBhav[0].date;
-    }
-    
+
+    const dailyDate = latestBhav.length > 0 ? latestBhav[0].date : null;
+
     // Check uploaded bhavcopy
     const uploadedBhavCollection = await getUploadedDataCollection('bhav');
     const uploadedBhav = await uploadedBhavCollection
@@ -44,11 +45,18 @@ async function getLatestBhavDate(maxDate) {
       .sort({ date: -1 })
       .limit(1)
       .toArray();
-    
-    if (uploadedBhav.length > 0) {
-      return uploadedBhav[0].date;
+
+    const uploadedDate = uploadedBhav.length > 0 ? uploadedBhav[0].date : null;
+
+    // Compare and return the latest
+    if (dailyDate && uploadedDate) {
+      return dailyDate > uploadedDate ? dailyDate : uploadedDate;
+    } else if (dailyDate) {
+      return dailyDate;
+    } else if (uploadedDate) {
+      return uploadedDate;
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error getting latest Bhav date:', error);
@@ -63,12 +71,12 @@ async function hasPreMForDate(date) {
   try {
     const premarketCollection = await getPreMarketDataCollection();
     const preMCount = await premarketCollection.countDocuments({ date: date });
-    
+
     if (preMCount > 0) return true;
-    
+
     const uploadedPreMCollection = await getUploadedDataCollection('premarket');
     const uploadedCount = await uploadedPreMCollection.countDocuments({ date: date });
-    
+
     return uploadedCount > 0;
   } catch (error) {
     console.error('Error checking PreM data:', error);
@@ -93,17 +101,17 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
   let premarketDate = null;
   let mode = MODE_NONE;
   let reason = '';
-  
+
   // Handle API_FORBIDDEN: treat as UNKNOWN (don't force closed)
   const effectiveMarketStatus = { ...marketStatus };
   if (marketStatus.reason === 'API_FORBIDDEN') {
     effectiveMarketStatus.isOpen = undefined; // Treat as unknown
     effectiveMarketStatus.verified = false;
   }
-  
+
   // Get latest Bhav date (any date <= signalDate)
   const latestBhavDate = await getLatestBhavDate(signalDate);
-  
+
   if (!latestBhavDate) {
     return {
       signalDate,
@@ -114,16 +122,16 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
       reason: `No Bhavcopy data available up to ${signalDate}`
     };
   }
-  
+
   refEodDate = latestBhavDate;
-  
+
   // Check premarket availability:
   // 1. First check for signalDate (if mode is PREMARKET/LIVE for target date)
   // 2. Then check for refEodDate (the date we actually use for EOD data)
   // This ensures we correctly detect premarket when it exists for the refDate
   const hasSignalDatePreM = await hasPreMForDate(signalDate);
   const hasRefDatePreM = await hasPreMForDate(refEodDate);
-  
+
   if (hasSignalDatePreM) {
     premarketDate = signalDate;
   } else if (hasRefDatePreM) {
@@ -138,7 +146,7 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
         .sort({ date: -1 })
         .limit(1)
         .toArray();
-      
+
       if (latestPreM.length > 0) {
         premarketDate = latestPreM[0].date;
       } else {
@@ -149,7 +157,7 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
           .sort({ date: -1 })
           .limit(1)
           .toArray();
-        
+
         if (uploadedPreM.length > 0) {
           premarketDate = uploadedPreM[0].date;
         }
@@ -158,19 +166,19 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
       console.error('Error checking premarket dates:', error);
     }
   }
-  
+
   // Track if we have premarket for refDate (used in mode detection)
   const hasPremarketForRefDate = premarketDate === refEodDate || hasRefDatePreM;
-  
+
   // Check user override
   const overrideMode = userOverride.mode;
   const isAutoMode = !overrideMode || overrideMode === 'AUTO';
-  
+
   // AUTO mode selection - Check for premarket data FIRST, then fall back to EOD
   // Note: If we reach here, refEodDate is guaranteed to exist (early return above if not)
   if (isAutoMode) {
     console.log(`🔍 [Resolver] AUTO mode detection: signalDate=${signalDate}, today=${today}, hasSignalDatePreM=${hasSignalDatePreM}, premarketDate=${premarketDate}`);
-    
+
     // CRITICAL: If target date is not today, use EOD mode (past/future dates)
     if (signalDate !== today) {
       console.log(`📅 [Resolver] Target date (${signalDate}) is not today (${today}), using EOD mode`);
@@ -182,7 +190,7 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
     } else if (hasSignalDatePreM && premarketDate) {
       // Target date IS today AND premarket data exists - use PREMARKET or LIVE mode
       console.log(`✅ [Resolver] Premarket data found for today (${signalDate})`);
-      
+
       // Check if market is open for LIVE mode
       if (effectiveMarketStatus.isOpen === true) {
         mode = MODE_LIVE;
@@ -205,7 +213,7 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
   } else {
     // User override mode
     const overrideModeUpper = overrideMode.toUpperCase();
-    
+
     if (overrideModeUpper === 'LIVE') {
       mode = hasSignalDatePreM ? MODE_LIVE : MODE_EOD;
       premarketDate = hasSignalDatePreM ? signalDate : premarketDate;
@@ -225,7 +233,7 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
       return await resolveSignalsContext({ targetDate, today, marketStatus: effectiveMarketStatus, userOverride: {} });
     }
   }
-  
+
   // Update missingFiles to reflect what's truly missing
   if (!refEodDate) {
     missingFiles.push(`bhavcopy for ${signalDate}`);
@@ -235,7 +243,7 @@ async function resolveSignalsContext({ targetDate, today, marketStatus = { isOpe
       missingFiles.push(`premarket for ${signalDate}`);
     }
   }
-  
+
   return {
     signalDate,
     refEodDate,
@@ -259,7 +267,7 @@ function getMarketSession() {
   const hours = ist.getHours();
   const minutes = ist.getMinutes();
   const timeMinutes = hours * 60 + minutes;
-  
+
   if (timeMinutes >= 540 && timeMinutes < 555) {
     return 'PREMARKET'; // 09:00-09:15
   } else if (timeMinutes >= 555 && timeMinutes < 930) {

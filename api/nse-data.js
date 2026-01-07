@@ -443,7 +443,7 @@ const handler = async (req, res) => {
 
     const processedData = processMarketData(allData);
 
-    // Add market status to response
+    // Include market status in response
     processedData.marketStatus = {
       isOpen: marketStatus.isOpen,
       verified: marketStatus.verified,
@@ -452,8 +452,28 @@ const handler = async (req, res) => {
     };
 
     // Automatically save indices data to MongoDB if we have valid data
+    // Use the actual date from the API response if available
     try {
-      await saveIndicesDataToDatabase(allData.indices, allData.vix);
+      let dataDate = null;
+      if (processedData.timestamp) {
+        // Try to parse YYYY-MM-DD from the timestamp
+        const dateObj = new Date(processedData.timestamp);
+        if (!isNaN(dateObj.getTime())) {
+          dataDate = dateObj.toISOString().split('T')[0];
+        }
+      } else if (allData.meta && allData.meta.lastUpdateTime) {
+        const dateObj = new Date(allData.meta.lastUpdateTime);
+        if (!isNaN(dateObj.getTime())) {
+          dataDate = dateObj.toISOString().split('T')[0];
+        }
+      }
+
+      if (dataDate) {
+        console.log(`💾 Saving data for specific date: ${dataDate}`);
+        await saveIndicesDataToDatabase(allData.indices, allData.vix, dataDate);
+      } else {
+        await saveIndicesDataToDatabase(allData.indices, allData.vix);
+      }
     } catch (saveError) {
       // Log error but don't fail the request
       console.warn('⚠️ Failed to save indices data to database:', saveError.message);
@@ -590,8 +610,9 @@ function getMoodFromScore(score) {
  * Save indices data to MongoDB daily_indices collection
  * @param {Array} indices - Array of index data objects
  * @param {Object} vix - VIX data object
+ * @param {string} dateOverride - Optional date string (YYYY-MM-DD) to force save for specific date
  */
-async function saveIndicesDataToDatabase(indices, vix) {
+async function saveIndicesDataToDatabase(indices, vix, dateOverride = null) {
   // Check if MongoDB is configured
   const mongoUri = process.env.MONGODB_URI || process.env.storage_MONGODB_URI;
   if (!mongoUri) {
@@ -608,14 +629,20 @@ async function saveIndicesDataToDatabase(indices, vix) {
   try {
     const collection = await getDailyIndicesCollection();
 
-    // Get today's date in YYYY-MM-DD format (IST timezone)
-    const now = new Date();
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const istOffset = 5.5 * 60 * 60000; // +5:30
-    const ist = new Date(utc + istOffset);
-    const todayDate = ist.toISOString().split('T')[0];
+    let todayDate;
+    if (dateOverride) {
+      todayDate = dateOverride;
+      console.log(`Using provided date for storage: ${todayDate}`);
+    } else {
+      // Get today's date in YYYY-MM-DD format (IST timezone)
+      const now = new Date();
+      const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const istOffset = 5.5 * 60 * 60000; // +5:30
+      const ist = new Date(utc + istOffset);
+      todayDate = ist.toISOString().split('T')[0];
+    }
 
-    // Check if data for today already exists (check count of documents for this date)
+    // Check if data for this date already exists (check count of documents for this date)
     const existingCount = await collection.countDocuments({ date: todayDate });
 
     if (existingCount > 0) {
