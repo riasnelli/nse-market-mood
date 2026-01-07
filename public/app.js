@@ -8893,8 +8893,45 @@ class MarketMoodApp {
             console.log('📅 Available bhav dates:', Array.from(bhavDates.keys()).sort().reverse().slice(0, 5));
             console.log('📅 Available premarket dates:', Array.from(premarketDates.keys()).sort().reverse().slice(0, 5));
 
+            // Get today's date
+            const today = new Date().toISOString().split('T')[0];
+            console.log('📅 Today is:', today);
+
+            // Strategy: Try to find signals for TODAY first (during market hours)
+            // For signals on date T, we need:
+            // - Bhav from T-1 (previous trading day)
+            // - Premarket from T (today's pre-open)
+
+            // Check if we have data for TODAY
+            const todayPrevDay = this.getPrevTradingDay(today);
+            const todayBhavCount = bhavDates.get(todayPrevDay) || 0;
+            const todayPremarketCount = premarketDates.get(today) || 0;
+
+            console.log(`🔍 Checking TODAY (${today}): prevDay=${todayPrevDay}, bhav=${todayBhavCount}, premarket=${todayPremarketCount}`);
+
+            if (todayBhavCount > 50 && todayPremarketCount > 0) {
+                console.log(`✅ Using TODAY as signal date: ${today} (bhav from ${todayPrevDay}, premarket from ${today})`);
+                return {
+                    signalDate: today,
+                    bhavDate: todayPrevDay,
+                    premarketDate: today,
+                    isComplete: true
+                };
+            } else if (todayBhavCount > 50) {
+                // We have bhav but no premarket for today - still use today (EOD mode)
+                console.log(`✅ Using TODAY as signal date: ${today} (bhav from ${todayPrevDay}, no premarket yet)`);
+                return {
+                    signalDate: today,
+                    bhavDate: todayPrevDay,
+                    premarketDate: null,
+                    isComplete: false
+                };
+            }
+
+            // If we don't have bhav for yesterday, fall back to most recent complete dataset
+            console.log(`⚠️ No bhav for ${todayPrevDay}, searching for most recent complete dataset...`);
+
             // Find most recent date with BOTH bhav (T-1) AND premarket (T)
-            // For signal generation on date T, we need bhav from T-1 and premarket from T
             const allDates = [...new Set([...bhavDates.keys(), ...premarketDates.keys()])]
                 .filter(d => d && d !== 'undefined' && d !== 'null')
                 .sort((a, b) => new Date(b) - new Date(a)); // Newest first
