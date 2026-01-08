@@ -8972,6 +8972,18 @@ class MarketMoodApp {
             if (latestBhavDate) {
                 const nextDay = this.getNextTradingDay(latestBhavDate);
                 const bhavCount = bhavDates.get(latestBhavDate) || 0;
+
+                // If the "next day" is in the past or today, use it. 
+                // If it's in the future (e.g. tomorrow), we should probably stick to TODAY or return null
+                // But for now, let's trust the logic IF it's not the future-date bug source.
+                // Actually, the bug was in loadSignals fallback.
+                // However, let's be safe: if nextDay > today, return null to let loadSignals handle it
+                const today = new Date().toISOString().split('T')[0];
+                if (nextDay > today) {
+                    console.log(`⚠️ Calculated next trading day ${nextDay} is in future. Returning null to use default.`);
+                    return null;
+                }
+
                 console.log(`⚠️ No complete dataset found. Using bhav from ${latestBhavDate} (count=${bhavCount}) for signals on ${nextDay}`);
                 return {
                     signalDate: nextDay,
@@ -9002,11 +9014,12 @@ class MarketMoodApp {
                 targetSignalDate = bestDate.signalDate;
                 console.log(`✅ Using best available date: ${targetSignalDate} (bhav: ${bestDate.bhavDate}, premarket: ${bestDate.premarketDate || 'N/A'})`);
             } else {
-                // Fallback to today + 1
-                console.warn('⚠️ No uploaded data found, using fallback date');
+                // Fallback to TODAY (not next trading day)
+                // This ensures users see the current day's dashboard even if data is missing
+                console.warn('⚠️ No uploaded data found, defaulting to TODAY');
                 const today = new Date().toISOString().split('T')[0];
-                targetSignalDate = this.getNextTradingDay(today);
-                console.warn(`⚠️ Defaulting to next trading day from today: ${targetSignalDate}`);
+                targetSignalDate = today;
+                console.log(`⚠️ Defaulting to TODAY: ${targetSignalDate}`);
             }
         }
 
